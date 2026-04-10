@@ -127,6 +127,14 @@ class Tenant extends Model
     }
 
     /**
+     * Get the conversations for this tenant.
+     */
+    public function conversations(): HasMany
+    {
+        return $this->hasMany(Conversation::class);
+    }
+
+    /**
      * Get the domains associated with this tenant.
      */
     public function domains(): HasMany

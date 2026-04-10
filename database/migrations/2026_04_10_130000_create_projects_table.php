@@ -28,6 +28,7 @@ return new class extends Migration
             $table->timestamps();
 
             $table->unique(['tenant_id', 'slug']);
+            $table->unique(['id', 'tenant_id']);
             $table->index(['tenant_id', 'is_active']);
         });
     }

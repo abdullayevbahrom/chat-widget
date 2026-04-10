@@ -67,6 +67,140 @@ class ProjectResource extends Resource
                             ->default(true),
                     ])
                     ->columns(2),
+
+                \Filament\Forms\Components\Section::make('Widget Configuration')
+                    ->description('Configure how the widget appears on your site')
+                    ->schema([
+                        \Filament\Forms\Components\Select::make('settings.widget.theme')
+                            ->label('Theme')
+                            ->options([
+                                'light' => 'Light',
+                                'dark' => 'Dark',
+                            ])
+                            ->default('light'),
+                        \Filament\Forms\Components\Select::make('settings.widget.position')
+                            ->label('Position')
+                            ->options([
+                                'bottom-right' => 'Bottom Right',
+                                'bottom-left' => 'Bottom Left',
+                                'top-right' => 'Top Right',
+                                'top-left' => 'Top Left',
+                            ])
+                            ->default('bottom-right'),
+                        \Filament\Forms\Components\TextInput::make('settings.widget.width')
+                            ->label('Width (px)')
+                            ->numeric()
+                            ->default(350)
+                            ->minValue(300)
+                            ->maxValue(600),
+                        \Filament\Forms\Components\TextInput::make('settings.widget.height')
+                            ->label('Height (px)')
+                            ->numeric()
+                            ->default(500)
+                            ->minValue(400)
+                            ->maxValue(800),
+                        \Filament\Forms\Components\ColorPicker::make('settings.widget.primary_color')
+                            ->label('Primary Color')
+                            ->default('#3B82F6'),
+                        \Filament\Forms\Components\Textarea::make('settings.widget.custom_css')
+                            ->label('Custom CSS')
+                            ->nullable()
+                            ->rows(5)
+                            ->helperText('Additional CSS to customize the widget appearance'),
+                    ])
+                    ->columns(2),
+
+                \Filament\Forms\Components\Section::make('Widget Key')
+                    ->description('Manage the widget key used to embed this widget on your site')
+                    ->schema([
+                        \Filament\Forms\Components\Placeholder::make('widget_key_display')
+                            ->label('Current Key')
+                            ->content(function (?Project $record): string {
+                                if ($record === null || $record->widget_key_prefix === null) {
+                                    return 'No key generated. Generate one below.';
+                                }
+
+                                return $record->widget_key_prefix . '... (hidden for security)';
+                            }),
+
+                        \Filament\Forms\Components\Actions::make([
+                            \Filament\Forms\Components\Actions\Action::make('generate_key')
+                                ->label('Generate New Key')
+                                ->icon(Heroicon::OutlinedKey)
+                                ->color('primary')
+                                ->requiresConfirmation()
+                                ->modalHeading('Generate new widget key?')
+                                ->modalDescription('This will invalidate the old key. Your widget may stop working on sites using the old key until they update.')
+                                ->modalSubmitActionLabel('Yes, generate new key')
+                                ->action(function (Project $record) {
+                                    $newKey = $record->generateWidgetKey();
+
+                                    // Store the new key temporarily in session to show once
+                                    session([
+                                        'generated_widget_key_' . $record->id => $newKey,
+                                    ]);
+
+                                    return redirect()->back()->with([
+                                        'alert' => "New widget key generated: {$newKey}",
+                                    ]);
+                                })
+                                ->visible(fn (?Project $record): bool => $record !== null),
+
+                            \Filament\Forms\Components\Actions\Action::make('revoke_key')
+                                ->label('Revoke Key')
+                                ->icon(Heroicon::OutlinedTrash)
+                                ->color('danger')
+                                ->requiresConfirmation()
+                                ->modalHeading('Revoke widget key?')
+                                ->modalDescription('This will immediately disable the widget on all sites. You will need to generate a new key and update all embeds.')
+                                ->action(function (Project $record) {
+                                    $record->revokeWidgetKey();
+
+                                    return redirect()->back();
+                                })
+                                ->visible(fn (?Project $record): bool => $record !== null && $record->widget_key_prefix !== null),
+                        ]),
+                    ]),
+
+                \Filament\Forms\Components\Section::make('Embed Code')
+                    ->description('Copy this code to your website to embed the widget')
+                    ->schema([
+                        \Filament\Forms\Components\Placeholder::make('embed_code')
+                            ->content(function (?Project $record): \Illuminate\Support\HtmlString {
+                                if ($record === null || $record->widget_key_prefix === null) {
+                                    return new \Illuminate\Support\HtmlString('<p class="text-gray-500">Generate a widget key to get the embed code.</p>');
+                                }
+
+                                // Check if there's a newly generated key in session
+                                $sessionKey = 'generated_widget_key_' . $record->id;
+                                $widgetKey = session($sessionKey);
+
+                                if ($widgetKey) {
+                                    // Show the key once, then forget it
+                                    session()-\u003eforget($sessionKey);
+
+                                    $embedCode = <<<HTML
+<script
+    src="{{ url('/widget.js?key=') }}{$widgetKey}"
+    data-widget-key="{$widgetKey}"
+    async
+></script>
+HTML;
+
+                                    return new \Illuminate\Support\HtmlString(
+                                        '<div class="space-y-2">' .
+                                        '<p class="text-green-600 font-semibold">✓ New widget key generated! Copy this code to your site:</p>' .
+                                        '<pre class="bg-gray-100 p-3 rounded text-sm overflow-x-auto"><code>' . htmlspecialchars($embedCode) . '</code></pre>' .
+                                        '<p class="text-amber-600 text-sm">⚠️ This is the only time you will see the full key. Store it securely!</p>' .
+                                        '</div>'
+                                    );
+                                }
+
+                                return new \Illuminate\Support\HtmlString(
+                                    '<p class="text-gray-500">Widget key is active. Generate a new key to view the embed code.</p>'
+                                );
+                            }),
+                    ]),
             ]);
     }
 

@@ -102,6 +102,63 @@ class VisitorTrackingService
     }
 
     /**
+     * Build sanitized visitor data for widget API requests that do not use
+     * Laravel's session middleware.
+     *
+     * @return array<string, mixed>
+     */
+    public function buildWidgetVisitorData(Request $request, ?int $tenantId, string $sessionId): array
+    {
+        $agent = $this->createAgent($request);
+        $now = now();
+
+        return [
+            'tenant_id' => $tenantId,
+            'session_id' => $sessionId,
+            'ip_address_encrypted' => $this->encryptIpAddress($this->resolveIpAddress($request)),
+            'user_agent' => $this->sanitizeTextField($request->userAgent(), self::MAX_USER_AGENT_LENGTH),
+            'referer' => $this->sanitizeTextField($request->headers->get('referer'), self::MAX_REFERER_LENGTH),
+            'current_url' => $this->sanitizeTextField($request->fullUrl(), self::MAX_URL_LENGTH),
+            'current_page' => $this->truncate($request->path(), 500),
+            'device_type' => $this->getDeviceType($agent),
+            'browser' => $this->truncate($agent->browser(), 100),
+            'browser_version' => $this->truncate($agent->version($agent->browser()), 50),
+            'platform' => $this->truncate($agent->platform(), 100),
+            'platform_version' => $this->truncate($agent->version($agent->platform()), 50),
+            'language' => $this->resolveLanguage($request),
+            'is_authenticated' => Auth::check(),
+            'user_id' => Auth::id(),
+            'first_visit_at' => $now,
+            'last_visit_at' => $now,
+            'visit_count' => 1,
+        ];
+    }
+
+    /**
+     * Build sanitized metadata updates for an already-bound widget visitor.
+     *
+     * @return array<string, mixed>
+     */
+    public function buildWidgetVisitorRefreshData(Request $request): array
+    {
+        $agent = $this->createAgent($request);
+
+        return [
+            'user_agent' => $this->sanitizeTextField($request->userAgent(), self::MAX_USER_AGENT_LENGTH),
+            'referer' => $this->sanitizeTextField($request->headers->get('referer'), self::MAX_REFERER_LENGTH),
+            'current_url' => $this->sanitizeTextField($request->fullUrl(), self::MAX_URL_LENGTH),
+            'current_page' => $this->truncate($request->path(), 500),
+            'device_type' => $this->getDeviceType($agent),
+            'browser' => $this->truncate($agent->browser(), 100),
+            'browser_version' => $this->truncate($agent->version($agent->browser()), 50),
+            'platform' => $this->truncate($agent->platform(), 100),
+            'platform_version' => $this->truncate($agent->version($agent->platform()), 50),
+            'language' => $this->resolveLanguage($request),
+            'last_visit_at' => now(),
+        ];
+    }
+
+    /**
      * Get a visitor record by session ID.
      */
     public function getVisitorBySession(string $sessionId): ?Visitor

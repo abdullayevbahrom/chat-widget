@@ -72,6 +72,14 @@ class Project extends Model
     }
 
     /**
+     * Get the conversations for this project.
+     */
+    public function conversations(): HasMany
+    {
+        return $this->hasMany(Conversation::class);
+    }
+
+    /**
      * Get only the active domains for this project.
      */
     public function activeDomains(): HasMany

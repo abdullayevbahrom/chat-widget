@@ -88,5 +88,13 @@ class AppServiceProvider extends ServiceProvider
 
             return Limit::perMinute(60)->by("widget:{$widgetKey}");
         });
+
+        // Rate limiter for widget message sending
+        // 30 messages per minute per widget key
+        RateLimiter::for('widget-message', function (Request $request) {
+            $widgetKey = $request->input('widget_key') ?? $request->header('X-Widget-Key') ?? $request->ip();
+
+            return Limit::perMinute(30)->by("widget-msg:{$widgetKey}");
+        });
     }
 }

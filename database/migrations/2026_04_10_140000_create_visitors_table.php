@@ -40,6 +40,7 @@ return new class extends Migration
             $table->timestamps();
 
             // No duplicate tenant_id index — foreign key already creates one (Issue #7)
+            $table->unique(['id', 'tenant_id']);
             $table->index('last_visit_at');
         });
     }

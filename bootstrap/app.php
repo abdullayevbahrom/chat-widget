@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Http\Request;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -12,6 +13,11 @@ return Application::configure(basePath: dirname(__DIR__))
         api: __DIR__.'/../routes/api.php',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $trustedProxies = array_values(array_filter(
+            array_map('trim', explode(',', (string) env('TRUSTED_PROXIES', ''))),
+            static fn (string $proxy): bool => $proxy !== ''
+        ));
+
         // API rate limiting is configured explicitly in AppServiceProvider
         // using RateLimiter::for('api', ...) with per-user/per-IP limits.
 
@@ -25,16 +31,14 @@ return Application::configure(basePath: dirname(__DIR__))
         // behind load balancers / reverse proxies (Issue #11).
         // The TRUSTED_PROXIES env variable should be set in production
         // to the IP(s) of your load balancer or reverse proxy.
-        $middleware->trustProxies(at: function (Request $request) {
-            return [
-                'headers' => Request::HEADER_X_FORWARDED_FOR |
-                    Request::HEADER_X_FORWARDED_HOST |
-                    Request::HEADER_X_FORWARDED_PORT |
-                    Request::HEADER_X_FORWARDED_PROTO |
-                    Request::HEADER_X_FORWARDED_AWS_ELB,
-                'proxies' => config('app.trusted_proxies', env('TRUSTED_PROXIES', '*')),
-            ];
-        });
+        $middleware->trustProxies(
+            at: $trustedProxies === [] ? null : $trustedProxies,
+            headers: Request::HEADER_X_FORWARDED_FOR |
+                Request::HEADER_X_FORWARDED_HOST |
+                Request::HEADER_X_FORWARDED_PORT |
+                Request::HEADER_X_FORWARDED_PROTO |
+                Request::HEADER_X_FORWARDED_AWS_ELB,
+        );
 
         // Visitor tracking middleware — track visitor sessions on web routes
         $middleware->web(append: [

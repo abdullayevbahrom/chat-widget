@@ -21,7 +21,9 @@ class ValidateWidgetKey
      */
     public function handle(Request $request, Closure $next): Response
     {
-        $key = $request->input('widget_key') ?? $request->header('X-Widget-Key');
+        $key = $request->input('widget_key')
+            ?? $request->input('key')
+            ?? $request->header('X-Widget-Key');
 
         if (! $key || ! $this->widgetKeyService->validateKey($key)) {
             return response()->json(['error' => 'Invalid or missing widget key.'], 401);
