@@ -141,6 +141,8 @@ class Message extends Model
             'metadata' => 'array',
             'read_at' => 'datetime',
             'is_read' => 'boolean',
+            'message_type' => 'string',
+            'direction' => 'string',
         ];
     }
 

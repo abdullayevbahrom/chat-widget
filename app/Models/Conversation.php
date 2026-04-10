@@ -111,6 +111,8 @@ class Conversation extends Model
         return [
             'metadata' => 'array',
             'last_message_at' => 'datetime',
+            'status' => 'string',
+            'source' => 'string',
         ];
     }
 
