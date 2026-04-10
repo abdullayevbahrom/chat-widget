@@ -1,0 +1,23 @@
+-- PostgreSQL database initialization for Widget
+-- This script runs automatically when the container is first created
+-- Uses psql variables :db_name and :db_user (passed via --variable flag)
+-- Note: Database and user creation is handled by POSTGRES_* environment variables
+
+\c :db_name;
+
+-- Grant only necessary privileges following least privilege principle
+-- Schema usage
+GRANT USAGE ON SCHEMA public TO :db_user;
+
+-- Table operations (SELECT, INSERT, UPDATE, DELETE - no DROP/CREATE)
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO :db_user;
+
+-- Sequence operations (for auto-incrementing IDs)
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO :db_user;
+
+-- Default privileges for future tables created by postgres superuser
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO :db_user;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT USAGE, SELECT ON SEQUENCES TO :db_user;

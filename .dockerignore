@@ -1,0 +1,110 @@
+# Dependencies
+vendor/
+node_modules/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.sublime-*
+
+# Logs
+storage/logs/*.log
+npm-debug.log
+yarn-error.log
+
+# Build artifacts
+public/hot
+public/storage
+storage/framework/cache/*
+!storage/framework/cache/.gitignore
+storage/framework/sessions/*
+!storage/framework/sessions/.gitignore
+storage/framework/testing/*
+!storage/framework/testing/.gitignore
+storage/framework/views/*
+!storage/framework/views/.gitignore
+
+# OS files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Docker files (not needed inside container)
+docker-compose.yml
+docker-compose.override.yml
+docker/
+.dockerignore
+
+# Secrets
+.secrets/
+
+# Documentation
+README.md
+CHANGELOG.md
+LICENSE
+docs/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+circle.yml
+
+# Testing
+.phpunit.result.cache
+coverage/
+.phpstan-cache/
+.php-cs-fixer.cache
+.eslintcache
+
+# NPM
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Temp files
+*.tmp
+*.temp
+*.log
+*.cache
+
+# AI/Code assistant files
+.ai-factory/
+.claude/
+.codex/
+.qwen/
+.cursor/
+.windsurfrules
+
+# Composer
+composer.phar
+auth.json
+
+# PHPStan, Psalm, PHPStan
+phpstan.neon.dist
+phpstan.neon
+psalm.xml
+psalm.xml.dist
+
+# Editor backup files
+*~
+.\#*
+\#*\#
+
+# Laravel specific
+bootstrap/cache/*.php
+!bootstrap/cache/.gitignore
