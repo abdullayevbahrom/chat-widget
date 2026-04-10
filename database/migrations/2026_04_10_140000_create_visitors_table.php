@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -11,12 +12,17 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('visitors', function (Blueprint $table) {
+        $driver = Schema::getConnection()->getDriverName();
+
+        Schema::create('visitors', function (Blueprint $table) use ($driver) {
             $table->id();
             // Foreign key automatically creates an index — no separate index needed (Issue #7)
             $table->foreignId('tenant_id')->nullable()->constrained('tenants')->onDelete('set null');
-            // Unique constraint ensures one visitor record per session (Issue #4)
-            $table->string('session_id')->unique();
+            // Unique constraint ensures one visitor record per tenant/session pair.
+            $table->string('session_id');
+            if (in_array($driver, ['mysql', 'mariadb'], true)) {
+                $table->unsignedBigInteger('tenant_scope_key')->storedAs('coalesce(tenant_id, 0)');
+            }
             // IP address will be encrypted for GDPR compliance (Issue #14)
             $table->text('ip_address_encrypted')->nullable();
             $table->text('user_agent')->nullable();
@@ -41,8 +47,18 @@ return new class extends Migration
 
             // No duplicate tenant_id index — foreign key already creates one (Issue #7)
             $table->unique(['id', 'tenant_id']);
+            $table->unique(['tenant_id', 'session_id']);
+            if (in_array($driver, ['mysql', 'mariadb'], true)) {
+                $table->unique(['tenant_scope_key', 'session_id'], 'visitors_tenant_scope_session_unique');
+            }
             $table->index('last_visit_at');
         });
+
+        if (in_array($driver, ['pgsql', 'sqlite'], true)) {
+            DB::statement(
+                'CREATE UNIQUE INDEX visitors_tenant_scope_session_unique ON visitors (COALESCE(tenant_id, 0), session_id)'
+            );
+        }
     }
 
     /**

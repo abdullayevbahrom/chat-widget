@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Log;
 use LogicException;
@@ -103,6 +104,8 @@ class Message extends Model
             if (($message->sender_type === null) !== ($message->sender_id === null)) {
                 throw new LogicException('Message sender_type and sender_id must be both null or both present.');
             }
+
+            $message->assertSenderIntegrity($conversation);
         });
     }
 
@@ -228,5 +231,50 @@ class Message extends Model
     public function scopeOfType(Builder $query, string $type): Builder
     {
         return $query->where('message_type', $type);
+    }
+
+    protected function assertSenderIntegrity(Conversation $conversation): void
+    {
+        $senderClass = Relation::getMorphedModel($this->sender_type) ?? $this->sender_type;
+        $allowedSenderClasses = [
+            Visitor::class,
+            User::class,
+            Tenant::class,
+        ];
+
+        if (! is_string($senderClass) || ! in_array($senderClass, $allowedSenderClasses, true)) {
+            throw new LogicException('Message sender_type is not supported.');
+        }
+
+        /** @var Model|null $sender */
+        $sender = $senderClass::query()->withoutGlobalScopes()->find($this->sender_id);
+
+        if ($sender === null) {
+            throw new LogicException('Message sender must exist before saving.');
+        }
+
+        if ($sender instanceof Visitor) {
+            if ($sender->tenant_id !== $conversation->tenant_id) {
+                throw new LogicException('Message visitor sender must belong to the same tenant.');
+            }
+
+            if ($conversation->visitor_id !== $sender->id) {
+                throw new LogicException('Message visitor sender must match the conversation visitor.');
+            }
+
+            return;
+        }
+
+        if ($sender instanceof User) {
+            if ($sender->tenant_id !== $conversation->tenant_id) {
+                throw new LogicException('Message user sender must belong to the conversation tenant.');
+            }
+
+            return;
+        }
+
+        if ($sender instanceof Tenant && $sender->id !== $conversation->tenant_id) {
+            throw new LogicException('Message tenant sender must match the conversation tenant.');
+        }
     }
 }

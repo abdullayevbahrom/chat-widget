@@ -4,6 +4,7 @@ namespace App\Filament\Tenant\Resources\ProjectResource\RelationManagers;
 
 use App\Models\ProjectDomain;
 use App\Services\DomainVerificationService;
+use Closure;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -35,13 +36,31 @@ class DomainsRelationManager extends RelationManager
                 TextInput::make('domain')
                     ->required()
                     ->maxLength(255)
-                    ->regex('/^[a-zA-Z0-9][a-zA-Z0-9\-\.]*\.[a-zA-Z]{2,}$/')
-                    ->helperText('e.g., app.example.com')
-                    ->unique(
-                        table: ProjectDomain::class,
-                        column: 'domain',
-                        ignoreRecord: true,
-                    ),
+                    ->helperText('Use the full origin, for example https://app.example.com or http://localhost:3000')
+                    ->rule(function () {
+                        return function (string $attribute, mixed $value, Closure $fail): void {
+                            if (! is_string($value)) {
+                                $fail('Enter a valid origin such as https://app.example.com or http://localhost:3000.');
+
+                                return;
+                            }
+
+                            $normalizedDomain = ProjectDomain::normalizeDomainInput($value);
+
+                            if ($normalizedDomain === null) {
+                                $fail('Enter a valid origin such as https://app.example.com or http://localhost:3000.');
+
+                                return;
+                            }
+
+                            $projectId = $this->getOwnerRecord()->getKey();
+                            $recordId = $this->getMountedTableActionRecord()?->getKey();
+
+                            if (ProjectDomain::existsForProject($projectId, $normalizedDomain, $recordId)) {
+                                $fail('This domain is already added to this project.');
+                            }
+                        };
+                    }),
                 Toggle::make('is_active')
                     ->label('Active')
                     ->default(true),

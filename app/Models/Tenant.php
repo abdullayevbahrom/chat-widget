@@ -7,6 +7,7 @@ use Illuminate\Cache\RedisStore;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Facades\Cache;
 
 class Tenant extends Model
@@ -132,6 +133,14 @@ class Tenant extends Model
     public function conversations(): HasMany
     {
         return $this->hasMany(Conversation::class);
+    }
+
+    /**
+     * Get the messages sent by this tenant.
+     */
+    public function messages(): MorphMany
+    {
+        return $this->morphMany(Message::class, 'sender');
     }
 
     /**

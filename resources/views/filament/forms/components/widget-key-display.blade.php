@@ -8,11 +8,11 @@
     // Build the embed code snippet
     $embedCode = $hasNewKey
         ? <<<HTML
-<script src="{{ url('/widget.js') }}?key={$newKey}" data-widget-key="{$newKey}" async></script>
+<script src="{{ url('/widget.js') }}" data-widget-key="{$newKey}" async></script>
 HTML
         : ($hasKey
             ? <<<HTML
-<script src="{{ url('/widget.js') }}?key={$prefix}..." data-widget-key="{$prefix}..." async></script>
+<script src="{{ url('/widget.js') }}" data-widget-key="{$prefix}..." async></script>
 HTML
             : '');
 @endphp

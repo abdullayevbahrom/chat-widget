@@ -6,6 +6,7 @@ use App\Observers\ProjectDomainObserver;
 use App\Scopes\TenantScope;
 use Database\Factories\ProjectDomainFactory;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -52,6 +53,13 @@ class ProjectDomain extends Model
             'is_active' => 'boolean',
             'verified_at' => 'datetime',
         ];
+    }
+
+    protected function domain(): Attribute
+    {
+        return Attribute::make(
+            set: fn (?string $value): ?string => self::normalizeDomainInput($value),
+        );
     }
 
     /**
@@ -121,5 +129,60 @@ class ProjectDomain extends Model
         }
 
         return $this->updated_at->isAfter(now()->subHours(24));
+    }
+
+    public static function normalizeDomainInput(?string $value): ?string
+    {
+        if (! is_string($value) || trim($value) === '') {
+            return null;
+        }
+
+        $candidate = trim($value);
+        $parts = parse_url($candidate);
+
+        if (($parts === false || ! isset($parts['scheme'], $parts['host'])) && ! str_contains($candidate, '://')) {
+            $parts = parse_url('https://'.$candidate);
+        }
+
+        if (
+            $parts === false
+            || ! isset($parts['scheme'], $parts['host'])
+            || ! is_string($parts['scheme'])
+            || ! is_string($parts['host'])
+        ) {
+            return null;
+        }
+
+        $scheme = strtolower($parts['scheme']);
+
+        if (! in_array($scheme, ['http', 'https'], true)) {
+            return null;
+        }
+
+        $host = strtolower($parts['host']);
+        $port = isset($parts['port']) && is_int($parts['port']) ? ':'.$parts['port'] : '';
+
+        return sprintf('%s://%s%s', $scheme, $host, $port);
+    }
+
+    public function getHostForVerification(): ?string
+    {
+        $parts = parse_url($this->domain);
+
+        return $parts !== false && isset($parts['host']) && is_string($parts['host'])
+            ? strtolower($parts['host'])
+            : null;
+    }
+
+    public static function existsForProject(int $projectId, string $domain, ?int $ignoreId = null): bool
+    {
+        return static::query()
+            ->where('project_id', $projectId)
+            ->where('domain', $domain)
+            ->when(
+                $ignoreId !== null,
+                fn ($query) => $query->whereKeyNot($ignoreId),
+            )
+            ->exists();
     }
 }

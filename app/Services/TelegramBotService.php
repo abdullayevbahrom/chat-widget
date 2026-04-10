@@ -182,4 +182,43 @@ class TelegramBotService
 
         return $response->json();
     }
+
+    public function getFilePath(string $token, string $fileId): ?string
+    {
+        $response = Http::timeout(10)
+            ->get("{$this->apiBaseUrl}{$token}/getFile", [
+                'file_id' => $fileId,
+            ]);
+
+        if (! $response->successful() || ! $response->json('ok')) {
+            Log::warning('Telegram Bot API getFile failed', [
+                'file_id' => $fileId,
+                'status' => $response->status(),
+                'description' => $response->json('description', 'Unknown error'),
+            ]);
+
+            return null;
+        }
+
+        $filePath = $response->json('result.file_path');
+
+        return is_string($filePath) && $filePath !== '' ? $filePath : null;
+    }
+
+    public function downloadFile(string $token, string $filePath): ?string
+    {
+        $downloadBaseUrl = str_replace('/bot', '/file/bot', $this->apiBaseUrl);
+        $response = Http::timeout(20)->get("{$downloadBaseUrl}{$token}/{$filePath}");
+
+        if (! $response->successful()) {
+            Log::warning('Telegram file download failed', [
+                'file_path' => $filePath,
+                'status' => $response->status(),
+            ]);
+
+            return null;
+        }
+
+        return $response->body();
+    }
 }

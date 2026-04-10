@@ -58,10 +58,18 @@ class ProjectDomainController extends Controller
 
         $validated = $request->validate([
             'project_id' => ['required', 'exists:projects,id'],
-            'domain' => ['required', 'string', 'max:255', 'regex:'.config('domains.regex')],
+            'domain' => ['required', 'string', 'max:255'],
             'is_active' => ['boolean'],
             'notes' => ['nullable', 'string'],
         ]);
+
+        $validated['domain'] = ProjectDomain::normalizeDomainInput($validated['domain']);
+
+        if ($validated['domain'] === null) {
+            throw ValidationException::withMessages([
+                'domain' => ['Enter a valid origin such as https://app.example.com or http://localhost:3000.'],
+            ]);
+        }
 
         $project = Project::findOrFail($validated['project_id']);
 
@@ -70,11 +78,7 @@ class ProjectDomainController extends Controller
         }
 
         // Check uniqueness per project
-        $exists = ProjectDomain::where('project_id', $project->id)
-            ->where('domain', $validated['domain'])
-            ->exists();
-
-        if ($exists) {
+        if (ProjectDomain::existsForProject($project->id, $validated['domain'])) {
             throw ValidationException::withMessages([
                 'domain' => ['This domain is already added to this project.'],
             ]);
@@ -122,12 +126,26 @@ class ProjectDomainController extends Controller
                 'sometimes',
                 'string',
                 'max:255',
-                'unique:project_domains,domain,'.$domain->id,
-                'regex:'.config('domains.regex'),
             ],
             'is_active' => ['boolean'],
             'notes' => ['nullable', 'string'],
         ]);
+
+        if (array_key_exists('domain', $validated)) {
+            $validated['domain'] = ProjectDomain::normalizeDomainInput($validated['domain']);
+
+            if ($validated['domain'] === null) {
+                throw ValidationException::withMessages([
+                    'domain' => ['Enter a valid origin such as https://app.example.com or http://localhost:3000.'],
+                ]);
+            }
+
+            if (ProjectDomain::existsForProject($domain->project_id, $validated['domain'], $domain->id)) {
+                throw ValidationException::withMessages([
+                    'domain' => ['This domain is already added to this project.'],
+                ]);
+            }
+        }
 
         $domain->update($validated);
 

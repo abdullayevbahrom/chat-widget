@@ -21,6 +21,7 @@ class TelegramBotSetting extends Model
         'bot_token_encrypted',
         'bot_username',
         'bot_name',
+        'chat_id',
         'webhook_url',
         'webhook_secret',
         'is_active',

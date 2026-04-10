@@ -84,7 +84,10 @@ class AppServiceProvider extends ServiceProvider
         // Rate limiter for widget config endpoint
         // Limited by widget key to prevent abuse of a specific widget
         RateLimiter::for('widget-config', function (Request $request) {
-            $widgetKey = $request->input('widget_key') ?? $request->header('X-Widget-Key') ?? $request->ip();
+            $widgetKey = $request->header('X-Widget-Key')
+                ?? $request->header('X-Widget-Bootstrap')
+                ?? $request->query('project')
+                ?? $request->ip();
 
             return Limit::perMinute(60)->by("widget:{$widgetKey}");
         });
@@ -92,7 +95,9 @@ class AppServiceProvider extends ServiceProvider
         // Rate limiter for widget message sending
         // 30 messages per minute per widget key
         RateLimiter::for('widget-message', function (Request $request) {
-            $widgetKey = $request->input('widget_key') ?? $request->header('X-Widget-Key') ?? $request->ip();
+            $widgetKey = $request->header('X-Widget-Key')
+                ?? $request->header('X-Widget-Bootstrap')
+                ?? $request->ip();
 
             return Limit::perMinute(30)->by("widget-msg:{$widgetKey}");
         });

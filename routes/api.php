@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\TelegramWebhookController;
 use App\Http\Controllers\Api\TenantDomainController;
 use App\Http\Controllers\Api\TenantProfileController;
 use App\Http\Controllers\Api\WidgetMessageController;
+use App\Http\Middleware\EnsureVerifiedWidgetDomain;
 use App\Http\Middleware\ValidateWidgetKey;
 use Illuminate\Support\Facades\Route;
 
@@ -31,7 +32,7 @@ Route::middleware(['throttle:telegram-webhook'])
     ->name('telegram.webhook');
 
 // Widget Message API — rate limited, widget key validated
-Route::middleware(['throttle:widget-message', ValidateWidgetKey::class])
+Route::middleware(['throttle:widget-message', ValidateWidgetKey::class, EnsureVerifiedWidgetDomain::class])
     ->prefix('widget')
     ->group(function () {
         Route::post('messages', [WidgetMessageController::class, 'store'])->name('widget.messages.store');

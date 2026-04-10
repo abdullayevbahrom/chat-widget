@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\Project;
+use App\Models\TelegramBotSetting;
 use App\Models\Tenant;
 use App\Models\Visitor;
+use App\Services\MessageAttachmentService;
 use App\Services\TelegramBotService;
 use App\Services\VisitorTrackingService;
 use Illuminate\Database\QueryException;
@@ -18,6 +20,7 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class WidgetMessageController extends Controller
 {
@@ -26,6 +29,7 @@ class WidgetMessageController extends Controller
     public function __construct(
         protected TelegramBotService $telegramBotService,
         protected VisitorTrackingService $visitorTrackingService,
+        protected MessageAttachmentService $messageAttachmentService,
     ) {}
 
     /**
@@ -43,35 +47,65 @@ class WidgetMessageController extends Controller
         $this->initializeTenantContext($project);
 
         $validated = $request->validate([
-            'message' => ['required', 'string', 'max:2000'],
+            'message' => [
+                'nullable',
+                'string',
+                'max:2000',
+                Rule::requiredIf(fn (): bool => ! $request->hasFile('attachments')),
+            ],
             'visitor_name' => ['nullable', 'string', 'max:255'],
             'visitor_email' => ['nullable', 'email', 'max:255'],
+            'attachments' => ['sometimes', 'array', 'max:'.MessageAttachmentService::MAX_ATTACHMENTS],
+            'attachments.*' => [
+                'file',
+                'max:'.MessageAttachmentService::MAX_FILE_SIZE_KB,
+                'mimetypes:image/jpeg,image/png,image/gif,image/webp,application/pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            ],
         ]);
 
-        // Resolve or create visitor
-        $visitor = $this->resolveVisitor($request, $project);
+        Log::info('Handling widget message create request.', [
+            'project_id' => $project->id,
+            'has_body' => filled($validated['message'] ?? null),
+            'attachment_count' => count($request->file('attachments', [])),
+        ]);
 
+        $visitor = $this->resolveVisitor($request, $project);
         $conversation = $this->resolveOpenConversation($project, $visitor);
+        $attachments = $this->messageAttachmentService->storeUploadedAttachments(
+            $request->file('attachments', []),
+            $project,
+            $conversation
+        );
+        $body = $this->normalizeMessageBody($validated['message'] ?? null);
 
         $message = $conversation->messages()->create([
             'tenant_id' => $conversation->tenant_id,
             'sender_type' => $visitor->getMorphClass(),
             'sender_id' => $visitor->id,
-            'message_type' => Message::TYPE_TEXT,
-            'body' => $validated['message'],
+            'message_type' => $this->resolveMessageType($attachments),
+            'body' => $body,
+            'attachments' => $attachments !== [] ? $attachments : null,
             'direction' => Message::DIRECTION_INBOUND,
             'metadata' => array_filter([
                 'visitor_name' => $validated['visitor_name'] ?? null,
                 'visitor_email' => $validated['visitor_email'] ?? null,
+                'attachment_count' => count($attachments),
             ], static fn (mixed $value): bool => filled($value)),
         ]);
 
-        $this->notifyTelegram($project, $message, $visitor, $validated);
-
+        $this->notifyTelegram($project, $message, $validated);
         $this->issueVisitorBinding($request, $project, $visitor);
+
+        Log::info('Stored widget visitor message.', [
+            'project_id' => $project->id,
+            'conversation_id' => $conversation->id,
+            'message_id' => $message->id,
+            'message_type' => $message->message_type,
+        ]);
 
         return response()->json([
             'success' => true,
+            'message' => $this->serializeMessage($message->fresh()),
             'message_id' => $message->id,
             'conversation_id' => $conversation->id,
         ]);
@@ -88,6 +122,7 @@ class WidgetMessageController extends Controller
         if ($project === null) {
             return response()->json(['error' => 'Invalid or missing widget key.'], 401);
         }
+
         $this->initializeTenantContext($project);
 
         $visitor = $this->resolveBoundVisitor($request, $project);
@@ -101,7 +136,7 @@ class WidgetMessageController extends Controller
             return response()->json(['messages' => [], 'next_cursor' => null]);
         }
 
-        $cursor = $request->input('cursor');
+        $cursor = $request->integer('cursor');
 
         $query = Message::query()
             ->whereHas('conversation', function ($conversationQuery) use ($project, $visitor): void {
@@ -109,18 +144,15 @@ class WidgetMessageController extends Controller
                     ->where('project_id', $project->id)
                     ->where('visitor_id', $visitor->id);
             })
-            ->orderBy('created_at', 'desc')
             ->orderBy('id', 'desc')
             ->limit(50);
 
-        if ($cursor !== null) {
+        if ($cursor > 0) {
             $query->where('id', '<', $cursor);
         }
 
         $messages = $query->get()->reverse()->values();
         $oldestLoadedId = $messages->first()?->id;
-        $nextCursor = $oldestLoadedId;
-
         $hasMore = $oldestLoadedId !== null
             ? Message::query()
                 ->whereHas('conversation', function ($conversationQuery) use ($project, $visitor): void {
@@ -132,27 +164,16 @@ class WidgetMessageController extends Controller
                 ->exists()
             : false;
 
-        $payload = $messages->map(function (Message $message) {
-            return [
-                'id' => $message->id,
-                'conversation_id' => $message->conversation_id,
-                'type' => $message->isInbound() ? 'visitor' : 'agent',
-                'message_type' => $message->message_type,
-                'direction' => $message->direction,
-                'body' => $message->body,
-                'is_read' => $message->is_read,
-                'sender_type' => $message->sender_type,
-                'created_at' => $message->created_at->toISOString(),
-            ];
-        })->values();
-
-        if (! $hasMore) {
-            $nextCursor = null;
-        }
+        Log::info('Returning widget message history.', [
+            'project_id' => $project->id,
+            'visitor_id' => $visitor->id,
+            'message_count' => $messages->count(),
+            'next_cursor' => $hasMore ? $oldestLoadedId : null,
+        ]);
 
         return response()->json([
-            'messages' => $payload,
-            'next_cursor' => $nextCursor,
+            'messages' => $messages->map(fn (Message $message): array => $this->serializeMessage($message))->values(),
+            'next_cursor' => $hasMore ? $oldestLoadedId : null,
         ]);
     }
 
@@ -172,7 +193,6 @@ class WidgetMessageController extends Controller
             Log::info('Resolved bound widget visitor.', [
                 'project_id' => $project->id,
                 'visitor_id' => $visitor->id,
-                'session_id' => $visitor->session_id,
             ]);
 
             return $visitor;
@@ -186,7 +206,6 @@ class WidgetMessageController extends Controller
         Log::info('Created new widget visitor binding.', [
             'project_id' => $project->id,
             'visitor_id' => $visitor->id,
-            'session_id' => $visitor->session_id,
         ]);
 
         return $visitor;
@@ -265,40 +284,59 @@ class WidgetMessageController extends Controller
 
     /**
      * Send a notification to the project's Telegram bot.
+     *
+     * @param  array<string, mixed>  $validated
      */
-    protected function notifyTelegram(
-        Project $project,
-        Message $message,
-        Visitor $visitor,
-        array $validated,
-    ): void {
-        $telegramSetting = \App\Models\TelegramBotSetting::where('tenant_id', $project->tenant_id)->first();
+    protected function notifyTelegram(Project $project, Message $message, array $validated): void
+    {
+        $telegramSetting = TelegramBotSetting::where('tenant_id', $project->tenant_id)->first();
 
         if ($telegramSetting === null || blank($telegramSetting->bot_token) || blank($telegramSetting->chat_id)) {
+            Log::info('Skipping Telegram notification because the tenant chat binding is incomplete.', [
+                'project_id' => $project->id,
+                'tenant_id' => $project->tenant_id,
+                'has_setting' => $telegramSetting !== null,
+                'has_chat_id' => filled($telegramSetting?->chat_id),
+            ]);
+
             return;
         }
 
         $visitorName = $validated['visitor_name'] ?? 'Anonymous';
         $visitorEmail = $validated['visitor_email'] ?? 'Not provided';
+        $attachmentLines = collect($message->attachments ?? [])
+            ->map(fn (array $attachment): string => sprintf(
+                '- %s (%s)',
+                $attachment['original_name'] ?? $attachment['name'] ?? 'attachment',
+                $attachment['url'] ?? 'stored without URL'
+            ))
+            ->implode("\n");
 
         $text = sprintf(
-            "💬 *New Message from Widget*\n\n"
-            ."📌 *Project:* %s\n"
-            ."👤 *Visitor:* %s\n"
-            ."📧 *Email:* %s\n\n"
-            ."📝 *Message:*\n%s",
+            "New widget message\n\n"
+            ."Conversation: #%d\n"
+            ."Project: %s\n"
+            ."Visitor: %s\n"
+            ."Email: %s\n\n"
+            ."Message:\n%s",
+            $message->conversation_id,
             $project->name,
             $visitorName,
             $visitorEmail,
-            $message->body
+            $message->body ?? '[Attachment only]'
         );
+
+        if ($attachmentLines !== '') {
+            $text .= "\n\nAttachments:\n".$attachmentLines;
+        }
+
+        $text .= "\n\nReply to this Telegram message to answer in the widget.";
 
         try {
             $response = $this->telegramBotService->sendMessage(
                 $telegramSetting->bot_token,
                 $telegramSetting->chat_id,
-                $text,
-                'Markdown'
+                $text
             );
 
             if (isset($response['result']['message_id'])) {
@@ -306,11 +344,17 @@ class WidgetMessageController extends Controller
                     'telegram_message_id' => $response['result']['message_id'],
                 ]);
             }
-        } catch (\Exception $e) {
-            Log::warning('Failed to send Telegram notification for widget message', [
+
+            Log::info('Delivered widget notification to Telegram.', [
                 'project_id' => $project->id,
                 'message_id' => $message->id,
-                'error' => $e->getMessage(),
+                'telegram_message_id' => $response['result']['message_id'] ?? null,
+            ]);
+        } catch (\Exception $exception) {
+            Log::warning('Failed to send Telegram notification for widget message.', [
+                'project_id' => $project->id,
+                'message_id' => $message->id,
+                'exception' => $exception::class,
             ]);
         }
     }
@@ -412,7 +456,7 @@ class WidgetMessageController extends Controller
             $decoded = json_decode(Crypt::decryptString($token), true, 512, JSON_THROW_ON_ERROR);
         } catch (\Throwable $exception) {
             Log::warning('Failed to decode widget visitor token.', [
-                'error' => $exception->getMessage(),
+                'exception' => $exception::class,
             ]);
 
             return null;
@@ -429,6 +473,55 @@ class WidgetMessageController extends Controller
         }
 
         return $decoded;
+    }
+
+    protected function normalizeMessageBody(mixed $body): ?string
+    {
+        if (! is_string($body)) {
+            return null;
+        }
+
+        $normalized = trim($body);
+
+        return $normalized !== '' ? $normalized : null;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $attachments
+     */
+    protected function resolveMessageType(array $attachments): string
+    {
+        if ($attachments === []) {
+            return Message::TYPE_TEXT;
+        }
+
+        $hasOnlyImages = collect($attachments)->every(
+            fn (array $attachment): bool => str_starts_with((string) ($attachment['mime_type'] ?? ''), 'image/')
+        );
+
+        return $hasOnlyImages ? Message::TYPE_IMAGE : Message::TYPE_FILE;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function serializeMessage(Message $message): array
+    {
+        return [
+            'id' => $message->id,
+            'conversation_id' => $message->conversation_id,
+            'type' => $message->isInbound() ? 'visitor' : 'admin',
+            'message_type' => $message->message_type,
+            'direction' => $message->direction,
+            'body' => $message->body,
+            'attachments' => array_values(array_map(
+                fn (array $attachment): array => $this->messageAttachmentService->serializeForApi($attachment),
+                $message->attachments ?? [],
+            )),
+            'is_read' => $message->is_read,
+            'sender_type' => $message->sender_type,
+            'created_at' => $message->created_at->toISOString(),
+        ];
     }
 
     protected function isUniqueConstraintViolation(QueryException $exception): bool

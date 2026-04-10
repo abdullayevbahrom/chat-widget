@@ -33,6 +33,7 @@ class VisitorTrackingService
         }
 
         $sessionId = $request->session()->getId();
+        $tenantId = $this->getCurrentTenantId();
 
         // Skip tracking bots if configured
         if (! $this->shouldTrackBots()) {
@@ -62,12 +63,22 @@ class VisitorTrackingService
         }
 
         Visitor::updateOrCreate(
-            ['session_id' => $sessionId],
+            [
+                'tenant_id' => $tenantId,
+                'session_id' => $sessionId,
+            ],
             $updates
         );
 
         // Return the visitor record
-        return Visitor::where('session_id', $sessionId)->first();
+        return Visitor::query()
+            ->where('session_id', $sessionId)
+            ->when(
+                $tenantId === null,
+                fn ($query) => $query->whereNull('tenant_id'),
+                fn ($query) => $query->where('tenant_id', $tenantId),
+            )
+            ->first();
     }
 
     /**
@@ -163,7 +174,16 @@ class VisitorTrackingService
      */
     public function getVisitorBySession(string $sessionId): ?Visitor
     {
-        return Visitor::where('session_id', $sessionId)->first();
+        $tenantId = $this->getCurrentTenantId();
+
+        return Visitor::query()
+            ->where('session_id', $sessionId)
+            ->when(
+                $tenantId === null,
+                fn ($query) => $query->whereNull('tenant_id'),
+                fn ($query) => $query->where('tenant_id', $tenantId),
+            )
+            ->first();
     }
 
     /**

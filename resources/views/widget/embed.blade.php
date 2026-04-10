@@ -39,9 +39,11 @@
         window.WIDGET_CONFIG = {
             projectId: {{ $project_id }},
             projectName: @json($project_name),
+            bootstrapToken: @json($bootstrap_token),
+            trustedOrigin: @json($trusted_origin),
             settings: @json($settings),
-            verifiedDomains: @json($verified_domains),
             apiBaseUrl: '{{ url('') }}',
+            appOrigin: '{{ url('') }}',
         };
     </script>
 
@@ -51,14 +53,25 @@
     <script>
         // Initialize widget when loaded in iframe
         (function() {
+            const parentOrigin = window.WIDGET_CONFIG.trustedOrigin || null;
+
+            function postToParent(payload) {
+                if (!parentOrigin || window.parent === window) {
+                    return;
+                }
+
+                window.parent.postMessage(payload, parentOrigin);
+            }
+
             // Signal parent window that widget is ready
-            window.parent.postMessage({
+            postToParent({
                 type: 'widget:iframe:ready',
                 projectId: window.WIDGET_CONFIG.projectId
-            }, '*');
+            });
 
             // Listen for messages from parent
             window.addEventListener('message', function(e) {
+                if (!parentOrigin || e.origin !== parentOrigin) return;
                 if (!e.data || typeof e.data !== 'object') return;
 
                 switch(e.data.type) {
@@ -86,10 +99,10 @@
             if (window.ChatWidget) {
                 ['open', 'close', 'ready'].forEach(function(event) {
                     window.ChatWidget.on(event, function(data) {
-                        window.parent.postMessage({
+                        postToParent({
                             type: 'widget:' + event,
                             data: data
-                        }, '*');
+                        });
                     });
                 });
             }

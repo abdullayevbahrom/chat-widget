@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\ProjectDomain;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class DomainVerificationService
@@ -55,7 +56,15 @@ class DomainVerificationService
             return false;
         }
 
-        $hostname = "_widget-verify.{$domain->domain}";
+        $domainHost = $domain->getHostForVerification();
+
+        if ($domainHost === null) {
+            $domain->markAsFailed('Domain origin is invalid. Store the domain as a valid http/https origin.');
+
+            return false;
+        }
+
+        $hostname = "_widget-verify.{$domainHost}";
         $expectedValue = "widget-verify={$domain->verification_token}";
 
         $records = @dns_get_record($hostname, DNS_TXT);
@@ -103,13 +112,34 @@ class DomainVerificationService
         }
 
         $expectedContent = "widget-verify={$domain->verification_token}";
-        $url = "https://{$domain->domain}/.well-known/widget-verify";
+        $baseOrigin = ProjectDomain::normalizeDomainInput($domain->domain);
+
+        if ($baseOrigin === null) {
+            $domain->markAsFailed('Domain origin is invalid. Store the domain as a valid http/https origin.');
+
+            return false;
+        }
+
+        $httpTargetError = $this->validateHttpVerificationTarget($baseOrigin);
+
+        if ($httpTargetError !== null) {
+            Log::warning('Rejected unsafe HTTP domain verification target.', [
+                'project_domain_id' => $domain->id,
+                'domain' => $domain->domain,
+                'reason' => $httpTargetError,
+            ]);
+
+            $domain->markAsFailed($httpTargetError);
+
+            return false;
+        }
+
+        $url = "{$baseOrigin}/.well-known/widget-verify";
 
         $retries = 0;
         while ($retries < $this->maxRetries) {
             try {
                 $response = Http::timeout($this->httpTimeout)
-                    ->withoutVerifying()
                     ->get($url);
 
                 if ($response->successful() && trim($response->body()) === $expectedContent) {
@@ -138,6 +168,99 @@ class DomainVerificationService
         }
 
         return false;
+    }
+
+    protected function validateHttpVerificationTarget(string $baseOrigin): ?string
+    {
+        $host = parse_url($baseOrigin, PHP_URL_HOST);
+
+        if (! is_string($host) || $host === '') {
+            return 'Domain origin is invalid. Store the domain as a valid http/https origin.';
+        }
+
+        $normalizedHost = strtolower($host);
+
+        if ($this->isInternalHostname($normalizedHost)) {
+            return 'HTTP verification target is not allowed for localhost, internal, or reserved hostnames.';
+        }
+
+        if (filter_var($normalizedHost, FILTER_VALIDATE_IP) !== false) {
+            return $this->isPublicIpAddress($normalizedHost)
+                ? null
+                : 'HTTP verification target is not allowed for private, reserved, or loopback IP addresses.';
+        }
+
+        $resolvedAddresses = $this->resolveHostIpAddresses($normalizedHost);
+
+        foreach ($resolvedAddresses as $resolvedAddress) {
+            if (! $this->isPublicIpAddress($resolvedAddress)) {
+                return 'HTTP verification target resolves to a private, reserved, or internal IP address.';
+            }
+        }
+
+        return null;
+    }
+
+    protected function isInternalHostname(string $host): bool
+    {
+        if ($host === 'localhost' || Str::endsWith($host, '.localhost')) {
+            return true;
+        }
+
+        if (! str_contains($host, '.') && filter_var($host, FILTER_VALIDATE_IP) === false) {
+            return true;
+        }
+
+        return Str::endsWith($host, [
+            '.local',
+            '.internal',
+            '.intranet',
+            '.corp',
+            '.home',
+            '.lan',
+            '.test',
+            '.example',
+            '.invalid',
+        ]);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    protected function resolveHostIpAddresses(string $host): array
+    {
+        $addresses = [];
+
+        $ipv4Records = @dns_get_record($host, DNS_A);
+        if (is_array($ipv4Records)) {
+            foreach ($ipv4Records as $record) {
+                if (isset($record['ip']) && is_string($record['ip'])) {
+                    $addresses[] = $record['ip'];
+                }
+            }
+        }
+
+        if (defined('DNS_AAAA')) {
+            $ipv6Records = @dns_get_record($host, DNS_AAAA);
+            if (is_array($ipv6Records)) {
+                foreach ($ipv6Records as $record) {
+                    if (isset($record['ipv6']) && is_string($record['ipv6'])) {
+                        $addresses[] = $record['ipv6'];
+                    }
+                }
+            }
+        }
+
+        return array_values(array_unique($addresses));
+    }
+
+    protected function isPublicIpAddress(string $ipAddress): bool
+    {
+        return filter_var(
+            $ipAddress,
+            FILTER_VALIDATE_IP,
+            FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE,
+        ) !== false;
     }
 
     /**

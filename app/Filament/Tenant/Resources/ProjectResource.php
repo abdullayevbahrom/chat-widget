@@ -181,7 +181,7 @@ class ProjectResource extends Resource
 
                                     $embedCode = <<<HTML
 <script
-    src="{{ url('/widget.js?key=') }}{$widgetKey}"
+    src="{{ url('/widget.js') }}"
     data-widget-key="{$widgetKey}"
     async
 ></script>
