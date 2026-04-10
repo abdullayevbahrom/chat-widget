@@ -32,6 +32,14 @@
     pollingInterval: null,
     projectId: null,
     selectedAttachments: [],
+    isOnline: navigator.onLine ?? true,
+    pollingPaused: false,
+    wsReconnectAttempts: 0,
+    maxWsReconnectAttempts: 3,
+    useWebSocket: false,
+    wsEcho: null,
+    typingTimeout: null,
+    messageIds: new Set(),
   };
 
   let elements = {};
@@ -70,6 +78,32 @@
       const div = document.createElement('div');
       div.textContent = text ?? '';
       return div.innerHTML;
+    },
+
+    sanitizeUrl(url) {
+      if (typeof url !== 'string' || !url) {
+        return '';
+      }
+      // Block dangerous protocols including SVG-based XSS
+      const trimmed = url.trim();
+      const dangerousPrefixes = [
+        'javascript:',
+        'vbscript:',
+        'data:text/html',
+        'data:image/svg+xml',
+        'data:application/xml',
+        'data:text/xml',
+      ];
+      for (const prefix of dangerousPrefixes) {
+        if (trimmed.toLowerCase().startsWith(prefix)) {
+          return '';
+        }
+      }
+      // Allow relative URLs and http(s) URLs only
+      if (/^https?:\/\//i.test(trimmed) || /^\/[^/]/.test(trimmed) || /^[^/]/.test(trimmed)) {
+        return trimmed;
+      }
+      return '';
     },
 
     getWidgetKey() {
@@ -136,10 +170,43 @@
 
   const api = {
     async request(endpoint, options = {}) {
+      return this.requestWithRetry(endpoint, options, 3);
+    },
+
+    async requestWithRetry(endpoint, options, maxRetries) {
+      let lastError = null;
+
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          return await this.requestOnce(endpoint, options);
+        } catch (error) {
+          lastError = error;
+
+          // Don't retry on auth errors
+          if (error.status === 401 || error.status === 403) {
+            throw error;
+          }
+
+          // Don't retry on last attempt
+          if (attempt === maxRetries) {
+            break;
+          }
+
+          // Exponential backoff: 1s, 2s, 4s
+          const delay = Math.pow(2, attempt - 1) * 1000;
+          console.warn(`[Widget] Request failed (attempt ${attempt}/${maxRetries}), retrying in ${delay}ms:`, error.message);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+
+      throw lastError;
+    },
+
+    async requestOnce(endpoint, options = {}) {
       const bootstrapToken = utils.getBootstrapToken();
       const widgetKey = utils.getWidgetKey();
       if (!bootstrapToken && !widgetKey) {
-        throw new Error('Widget authentication not found');
+        throw Object.assign(new Error('Widget authentication not found'), { status: 401 });
       }
 
       const bootstrapConfig = utils.getBootstrapConfig();
@@ -160,23 +227,37 @@
         defaultHeaders['X-Widget-Key'] = widgetKey;
       }
 
-      const response = await fetch(url.toString(), {
-        credentials: 'include',
-        ...options,
-        headers: {
-          ...defaultHeaders,
-          ...(options.headers || {}),
-        },
-      });
+      // Timeout: 10 seconds
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        throw new Error(error.error || `HTTP ${response.status}`);
+      try {
+        const response = await fetch(url.toString(), {
+          credentials: 'include',
+          ...options,
+          headers: {
+            ...defaultHeaders,
+            ...(options.headers || {}),
+          },
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({}));
+          throw Object.assign(new Error(error.error || `HTTP ${response.status}`), { status: response.status });
+        }
+
+        const payload = await response.json();
+        this.applyAuthPayload(payload);
+        return payload;
+      } catch (error) {
+        if (error.name === 'AbortError') {
+          throw Object.assign(new Error('Request timed out after 10 seconds'), { status: 408 });
+        }
+        throw error;
+      } finally {
+        clearTimeout(timeoutId);
       }
-
-      const payload = await response.json();
-      this.applyAuthPayload(payload);
-      return payload;
     },
 
     applyAuthPayload(payload) {
@@ -358,10 +439,27 @@
 
       this.bindEvents();
 
+      this.applyDynamicColors();
+
       if (state.config?.custom_css) {
         const style = document.createElement('style');
         style.textContent = state.config.custom_css;
         elements.container.appendChild(style);
+      }
+    },
+
+    applyDynamicColors() {
+      const primaryColor = state.config?.primary_color || '#3B82F6';
+
+      if (elements.container) {
+        elements.container.style.setProperty('--w-bg-header', primaryColor);
+        elements.container.style.setProperty('--w-bg-message-visitor', primaryColor);
+      }
+
+      const toggleBtn = document.getElementById('widget-toggle-btn');
+      if (toggleBtn) {
+        toggleBtn.style.setProperty('background', primaryColor, 'important');
+        toggleBtn.style.boxShadow = `0 10px 25px -5px ${primaryColor}66`;
       }
     },
 
@@ -413,7 +511,164 @@
       elements.input.focus();
 
       await this.loadMessages();
-      startPolling();
+
+      // Try WebSocket first, fall back to polling
+      const wsInitialized = this.initWebSocket(state.conversationId);
+      if (!wsInitialized) {
+        startPolling();
+      }
+    },
+
+    initWebSocket(conversationId) {
+      if (!conversationId) {
+        return false;
+      }
+
+      const reverbConfig = state.config?.reverb;
+      if (!reverbConfig?.app_key) {
+        console.log('[Widget] Reverb not configured, using polling fallback.');
+        return false;
+      }
+
+      // Check if Pusher is available (CDN loaded in embed view)
+      if (typeof Pusher === 'undefined') {
+        console.log('[Widget] Pusher not loaded, using polling fallback.');
+        return false;
+      }
+
+      try {
+        const bootstrapToken = utils.getBootstrapToken();
+        const widgetKey = utils.getWidgetKey();
+
+        const echo = new Echo({
+          broadcaster: 'pusher',
+          key: reverbConfig.app_key,
+          wsHost: reverbConfig.host,
+          wsPort: reverbConfig.port || (reverbConfig.secure ? 443 : 80),
+          wssPort: reverbConfig.port || 443,
+          forceTLS: reverbConfig.secure !== false,
+          disableStats: true,
+          enabledTransports: ['ws', 'wss'],
+          cluster: 'mt1', // Reverb uses a dummy cluster
+          // Authorization for private channels
+          authorizer: (channel) => {
+            return {
+              authorize: (socketId, callback) => {
+                const headers = {};
+                if (bootstrapToken) {
+                  headers['X-Widget-Bootstrap'] = bootstrapToken;
+                } else if (widgetKey) {
+                  headers['X-Widget-Key'] = widgetKey;
+                }
+                // For private channels, send auth request to Laravel's broadcast auth endpoint
+                fetch('/broadcasting/auth', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    ...headers,
+                  },
+                  body: JSON.stringify({
+                    channel_name: channel.name,
+                    socket_id: socketId,
+                  }),
+                  credentials: 'include',
+                })
+                  .then(response => response.json())
+                  .then(data => callback(false, data))
+                  .catch(error => callback(true, error));
+              },
+            };
+          },
+        });
+
+        state.wsEcho = echo;
+        state.useWebSocket = true;
+        state.wsReconnectAttempts = 0;
+
+        echo.private(`widget.conversation.${conversationId}`)
+          .listen('.widget.message-sent', (data) => {
+            console.log('[Widget] Received WebSocket message:', data);
+            if (data.message) {
+              this.addMessage(data.message);
+            }
+          })
+          .listen('.widget.typing', (data) => {
+            console.log('[Widget] Received typing event:', data);
+            if (data.typing) {
+              this.showTypingIndicator(data.agent_name || 'Agent');
+            } else {
+              this.hideTypingIndicator();
+            }
+          });
+
+        echo.connector.connection.addEventListener('close', () => {
+          console.log('[Widget] WebSocket disconnected, attempting reconnect...');
+          this.handleWsReconnect(conversationId);
+        });
+
+        console.log('[Widget] WebSocket connected for conversation', conversationId);
+        return true;
+      } catch (error) {
+        console.error('[Widget] WebSocket initialization failed:', error);
+        state.useWebSocket = false;
+        return false;
+      }
+    },
+
+    handleWsReconnect(conversationId) {
+      if (state.wsReconnectAttempts >= state.maxWsReconnectAttempts) {
+        console.log('[Widget] Max WebSocket reconnect attempts reached, falling back to polling.');
+        state.useWebSocket = false;
+        startPolling();
+        return;
+      }
+
+      state.wsReconnectAttempts++;
+      const delay = state.wsReconnectAttempts * 2000;
+      console.log(`[Widget] Reconnect attempt ${state.wsReconnectAttempts}/${state.maxWsReconnectAttempts} in ${delay}ms`);
+
+      setTimeout(() => {
+        if (state.isOpen && state.conversationId) {
+          this.initWebSocket(conversationId);
+        }
+      }, delay);
+    },
+
+    showTypingIndicator(agentName) {
+      // Remove existing typing indicator if any
+      this.hideTypingIndicator();
+
+      const typingEl = document.createElement('div');
+      typingEl.id = 'widget-typing-indicator';
+      typingEl.className = 'widget-message-typing';
+      typingEl.innerHTML = `
+        <div class="widget-typing-dot"></div>
+        <div class="widget-typing-dot"></div>
+        <div class="widget-typing-dot"></div>
+      `;
+
+      elements.messages?.appendChild(typingEl);
+      this.scrollToBottom();
+
+      // Auto-hide after 5 seconds if no update
+      if (state.typingTimeout) {
+        clearTimeout(state.typingTimeout);
+      }
+      state.typingTimeout = setTimeout(() => {
+        this.hideTypingIndicator();
+      }, 5000);
+    },
+
+    hideTypingIndicator() {
+      const typingEl = document.getElementById('widget-typing-indicator');
+      if (typingEl) {
+        typingEl.remove();
+      }
+      if (state.typingTimeout) {
+        clearTimeout(state.typingTimeout);
+        state.typingTimeout = null;
+      }
     },
 
     handleAttachmentSelection(event) {
@@ -510,7 +765,8 @@
         } else {
           const messageEl = document.querySelector(`[data-message-id="${tempId}"]`);
           if (messageEl) {
-            messageEl.dataset.messageId = response.message_id;
+            const finalId = response.message_id || response.message?.id || tempId;
+            messageEl.dataset.messageId = finalId;
             messageEl.classList.remove('widget-message-pending');
           }
         }
@@ -519,6 +775,8 @@
         const messageEl = document.querySelector(`[data-message-id="${tempId}"]`);
         if (messageEl) {
           messageEl.classList.add('widget-message-failed');
+          // Add retry button
+          this.addRetryButton(messageEl, text, attachments);
         }
         this.showError(error.message || 'Failed to send message.');
       } finally {
@@ -526,6 +784,50 @@
         elements.sendBtn.disabled = false;
         elements.attachmentBtn.disabled = false;
         elements.input.focus();
+      }
+    },
+
+    /**
+     * Add a retry button to a failed message element.
+     */
+    addRetryButton(messageEl, text, attachments) {
+      const retryBtn = document.createElement('button');
+      retryBtn.className = 'widget-message-retry-btn';
+      retryBtn.textContent = '↻ Retry';
+      retryBtn.setAttribute('aria-label', 'Retry sending message');
+      retryBtn.addEventListener('click', async () => {
+        retryBtn.disabled = true;
+        retryBtn.textContent = 'Retrying...';
+        messageEl.classList.remove('widget-message-failed');
+        messageEl.classList.add('widget-message-pending');
+        retryBtn.remove();
+
+        try {
+          const response = await api.sendMessage(
+            text,
+            state.visitorName,
+            state.visitorEmail,
+            attachments
+          );
+
+          if (response.message) {
+            this.replacePendingMessage(messageEl.dataset.messageId, response.message);
+          } else {
+            messageEl.classList.remove('widget-message-pending');
+          }
+        } catch (retryError) {
+          console.error('Retry failed:', retryError);
+          messageEl.classList.add('widget-message-failed');
+          this.addRetryButton(messageEl, text, attachments);
+          this.showError(retryError.message || 'Retry failed.');
+        }
+      });
+
+      const timeEl = messageEl.querySelector('.widget-message-time');
+      if (timeEl) {
+        timeEl.appendChild(retryBtn);
+      } else {
+        messageEl.appendChild(retryBtn);
       }
     },
 
@@ -547,6 +849,9 @@
       messageEl.className = `widget-message widget-message-${isVisitor ? 'visitor' : 'agent'}`;
       messageEl.dataset.messageId = message.id;
 
+      // Track message ID in Set for fast lookup
+      state.messageIds.add(String(message.id));
+
       if (message.isPending) {
         messageEl.classList.add('widget-message-pending');
       }
@@ -564,9 +869,10 @@
         ? `<div class="widget-message-attachments">${attachments.map(attachment => {
             const label = utils.escapeHtml(utils.attachmentName(attachment));
             const meta = utils.escapeHtml(utils.formatFileSize(attachment.size));
-            if (attachment.url) {
+            const sanitizedUrl = utils.sanitizeUrl(attachment.url);
+            if (sanitizedUrl) {
               return `
-                <a class="widget-attachment-link" href="${utils.escapeHtml(attachment.url)}" target="_blank" rel="noopener noreferrer">
+                <a class="widget-attachment-link" href="${utils.escapeHtml(sanitizedUrl)}" target="_blank" rel="noopener noreferrer">
                   <span class="widget-attachment-link-name">${label}</span>
                   ${meta ? `<span class="widget-attachment-link-size">${meta}</span>` : ''}
                 </a>
@@ -630,30 +936,69 @@
       try {
         const response = await api.fetchMessages();
         if (response.messages && response.messages.length > 0) {
-          elements.messages.innerHTML = '';
-          response.messages.forEach(message => this.addMessage(message));
+          const incomingIds = new Set(response.messages.map(m => String(m.id)));
+
+          // Remove messages that no longer exist in the incoming list
+          const toRemove = [];
+          if (elements.messages) {
+            elements.messages.querySelectorAll('[data-message-id]').forEach(el => {
+              if (!incomingIds.has(String(el.dataset.messageId))) {
+                toRemove.push(el);
+              }
+            });
+          }
+          toRemove.forEach(el => el.remove());
+
+          // Add only new messages (diff-based)
+          response.messages.forEach(message => {
+            if (!state.messageIds.has(String(message.id))) {
+              this.addMessage(message);
+            }
+          });
+
           state.conversationId = response.messages[response.messages.length - 1]?.conversation_id || state.conversationId;
         }
         state.lastCursor = response.next_cursor || null;
+
+        // Clean up messageIds Set to prevent memory leak
+        this.cleanupMessageIds();
       } catch (error) {
         console.error('Failed to load messages:', error);
       }
     },
 
+    /**
+     * Periodically clean up state.messageIds to prevent memory leaks.
+     *
+     * Removes IDs that no longer have corresponding DOM elements,
+     * keeping the Set in sync with the actual message list.
+     */
+    cleanupMessageIds() {
+      if (!elements.messages || state.messageIds.size === 0) {
+        return;
+      }
+
+      const domIds = new Set();
+      elements.messages.querySelectorAll('[data-message-id]').forEach(el => {
+        domIds.add(String(el.dataset.messageId));
+      });
+
+      // Remove stale IDs from state.messageIds that don't exist in DOM
+      const staleIds = [...state.messageIds].filter(id => !domIds.has(id));
+      staleIds.forEach(id => state.messageIds.delete(id));
+    },
+
     async pollMessages() {
-      if (!state.isOpen || !state.conversationId) {
+      if (!state.isOpen || !state.conversationId || !state.isOnline || state.pollingPaused) {
         return;
       }
 
       try {
         const response = await api.fetchMessages();
         if (response.messages && response.messages.length > 0) {
-          const existingIds = new Set(
-            Array.from(elements.messages.querySelectorAll('[data-message-id]')).map(el => String(el.dataset.messageId))
-          );
-
+          // Use state.messageIds Set for O(1) lookup instead of DOM query
           response.messages.forEach(message => {
-            if (!existingIds.has(String(message.id))) {
+            if (!state.messageIds.has(String(message.id))) {
               this.addMessage(message);
             }
           });
@@ -661,6 +1006,15 @@
         state.lastCursor = response.next_cursor || null;
       } catch (error) {
         console.error('Polling error:', error);
+
+        // Handle auth errors during polling
+        if (error.status === 401) {
+          stopPolling();
+          this.showError('Session expired. Please refresh the page.');
+        } else if (error.status === 403) {
+          stopPolling();
+          this.showError('This chat is currently unavailable.');
+        }
       }
     },
   };
@@ -681,12 +1035,79 @@
       }
 
       state.isInitialized = true;
+
+      // Online/Offline event listeners
+      window.addEventListener('online', () => {
+        state.isOnline = true;
+        console.log('[Widget] Connection restored.');
+
+        // Resume polling if widget is open
+        if (state.isOpen && state.conversationId && !state.useWebSocket) {
+          startPolling();
+        }
+
+        // Retry WebSocket connection if it failed before
+        if (state.isOpen && state.conversationId && state.wsReconnectAttempts > 0) {
+          state.wsReconnectAttempts = 0;
+          ui.initWebSocket(state.conversationId);
+        }
+      });
+
+      window.addEventListener('offline', () => {
+        state.isOnline = false;
+        console.log('[Widget] Connection lost.');
+        stopPolling();
+        ui.showError('No internet connection. Messages will be sent when you\'re back online.');
+      });
+
+      // Page Visibility API — pause polling when tab is hidden
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+          state.pollingPaused = true;
+          console.log('[Widget] Tab hidden, pausing polling.');
+        } else {
+          state.pollingPaused = false;
+          console.log('[Widget] Tab visible, resuming polling.');
+
+          // Resume polling if widget is open and online
+          if (state.isOpen && state.conversationId && state.isOnline && !state.useWebSocket) {
+            startPolling();
+          }
+
+          // Check WebSocket connection status
+          if (state.isOpen && state.conversationId && state.useWebSocket && state.wsEcho) {
+            try {
+              const connector = state.wsEcho.connector;
+              if (connector && connector.connection && connector.connection.readyState === WebSocket.CLOSED) {
+                console.log('[Widget] WebSocket closed, attempting reconnect.');
+                ui.initWebSocket(state.conversationId);
+              }
+            } catch (e) {
+              // Ignore connector access errors
+            }
+          }
+        }
+      });
+
       window.dispatchEvent(new CustomEvent('widget:ready', {
         detail: { version: WIDGET_VERSION, projectId: state.config.project_id },
       }));
       console.log(`[Widget] v${WIDGET_VERSION} initialized for project ${state.config.project_name}`);
     } catch (error) {
       console.error('[Widget] Initialization failed:', error);
+
+      // Show user-friendly error for auth failures
+      if (error.status === 401) {
+        ui.showError('Widget configuration is invalid. Please check the embed code.');
+      } else if (error.status === 403) {
+        ui.showError('This chat is currently unavailable.');
+      } else if (error.status === 408) {
+        ui.showError('Connection timed out. Please try again later.');
+      } else if (!state.isOnline) {
+        ui.showError('No internet connection. Please check your network.');
+      } else {
+        ui.showError('Failed to load widget. Please refresh the page.');
+      }
     }
   }
 
@@ -727,9 +1148,10 @@
   }
 
   function startPolling() {
-    if (state.pollingInterval) {
-      return;
-    }
+    // Always clear existing interval before starting a new one
+    // to prevent double-interval scenario during visibility change
+    // or reconnect scenarios.
+    stopPolling();
 
     state.pollingInterval = setInterval(() => {
       ui.pollMessages();

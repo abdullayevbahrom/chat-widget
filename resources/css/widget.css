@@ -365,6 +365,29 @@
   outline: 1px solid rgba(220, 38, 38, 0.5);
 }
 
+.widget-message-retry-btn {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: #ef4444;
+  background: transparent;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.widget-message-retry-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.7);
+}
+
+.widget-message-retry-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .widget-message-content {
   white-space: pre-wrap;
 }

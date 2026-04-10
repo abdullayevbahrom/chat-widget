@@ -10,7 +10,14 @@ use Illuminate\Support\Facades\Log;
 
 class WidgetBootstrapService
 {
-    protected int $ttlSeconds = 900;
+    /**
+     * Bootstrap token TTL in seconds.
+     *
+     * Reduced from 900s (15 min) to 300s (5 min) to minimize the window
+     * for token replay attacks. The widget automatically refreshes the
+     * token on subsequent API calls.
+     */
+    protected int $ttlSeconds = 300;
 
     public function issueToken(Project $project, string $trustedOrigin): string
     {
@@ -114,5 +121,34 @@ class WidgetBootstrapService
         $referer = $this->normalizeOrigin($request->headers->get('Referer'));
 
         return $origin === $normalizedTrustedOrigin || $referer === $normalizedTrustedOrigin;
+    }
+
+    /**
+     * Issue the bootstrap token as an HttpOnly, Secure, SameSite=Strict cookie.
+     *
+     * This provides an additional layer of security — the cookie cannot be
+     * accessed via JavaScript, reducing XSS attack surface.
+     *
+     * The cookie TTL matches the token's internal TTL (300 seconds).
+     */
+    public function issueTokenAsCookie(string $token, Request $request): void
+    {
+        $cookieName = 'widget_bootstrap_token';
+        $expiresAt = now()->addSeconds($this->ttlSeconds)->toDateTimeImmutable();
+
+        $request->cookies->set($cookieName, $token);
+
+        // Also set as a response cookie for the next response
+        cookie()->queue(
+            $cookieName,
+            $token,
+            (int) ($this->ttlSeconds / 60), // minutes
+            '/',
+            null, // domain (current)
+            request()->secure(), // secure flag
+            true, // httpOnly
+            false, // raw
+            'Strict', // sameSite
+        );
     }
 }

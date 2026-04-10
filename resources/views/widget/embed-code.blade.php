@@ -12,7 +12,12 @@
         @endif
 
         @php
-            $widgetJsUrl = url('/widget.js');
+            // Asset versioning — append a cache-busting version query parameter
+            // so browsers fetch the latest widget.js when it's updated.
+            $widgetVersion = config('app.version', file_exists(public_path('js/widget.js'))
+                ? filemtime(public_path('js/widget.js'))
+                : time());
+            $widgetJsUrl = url('/widget.js?v=' . $widgetVersion);
             $embedCode = <<<HTML
 <script
     src="{$widgetJsUrl}"

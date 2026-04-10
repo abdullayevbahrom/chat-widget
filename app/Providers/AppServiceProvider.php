@@ -3,11 +3,13 @@
 namespace App\Providers;
 
 use App\Listeners\ActivateTenantOnEmailVerified;
+use App\Models\Conversation;
 use App\Models\Project;
 use App\Models\ProjectDomain;
 use App\Models\TelegramBotSetting;
 use App\Models\Tenant;
 use App\Models\TenantDomain;
+use App\Policies\ConversationPolicy;
 use App\Policies\ProjectDomainPolicy;
 use App\Policies\ProjectPolicy;
 use App\Policies\TelegramBotSettingPolicy;
@@ -42,6 +44,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(TelegramBotSetting::class, TelegramBotSettingPolicy::class);
         Gate::policy(Project::class, ProjectPolicy::class);
         Gate::policy(ProjectDomain::class, ProjectDomainPolicy::class);
+        Gate::policy(Conversation::class, ConversationPolicy::class);
 
         // Auto-activate tenant when email is verified
         Event::listen(
@@ -82,24 +85,37 @@ class AppServiceProvider extends ServiceProvider
         });
 
         // Rate limiter for widget config endpoint
-        // Limited by widget key to prevent abuse of a specific widget
+        // Limited by widget key AND IP to prevent abuse of a specific widget
+        // and to provide per-IP protection against credential stuffing
         RateLimiter::for('widget-config', function (Request $request) {
+            $clientIp = $request->ip() ?? 'unknown';
             $widgetKey = $request->header('X-Widget-Key')
                 ?? $request->header('X-Widget-Bootstrap')
                 ?? $request->query('project')
-                ?? $request->ip();
+                ?? $clientIp;
 
-            return Limit::perMinute(60)->by("widget:{$widgetKey}");
+            return [
+                // Per-IP limit: 60 requests per minute (prevents brute-force across keys)
+                Limit::perMinute(60)->by("widget-config-ip:{$clientIp}"),
+                // Per-widget key limit: 60 requests per minute
+                Limit::perMinute(60)->by("widget-config:{$widgetKey}"),
+            ];
         });
 
         // Rate limiter for widget message sending
-        // 30 messages per minute per widget key
+        // 30 messages per minute per widget key + 20 messages per minute per IP
         RateLimiter::for('widget-message', function (Request $request) {
+            $clientIp = $request->ip() ?? 'unknown';
             $widgetKey = $request->header('X-Widget-Key')
                 ?? $request->header('X-Widget-Bootstrap')
-                ?? $request->ip();
+                ?? $clientIp;
 
-            return Limit::perMinute(30)->by("widget-msg:{$widgetKey}");
+            return [
+                // Per-IP limit: 20 messages per minute (prevents spam from a single IP)
+                Limit::perMinute(20)->by("widget-msg-ip:{$clientIp}"),
+                // Per-widget key limit: 30 messages per minute
+                Limit::perMinute(30)->by("widget-msg:{$widgetKey}"),
+            ];
         });
     }
 }

@@ -80,7 +80,7 @@ class WidgetEmbedController extends Controller
 
         $bootstrapToken = $this->widgetBootstrapService->issueToken($project, $trustedOrigin);
 
-        return view('widget.embed', [
+        $response = response(view('widget.embed', [
             'project_id' => $project->id,
             'project_name' => $project->name,
             'bootstrap_token' => $bootstrapToken,
@@ -93,7 +93,18 @@ class WidgetEmbedController extends Controller
                 'primary_color' => $project->getWidgetSetting('primary_color', '#3B82F6'),
                 'custom_css' => $project->getWidgetSetting('custom_css', null),
             ],
-        ]);
+        ]));
+
+        // CSP via HTTP header (instead of meta tag in HTML)
+        // frame-ancestors: restrict which origins can embed this page in an iframe
+        // connect-src: allow connection to Reverb WebSocket host
+        $reverbHost = parse_url(config('app.url'), PHP_URL_HOST);
+        $reverbPort = config('broadcasting.connections.reverb.port', 6001);
+        $reverbScheme = config('broadcasting.connections.reverb.options.tls', false) ? 'wss' : 'ws';
+
+        $response->header('Content-Security-Policy', "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' {$reverbScheme}://{$reverbHost}:{$reverbPort}; media-src 'self' blob:; object-src 'none'; frame-src 'none'; frame-ancestors {$trustedOrigin}; base-uri 'none'; form-action 'self';");
+
+        return $response;
     }
 
     /**
@@ -131,6 +142,12 @@ class WidgetEmbedController extends Controller
                 'custom_css' => $project->getWidgetSetting('custom_css', null),
             ],
             'verified_domains' => $project->getVerifiedDomainsCache(),
+            'reverb' => [
+                'app_key' => config('broadcasting.connections.reverb.key', env('REVERB_APP_KEY')),
+                'host' => parse_url(config('app.url'), PHP_URL_HOST),
+                'port' => request()->secure() ? 443 : 80,
+                'secure' => request()->secure(),
+            ],
         ];
 
         $trustedOrigin = $request->attributes->get('widget_bootstrap_origin');
