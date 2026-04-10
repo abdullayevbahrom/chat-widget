@@ -64,6 +64,15 @@ class DomainVerificationService
             return false;
         }
 
+        // SSRF protection: reject internal/hostnames that could resolve to internal IPs
+        $parsedHost = parse_url($domainHost, PHP_URL_HOST) ?: $domainHost;
+
+        if ($this->isInternalHostname(strtolower($parsedHost))) {
+            $domain->markAsFailed('DNS verification is not allowed for internal, localhost, or reserved hostnames.');
+
+            return false;
+        }
+
         $hostname = "_widget-verify.{$domainHost}";
         $expectedValue = "widget-verify={$domain->verification_token}";
 

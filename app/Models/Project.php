@@ -56,6 +56,51 @@ class Project extends Model
     }
 
     /**
+     * Sanitize settings before saving to database.
+     */
+    public function setSettingsAttribute(mixed $value): void
+    {
+        if (is_array($value)) {
+            $value = $this->sanitizeSettings($value);
+        }
+
+        $this->attributes['settings'] = json_encode($value);
+    }
+
+    /**
+     * Sanitize widget settings to prevent XSS and injection attacks.
+     *
+     * @param  array<string, mixed>  $settings
+     * @return array<string, mixed>
+     */
+    protected function sanitizeSettings(array $settings): array
+    {
+        if (isset($settings['widget']['custom_css']) && is_string($settings['widget']['custom_css'])) {
+            // Strip all HTML tags first
+            $css = strip_tags($settings['widget']['custom_css']);
+
+            // Remove dangerous CSS patterns (expression, javascript:, url with javascript, etc.)
+            $dangerousPatterns = [
+                '/expression\s*\(/i',
+                '/javascript\s*:/i',
+                '/vbscript\s*:/i',
+                '/url\s*\(\s*["\']?\s*javascript\s*:/i',
+                '/@import\s/i',
+                '/behavior\s*:/i',
+                '/-moz-binding\s*:/i',
+            ];
+
+            foreach ($dangerousPatterns as $pattern) {
+                $css = preg_replace($pattern, '/* blocked */', $css);
+            }
+
+            $settings['widget']['custom_css'] = trim($css);
+        }
+
+        return $settings;
+    }
+
+    /**
      * Get the tenant that owns this project.
      */
     public function tenant(): BelongsTo
@@ -77,6 +122,22 @@ class Project extends Model
     public function conversations(): HasMany
     {
         return $this->hasMany(Conversation::class);
+    }
+
+    /**
+     * Check if the project has any active (open) conversations.
+     */
+    public function hasActiveConversations(): bool
+    {
+        return $this->conversations()->open()->exists();
+    }
+
+    /**
+     * Get the count of active (open) conversations.
+     */
+    public function activeConversationsCount(): int
+    {
+        return $this->conversations()->open()->count();
     }
 
     /**
@@ -112,7 +173,7 @@ class Project extends Model
      */
     public function generateWidgetKey(): string
     {
-        $plaintextKey = 'wsk_' . bin2hex(random_bytes(16));
+        $plaintextKey = 'wsk_'.bin2hex(random_bytes(16));
         $hash = hash('sha256', $plaintextKey);
         $prefix = substr($plaintextKey, 0, 8);
 
