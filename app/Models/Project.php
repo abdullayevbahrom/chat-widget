@@ -1,0 +1,197 @@
+<?php
+
+namespace App\Models;
+
+use App\Scopes\TenantScope;
+use Database\Factories\ProjectFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Cache;
+
+class Project extends Model
+{
+    /** @use HasFactory<ProjectFactory> */
+    use HasFactory;
+
+    /**
+     * The "booted" method of the model.
+     */
+    protected static function booted(): void
+    {
+        static::addGlobalScope(new TenantScope);
+    }
+
+    /**
+     * The attributes that are mass assignable.
+     *
+     * @var array<int, string>
+     */
+    protected $fillable = [
+        'tenant_id',
+        'name',
+        'slug',
+        'widget_key_hash',
+        'widget_key_prefix',
+        'description',
+        'primary_domain',
+        'settings',
+        'widget_key_generated_at',
+        'is_active',
+    ];
+
+    /**
+     * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'settings' => 'json',
+            'is_active' => 'boolean',
+            'widget_key_generated_at' => 'datetime',
+        ];
+    }
+
+    /**
+     * Get the tenant that owns this project.
+     */
+    public function tenant(): BelongsTo
+    {
+        return $this->belongsTo(Tenant::class);
+    }
+
+    /**
+     * Get the domains for this project.
+     */
+    public function domains(): HasMany
+    {
+        return $this->hasMany(ProjectDomain::class);
+    }
+
+    /**
+     * Get only the active domains for this project.
+     */
+    public function activeDomains(): HasMany
+    {
+        return $this->hasMany(ProjectDomain::class)->where('is_active', true);
+    }
+
+    /**
+     * Get only the verified domains for this project.
+     */
+    public function verifiedDomains(): HasMany
+    {
+        return $this->hasMany(ProjectDomain::class)
+            ->where('verification_status', 'verified')
+            ->where('is_active', true);
+    }
+
+    /**
+     * Check if the project has a widget key.
+     */
+    public function hasWidgetKey(): bool
+    {
+        return filled($this->widget_key_hash);
+    }
+
+    /**
+     * Generate a new widget key for this project.
+     *
+     * Returns the plaintext key (shown only once to the user).
+     */
+    public function generateWidgetKey(): string
+    {
+        $plaintextKey = 'wsk_' . bin2hex(random_bytes(16));
+        $hash = hash('sha256', $plaintextKey);
+        $prefix = substr($plaintextKey, 0, 8);
+
+        $this->update([
+            'widget_key_hash' => $hash,
+            'widget_key_prefix' => $prefix,
+            'widget_key_generated_at' => now(),
+        ]);
+
+        $this->clearKeyCache();
+
+        return $plaintextKey;
+    }
+
+    /**
+     * Revoke the current widget key.
+     */
+    public function revokeWidgetKey(): void
+    {
+        $this->update([
+            'widget_key_hash' => null,
+            'widget_key_prefix' => null,
+            'widget_key_generated_at' => null,
+        ]);
+
+        $this->clearKeyCache();
+    }
+
+    /**
+     * Regenerate the widget key (revoke old + generate new).
+     *
+     * Returns the new plaintext key (shown only once to the user).
+     */
+    public function regenerateWidgetKey(): string
+    {
+        $this->revokeWidgetKey();
+
+        return $this->generateWidgetKey();
+    }
+
+    /**
+     * Check if the project has at least one verified domain.
+     */
+    public function hasVerifiedDomain(): bool
+    {
+        return $this->verifiedDomains()->exists();
+    }
+
+    /**
+     * Get the widget settings from the settings JSON.
+     */
+    public function getWidgetSetting(string $key, mixed $default = null): mixed
+    {
+        return data_get($this->settings, "widget.{$key}", $default);
+    }
+
+    /**
+     * Clear the widget key cache for this project.
+     */
+    protected function clearKeyCache(): void
+    {
+        if (filled($this->widget_key_hash)) {
+            Cache::forget("project:key:{$this->widget_key_hash}");
+        }
+
+        Cache::forget("project:{$this->id}:domains:verified");
+    }
+
+    /**
+     * Get cached verified domains for this project.
+     *
+     * @return array<string>
+     */
+    public function getVerifiedDomainsCache(): array
+    {
+        return Cache::remember(
+            "project:{$this->id}:domains:verified",
+            now()->addMinutes(15),
+            fn () => $this->verifiedDomains()->pluck('domain')->toArray()
+        );
+    }
+
+    /**
+     * Clear the verified domains cache.
+     */
+    public function clearVerifiedDomainsCache(): void
+    {
+        Cache::forget("project:{$this->id}:domains:verified");
+    }
+}
