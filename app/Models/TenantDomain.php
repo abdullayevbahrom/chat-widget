@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Auth;
 
 #[ObservedBy([TenantDomainObserver::class])]
 class TenantDomain extends Model
@@ -59,6 +60,23 @@ class TenantDomain extends Model
     public function tenant(): BelongsTo
     {
         return $this->belongsTo(Tenant::class);
+    }
+
+    /**
+     * Resolve route binding for tenant dashboard routes without relying on request tenant context.
+     */
+    public function resolveRouteBinding($value, $field = null): ?Model
+    {
+        $routeKeyName = $field ?? $this->getRouteKeyName();
+        $query = static::withoutGlobalScopes()->where($routeKeyName, $value);
+
+        $tenantUser = Auth::guard('tenant_user')->user();
+
+        if ($tenantUser?->tenant_id !== null) {
+            $query->where('tenant_id', $tenantUser->tenant_id);
+        }
+
+        return $query->firstOrFail();
     }
 
     /**

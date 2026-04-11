@@ -102,6 +102,12 @@
 
     {{-- Form Card --}}
     <div class="glass rounded-2xl shadow-xl overflow-hidden">
+        @if($isEdit && $project->hasWidgetKey())
+            <form id="regenerate-widget-key" action="{{ route('dashboard.projects.regenerate-key', $project) }}" method="POST" class="hidden">
+                @csrf
+            </form>
+        @endif
+
         <form action="{{ $isEdit ? route('dashboard.projects.update', $project) : route('dashboard.projects.store') }}"
               method="POST"
               x-data="projectForm({
@@ -316,16 +322,14 @@
             <div class="px-6 py-4 bg-gray-50/80 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div class="flex items-center gap-3">
                     @if($isEdit && $project->hasWidgetKey())
-                        <form action="{{ route('dashboard.projects.regenerate-key', $project) }}" method="POST">
-                            @csrf
-                            <button type="submit"
-                                    class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-colors">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                                </svg>
-                                Regenerate Key
-                            </button>
-                        </form>
+                        <button type="submit"
+                                form="regenerate-widget-key"
+                                class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-colors">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                            </svg>
+                            Regenerate Key
+                        </button>
                     @endif
                 </div>
                 <div class="flex items-center gap-3">
@@ -336,11 +340,11 @@
                     <button type="submit"
                             :disabled="submitting"
                             class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-brand-500 to-brand-700 hover:opacity-95 transition-all shadow-lg shadow-brand-500/25 hover:shadow-brand-500/40 disabled:opacity-50 disabled:cursor-not-allowed">
-                        <svg x-show="submitting" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                        <svg x-show="submitting" x-cloak class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        <span x-text="submitting ? 'Saving...' : (isEdit ? 'Update Project' : 'Create Project')"></span>
+                        {{ $isEdit ? 'Update Project' : 'Create Project' }}
                     </button>
                 </div>
             </div>

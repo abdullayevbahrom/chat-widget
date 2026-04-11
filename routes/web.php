@@ -44,7 +44,7 @@ Route::post('/auth/logout', [TenantAuthController::class, 'logout'])
 // ==========================================
 // Tenant Dashboard Routes
 // ==========================================
-Route::middleware(['auth:tenant_user', 'web'])->prefix('dashboard')->name('dashboard.')->group(function () {
+Route::middleware(['web', 'reset.tenant', 'auth:tenant_user', 'set.tenant'])->prefix('dashboard')->name('dashboard.')->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('index');
 
     // Projects CRUD
@@ -52,9 +52,12 @@ Route::middleware(['auth:tenant_user', 'web'])->prefix('dashboard')->name('dashb
     Route::post('/projects/{project}/regenerate-key', [ProjectController::class, 'regenerateKey'])->name('projects.regenerate-key');
 
     // Domains CRUD
-    Route::resource('tenant-domains', TenantDomainController::class)->except(['show'])->names('domains');
-    Route::post('/tenant-domains/{tenant_domain}/verify', [TenantDomainController::class, 'verify'])->name('domains.verify');
-    Route::post('/tenant-domains/{tenant_domain}/reverify', [TenantDomainController::class, 'reverify'])->name('domains.reverify');
+    Route::resource('tenant-domains', TenantDomainController::class)
+        ->parameters(['tenant-domains' => 'domain'])
+        ->except(['show'])
+        ->names('domains');
+    Route::post('/tenant-domains/{domain}/verify', [TenantDomainController::class, 'verify'])->name('domains.verify');
+    Route::post('/tenant-domains/{domain}/reverify', [TenantDomainController::class, 'reverify'])->name('domains.reverify');
 
     // Tenant Profile
     Route::get('/tenant-profile', [TenantProfileController::class, 'index'])->name('profile');

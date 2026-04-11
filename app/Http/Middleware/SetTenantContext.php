@@ -16,7 +16,7 @@ class SetTenantContext
      */
     public function handle(Request $request, Closure $next): Response
     {
-        $user = $request->user();
+        $user = $request->user('tenant_user') ?? $request->user();
 
         if ($user !== null && $user->isTenantUser()) {
             // Set the current tenant context for this request

@@ -200,14 +200,20 @@
                                             </svg>
                                         </a>
 
-                                        <button x-data
-                                                @click="$dispatch('open-delete-modal', { id: {{ $domain->id }}, name: '{{ addslashes($domain->domain) }}' })"
-                                                class="p-2 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors"
-                                                title="Delete">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                                            </svg>
-                                        </button>
+                                        <form action="{{ route('dashboard.domains.destroy', $domain) }}"
+                                              method="POST"
+                                              class="inline"
+                                              onsubmit="return confirm('Delete {{ addslashes($domain->domain) }}? This cannot be undone.')">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit"
+                                                    class="p-2 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors"
+                                                    title="Delete">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                                </svg>
+                                            </button>
+                                        </form>
                                     </div>
                                 </td>
                             </tr>
@@ -241,67 +247,6 @@
                 </a>
             </div>
         @endif
-    </div>
-</div>
-
-{{-- Delete Confirmation Modal --}}
-<div x-data="{
-        open: false,
-        domainId: null,
-        domainName: '',
-        deleteUrl: ''
-    }"
-     @open-delete-modal.window="open = true; domainId = $event.detail.id; domainName = $event.detail.name; deleteUrl = '/dashboard/tenant-domains/' + $event.detail.id"
-     x-cloak
-     x-show="open"
-     x-transition:enter="transition ease-out duration-200"
-     x-transition:enter-start="opacity-0"
-     x-transition:enter-end="opacity-100"
-     x-transition:leave="transition ease-in duration-150"
-     x-transition:leave-start="opacity-100"
-     x-transition:leave-end="opacity-0"
-     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
-     @keydown.escape.window="open = false">
-    <div x-show="open"
-         x-transition:enter="transition ease-out duration-200"
-         x-transition:enter-start="opacity-0 scale-95"
-         x-transition:enter-end="opacity-100 scale-100"
-         x-transition:leave="transition ease-in duration-150"
-         x-transition:leave-start="opacity-100 scale-100"
-         x-transition:leave-end="opacity-0 scale-95"
-         @click.outside="open = false"
-         class="glass rounded-2xl shadow-2xl max-w-md w-full p-6">
-        <div class="flex items-center gap-4 mb-4">
-            <div class="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
-                <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
-                </svg>
-            </div>
-            <div>
-                <h3 class="text-lg font-bold text-gray-900">Delete Domain</h3>
-                <p class="text-sm text-gray-500">This action cannot be undone.</p>
-            </div>
-        </div>
-
-        <p class="text-gray-600 mb-6">
-            Are you sure you want to delete <span class="font-semibold text-gray-900" x-text="domainName"></span>?
-            The widget will no longer be served on this domain.
-        </p>
-
-        <div class="flex items-center justify-end gap-3">
-            <button @click="open = false"
-                    class="px-4 py-2 rounded-xl text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors">
-                Cancel
-            </button>
-            <form :action="deleteUrl" method="POST">
-                @csrf
-                @method('DELETE')
-                <button type="submit"
-                        class="px-4 py-2 rounded-xl text-sm font-medium text-white bg-gradient-to-r from-red-500 to-red-600 hover:opacity-95 transition-opacity">
-                    Delete Domain
-                </button>
-            </form>
-        </div>
     </div>
 </div>
 @endsection

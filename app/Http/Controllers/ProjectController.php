@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Project;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
@@ -60,6 +61,7 @@ class ProjectController extends Controller
         $project = new Project();
         $project->tenant_id = $user->tenant_id;
         $project->name = $validated['name'];
+        $project->slug = $this->generateUniqueSlug($validated['name'], (int) $user->tenant_id);
         $project->is_active = $request->boolean('is_active', true);
         $project->settings = [
             'widget' => [
@@ -108,6 +110,9 @@ class ProjectController extends Controller
         ]);
 
         $project->name = $validated['name'];
+        if (blank($project->slug)) {
+            $project->slug = $this->generateUniqueSlug($validated['name'], (int) $project->tenant_id, $project);
+        }
         $project->is_active = $request->boolean('is_active', true);
         $project->settings = [
             'widget' => [
@@ -150,5 +155,32 @@ class ProjectController extends Controller
             ->route('dashboard.projects.edit', $project)
             ->with('success', 'Widget key regenerated successfully.')
             ->with('widget_key', $plaintextKey);
+    }
+
+    /**
+     * Generate a tenant-scoped unique slug for a project.
+     */
+    private function generateUniqueSlug(string $name, int $tenantId, ?Project $ignoreProject = null): string
+    {
+        $baseSlug = Str::slug($name);
+        $baseSlug = $baseSlug !== '' ? $baseSlug : 'project';
+        $slug = $baseSlug;
+        $counter = 1;
+
+        while (
+            Project::withoutGlobalScopes()
+                ->where('tenant_id', $tenantId)
+                ->where('slug', $slug)
+                ->when(
+                    $ignoreProject,
+                    fn ($query) => $query->whereKeyNot($ignoreProject->getKey())
+                )
+                ->exists()
+        ) {
+            $slug = "{$baseSlug}-{$counter}";
+            $counter++;
+        }
+
+        return $slug;
     }
 }

@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
 #[ObservedBy([ProjectDomainObserver::class])]
@@ -74,6 +75,25 @@ class ProjectDomain extends Model
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
+    }
+
+    /**
+     * Resolve route binding for tenant dashboard routes without relying on request tenant context.
+     */
+    public function resolveRouteBinding($value, $field = null): ?Model
+    {
+        $routeKeyName = $field ?? $this->getRouteKeyName();
+        $query = static::withoutGlobalScopes()->where($routeKeyName, $value);
+
+        $tenantUser = Auth::guard('tenant_user')->user();
+
+        if ($tenantUser?->tenant_id !== null) {
+            $query->whereHas('project', function ($projectQuery) use ($tenantUser): void {
+                $projectQuery->withoutGlobalScopes()->where('tenant_id', $tenantUser->tenant_id);
+            });
+        }
+
+        return $query->firstOrFail();
     }
 
     /**
