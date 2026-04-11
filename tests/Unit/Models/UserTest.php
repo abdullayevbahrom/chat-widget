@@ -77,38 +77,6 @@ class UserTest extends TestCase
     }
 
     #[Test]
-    public function it_can_access_admin_panel_only_if_super_admin(): void
-    {
-        $superAdmin = User::factory()->create(['is_super_admin' => true]);
-        $regularUser = User::factory()->create(['is_super_admin' => false]);
-
-        $adminPanel = new class extends \Filament\Panel {
-            public function getId(): string
-            {
-                return 'admin';
-            }
-        };
-
-        $this->assertTrue($superAdmin->canAccessPanel($adminPanel));
-        $this->assertFalse($regularUser->canAccessPanel($adminPanel));
-    }
-
-    #[Test]
-    public function it_can_access_non_admin_panels(): void
-    {
-        $regularUser = User::factory()->create(['is_super_admin' => false]);
-
-        $tenantPanel = new class extends \Filament\Panel {
-            public function getId(): string
-            {
-                return 'tenant';
-            }
-        };
-
-        $this->assertTrue($regularUser->canAccessPanel($tenantPanel));
-    }
-
-    #[Test]
     public function it_casts_is_super_admin_to_boolean(): void
     {
         $user = User::factory()->create(['is_super_admin' => 1]);

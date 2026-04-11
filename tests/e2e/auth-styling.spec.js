@@ -216,7 +216,7 @@ test.describe('Auth Pages Styling - Landing Page Match', () => {
     const emailInput = page.locator('input[type="email"], input[name="email"], .fi-input input');
     await expect(emailInput.first()).toBeVisible();
 
-    // Filament password inputlari turli nomlarda bo'lishi mumkin
+    // Password inputlari turli nomlarda bo'lishi mumkin
     const passwordInput = page.locator('input[type="password"], input[autocomplete="current-password"], .fi-input input');
     await expect(passwordInput.first()).toBeVisible();
   });
@@ -227,7 +227,7 @@ test.describe('Auth Pages Styling - Landing Page Match', () => {
     const emailInput = page.locator('input[type="email"], input[name="email"], .fi-input input');
     await expect(emailInput.first()).toBeVisible();
 
-    // Filament register da password inputlar
+    // Register da password inputlar
     const passwordInput = page.locator('input[type="password"], input[autocomplete="new-password"], input[autocomplete="current-password"], .fi-input input');
     const count = await passwordInput.count();
     expect(count).toBeGreaterThanOrEqual(1);

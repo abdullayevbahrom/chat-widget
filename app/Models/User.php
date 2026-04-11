@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use Database\Factories\UserFactory;
-use Filament\Panel;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -74,19 +73,6 @@ class User extends Authenticatable
     public function messages(): MorphMany
     {
         return $this->morphMany(Message::class, 'sender');
-    }
-
-    /**
-     * Determine if the user can access the given Filament panel.
-     */
-    public function canAccessPanel(Panel $panel): bool
-    {
-        if ($panel->getId() === 'admin') {
-            return $this->is_super_admin === true;
-        }
-
-        // Allow access to other panels (e.g., tenant panels)
-        return true;
     }
 
     /**

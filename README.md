@@ -23,8 +23,8 @@ Widget - bu ko'p ijirali (multi-tenant) veb-ilova bo'lib, mijozlar bilan muloqot
 
 ### Sozlash
 
-1. Filament admin panelga kiring (`/admin`)
-2. Chap menyuda **Telegram Bot** ni tanlang
+1. Admin panelga kiring
+2. Telegram Bot sozlamalarini tanlang
 3. Bot token maydoniga @BotFather dan olgan tokeningizni kiriting
 4. **Validate Token** tugmasini bosing - bot ma'lumotlari avtomatik to'ldiriladi
 5. **Save Settings** tugmasini bosing
