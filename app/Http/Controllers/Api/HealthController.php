@@ -58,7 +58,7 @@ class HealthController extends Controller
     {
         try {
             $start = microtime(true);
-            DB::connection()->getPdo();
+            DB::select('SELECT 1 as test');
             $latency = round((microtime(true) - $start) * 1000, 2);
 
             return [
@@ -66,9 +66,13 @@ class HealthController extends Controller
                 'latency_ms' => $latency,
             ];
         } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Health check: database connection failed.', [
+                'error' => $e->getMessage(),
+            ]);
+
             return [
                 'status' => 'critical',
-                'error' => $e->getMessage(),
+                'error' => 'Database connection failed',
             ];
         }
     }
@@ -88,9 +92,13 @@ class HealthController extends Controller
                 'latency_ms' => $latency,
             ];
         } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Health check: Redis connection failed.', [
+                'error' => $e->getMessage(),
+            ]);
+
             return [
                 'status' => 'critical',
-                'error' => $e->getMessage(),
+                'error' => 'Redis connection failed',
             ];
         }
     }
@@ -112,9 +120,13 @@ class HealthController extends Controller
                 'failed_jobs_last_hour' => $failedCount,
             ];
         } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Health check: queue status unavailable.', [
+                'error' => $e->getMessage(),
+            ]);
+
             return [
                 'status' => 'warning',
-                'error' => $e->getMessage(),
+                'error' => 'Queue status unavailable',
             ];
         }
     }

@@ -29,11 +29,13 @@ class EnrichLogContext
             }
         }
 
-        // Authenticated user ID
+        // Authenticated user ID — skip in CLI/queue context
         if (! isset($record['context']['user_id'])) {
-            $user = Auth::user();
-            if ($user !== null) {
-                $record['context']['user_id'] = $user->id;
+            if (! app()->runningInConsole()) {
+                $user = Auth::user();
+                if ($user !== null) {
+                    $record['context']['user_id'] = $user->id;
+                }
             }
         }
 

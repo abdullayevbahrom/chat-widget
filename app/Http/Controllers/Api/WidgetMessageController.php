@@ -169,47 +169,35 @@ class WidgetMessageController extends Controller
                 'has_cookie' => $request->cookies->has($this->getVisitorCookieName($project)),
             ]);
 
-            return response()->json(['messages' => [], 'next_cursor' => null]);
+            return response()->json(['messages' => [], 'next_cursor' => null, 'has_more' => false]);
         }
 
         $cursor = $request->integer('cursor');
+        $perPage = min($request->integer('per_page', 50), 100);
 
-        $query = Message::query()
-            ->whereHas('conversation', function ($conversationQuery) use ($project, $visitor): void {
-                $conversationQuery
-                    ->where('project_id', $project->id)
-                    ->where('visitor_id', $visitor->id);
-            })
-            ->orderBy('id', 'desc')
-            ->limit(50);
+        // Find the visitor's most recent open conversation
+        $conversation = $this->conversationService->getOpenConversation($visitor, $project);
 
-        if ($cursor > 0) {
-            $query->where('id', '<', $cursor);
+        if ($conversation === null) {
+            return response()->json(['messages' => [], 'next_cursor' => null, 'has_more' => false]);
         }
 
-        $messages = $query->get()->reverse()->values();
-        $oldestLoadedId = $messages->first()?->id;
-        $hasMore = $oldestLoadedId !== null
-            ? Message::query()
-                ->whereHas('conversation', function ($conversationQuery) use ($project, $visitor): void {
-                    $conversationQuery
-                        ->where('project_id', $project->id)
-                        ->where('visitor_id', $visitor->id);
-                })
-                ->where('id', '<', $oldestLoadedId)
-                ->exists()
-            : false;
+        // Use cursor-based pagination from ConversationService
+        $result = $this->conversationService->getMessagesPaginated($conversation, $cursor > 0 ? $cursor : null, $perPage);
 
-        Log::info('Returning widget message history.', [
+        Log::info('Returning widget message history with cursor pagination.', [
             'project_id' => $project->id,
             'visitor_id' => $visitor->id,
-            'message_count' => $messages->count(),
-            'next_cursor' => $hasMore ? $oldestLoadedId : null,
+            'conversation_id' => $conversation->id,
+            'message_count' => $result['messages']->count(),
+            'next_cursor' => $result['next_cursor'],
+            'has_more' => $result['has_more'],
         ]);
 
         return response()->json([
-            'messages' => $messages->map(fn (Message $message): array => $this->serializeMessage($message))->values(),
-            'next_cursor' => $hasMore ? $oldestLoadedId : null,
+            'messages' => $result['messages']->map(fn (Message $message): array => $this->serializeMessage($message))->values(),
+            'next_cursor' => $result['next_cursor'],
+            'has_more' => $result['has_more'],
         ]);
     }
 

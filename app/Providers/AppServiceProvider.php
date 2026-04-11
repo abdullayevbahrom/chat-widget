@@ -85,7 +85,6 @@ class AppServiceProvider extends ServiceProvider
             $clientIp = $request->ip() ?? 'unknown';
             $widgetKey = $request->header('X-Widget-Key')
                 ?? $request->header('X-Widget-Bootstrap')
-                ?? $request->query('project')
                 ?? $clientIp;
 
             return [

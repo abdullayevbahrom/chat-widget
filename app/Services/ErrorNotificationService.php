@@ -91,7 +91,9 @@ class ErrorNotificationService
      */
     protected function notifyViaSlack(string $message, array $context): void
     {
-        $webhookUrl = env('LOG_SLACK_WEBHOOK_URL');
+        $webhookUrl = config('logging.channels.slack.url')
+            ?? config('services.slack.webhook_url')
+            ?? env('LOG_SLACK_WEBHOOK_URL');
 
         if (blank($webhookUrl)) {
             return;
@@ -122,30 +124,31 @@ class ErrorNotificationService
      */
     protected function formatTelegramMessage(string $message, array $context): string
     {
-        $output = "⚠️ <b>{$message}</b>\n\n";
+        $safeMessage = htmlspecialchars($message, ENT_QUOTES | ENT_HTML5, 'UTF-8', false);
+        $output = "⚠️ <b>{$safeMessage}</b>\n\n";
 
         if (isset($context['tenant_id'])) {
-            $output .= "Tenant: {$context['tenant_id']}\n";
+            $output .= 'Tenant: '.htmlspecialchars((string) $context['tenant_id'], ENT_QUOTES | ENT_HTML5, 'UTF-8', false)."\n";
         }
 
         if (isset($context['message_id'])) {
-            $output .= "Message: {$context['message_id']}\n";
+            $output .= 'Message: '.htmlspecialchars((string) $context['message_id'], ENT_QUOTES | ENT_HTML5, 'UTF-8', false)."\n";
         }
 
         if (isset($context['error'])) {
-            $error = mb_substr($context['error'], 0, 1000);
-            $output .= "Xato: {$error}\n";
+            $error = mb_substr((string) $context['error'], 0, 1000);
+            $output .= 'Xato: '.htmlspecialchars($error, ENT_QUOTES | ENT_HTML5, 'UTF-8', false)."\n";
         }
 
         if (isset($context['attempts'])) {
-            $output .= "Urinishlar: {$context['attempts']}\n";
+            $output .= 'Urinishlar: '.htmlspecialchars((string) $context['attempts'], ENT_QUOTES | ENT_HTML5, 'UTF-8', false)."\n";
         }
 
-        $output .= "\nVaqt: " . now()->toISOString();
+        $output .= "\nVaqt: ".htmlspecialchars(now()->toISOString(), ENT_QUOTES | ENT_HTML5, 'UTF-8', false);
 
         // Truncate to Telegram limit
         if (mb_strlen($output) > self::MAX_TELEGRAM_LENGTH) {
-            $output = mb_substr($output, 0, self::MAX_TELEGRAM_LENGTH - 3) . '...';
+            $output = mb_substr($output, 0, self::MAX_TELEGRAM_LENGTH - 3).'...';
         }
 
         return $output;
@@ -156,8 +159,8 @@ class ErrorNotificationService
      */
     protected function buildDedupKey(string $message, array $context): string
     {
-        $data = $message . json_encode($context);
+        $data = $message.json_encode($context);
 
-        return 'error_notification_' . md5($data);
+        return 'error_notification_'.md5($data);
     }
 }

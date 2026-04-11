@@ -22,6 +22,7 @@ use Illuminate\Support\Facades\Log;
  * Trusted origins for WebSocket connections.
  * Only requests from these origins will be allowed.
  */
+if (! function_exists('isTrustedOrigin')) {
 function isTrustedOrigin(string $origin): bool
 {
     $trustedOrigins = array_filter([
@@ -46,6 +47,7 @@ function isTrustedOrigin(string $origin): bool
     }
 
     return false;
+}
 }
 
 // Tenant private channel authorization.
@@ -122,6 +124,21 @@ Broadcast::channel('widget.conversation.{conversationId}', function (Request $re
     $bootstrapToken = $request->header('X-Widget-Bootstrap');
     $widgetKey = $request->header('X-Widget-Key');
     $visitorId = $request->input('visitor_id');
+
+    // Validate visitor_id is a positive integer
+    if ($visitorId !== null && ! is_numeric($visitorId)) {
+        Log::warning('Widget broadcast auth rejected: invalid visitor_id format.', [
+            'channel' => 'websocket',
+            'action' => 'broadcast_auth',
+            'error_type' => 'invalid_visitor_id_format',
+            'conversation_id' => $conversationId,
+            'visitor_id' => $visitorId,
+        ]);
+
+        return false;
+    }
+
+    $visitorId = $visitorId !== null ? (int) $visitorId : null;
 
     if (! $bootstrapToken && ! $widgetKey) {
         Log::warning('Widget broadcast auth rejected: no authentication headers.', [

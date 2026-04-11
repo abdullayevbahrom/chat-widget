@@ -6,6 +6,7 @@ use App\Models\Tenant;
 use Closure;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Redis;
 use LogicException;
 
 /**
@@ -28,6 +29,43 @@ class TenantCacheService
     protected array $trackedKeys = [];
 
     /**
+     * Generate a tenant-prefixed cache key without requiring an instance.
+     *
+     * @throws LogicException if no tenant context is set
+     */
+    public static function tenantKey(string $baseKey): string
+    {
+        $tenant = Tenant::current();
+
+        if ($tenant === null) {
+            throw new LogicException('Cannot generate tenant cache key: no tenant context is set.');
+        }
+
+        return "tenant:{$tenant->id}:{$baseKey}";
+    }
+
+    /**
+     * Remember a value in the cache with tenant prefix (static convenience method).
+     *
+     * @param  \DateTimeInterface|\DateInterval|int|\Closure  $ttl
+     * @return mixed
+     */
+    public static function rememberByKey(string $baseKey, $ttl, Closure $callback): mixed
+    {
+        $key = self::tenantKey($baseKey);
+
+        return Cache::remember($key, $ttl, $callback);
+    }
+
+    /**
+     * Remove an item from the cache with tenant prefix (static convenience method).
+     */
+    public static function forgetByKey(string $baseKey): bool
+    {
+        return Cache::forget(self::tenantKey($baseKey));
+    }
+
+    /**
      * Get a tenant-prefixed cache key.
      *
      * @throws LogicException if no tenant context is set
@@ -44,7 +82,7 @@ class TenantCacheService
     }
 
     /**
-     * Store an item in the cache with tenant prefix.
+     * Store an item in the cache and register it in Redis SET for cleanup.
      *
      * @param  mixed  $value
      * @param  \DateTimeInterface|\DateInterval|int|null  $ttl
@@ -53,6 +91,12 @@ class TenantCacheService
     {
         $key = $this->key($baseKey);
         $this->trackKey($key);
+
+        // Also register in Redis SET for cross-instance cleanup
+        $tenant = Tenant::current();
+        if ($tenant !== null) {
+            self::registerKeyInRedisSet($key, $tenant->id);
+        }
 
         return Cache::put($key, $value, $ttl);
     }
@@ -189,5 +233,108 @@ class TenantCacheService
 
             $this->trackedKeys[$tenant->id][] = $key;
         }
+    }
+
+    /**
+     * Register a cache key in a Redis SET for batch cleanup.
+     *
+     * Uses Redis SADD to add the key to a tenant-specific SET,
+     * enabling efficient SCAN-free cleanup via SMEMBERS + UNLINK.
+     */
+    protected static function registerKeyInRedisSet(string $key, int $tenantId): void
+    {
+        try {
+            $redis = Redis::connection();
+            $redis->sadd("tenant:{$tenantId}:cache_keys", $key);
+        } catch (\Throwable $e) {
+            Log::debug('Failed to register cache key in Redis SET.', [
+                'tenant_id' => $tenantId,
+                'key' => $key,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Clear all cache items for a specific tenant by ID.
+     *
+     * Uses Redis SSCAN to iteratively read keys from the tenant SET,
+     * then batches UNLINK for async non-blocking deletion.
+     * Avoids loading all keys into memory at once (SMEMBERS issue).
+     */
+    public static function clearTenantCache(int $tenantId): void
+    {
+        try {
+            $redis = Redis::connection();
+            $keySet = "tenant:{$tenantId}:cache_keys";
+            $batchSize = 100;
+            $totalDeleted = 0;
+
+            // Use SSCAN to iterate over the SET in batches
+            // This avoids loading all keys into memory at once
+            $redis->sscan(
+                $keySet,
+                0,
+                function ($keys) use ($redis, &$totalDeleted, $batchSize): void {
+                    if (empty($keys)) {
+                        return;
+                    }
+
+                    // Delete in batches using UNLINK (async, non-blocking)
+                    $chunks = array_chunk($keys, $batchSize);
+                    foreach ($chunks as $chunk) {
+                        $redis->unlink(...$chunk);
+                        $totalDeleted += count($chunk);
+                    }
+                },
+                $batchSize
+            );
+
+            // Remove the SET itself
+            $redis->del($keySet);
+
+            Log::info('Tenant cache cleared via Redis SSCAN + batch UNLINK.', [
+                'tenant_id' => $tenantId,
+                'keys_deleted' => $totalDeleted,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Failed to clear tenant cache via Redis SSCAN.', [
+                'tenant_id' => $tenantId,
+                'error' => $e->getMessage(),
+            ]);
+
+            // Fallback: try SCAN-based cleanup
+            try {
+                $redis = Redis::connection();
+                self::scanAndDeleteByPrefix($redis, "tenant:{$tenantId}:");
+            } catch (\Throwable $fallbackError) {
+                Log::error('Tenant cache cleanup fallback (SCAN) also failed.', [
+                    'tenant_id' => $tenantId,
+                    'error' => $fallbackError->getMessage(),
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Scan and delete keys matching a prefix (fallback method).
+     *
+     * Uses SCAN iterator to avoid blocking Redis on large keyspaces.
+     */
+    protected static function scanAndDeleteByPrefix($redis, string $prefix): void
+    {
+        $deletedCount = 0;
+
+        $redis->scan(0, function ($keys) use (&$deletedCount, $redis): void {
+            if (! empty($keys)) {
+                $redis->unlink(...$keys);
+                $deletedCount += count($keys);
+            }
+        }, $prefix, 100);
+
+        Log::info('Tenant cache cleared via SCAN fallback.', [
+            'prefix' => $prefix,
+            'keys_deleted' => $deletedCount,
+        ]);
     }
 }

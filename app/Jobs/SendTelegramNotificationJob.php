@@ -7,6 +7,7 @@ use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\Project;
 use App\Models\TelegramBotSetting;
+use App\Models\Tenant;
 use App\Services\TelegramBotService;
 use App\Services\TelegramInlineKeyboard;
 use App\Services\TelegramMessageFormatter;
@@ -112,10 +113,10 @@ class SendTelegramNotificationJob implements ShouldQueue
     {
         // Restore tenant context for this job
         if ($this->tenantId !== null) {
-            $tenant = \App\Models\Tenant::find($this->tenantId);
+            $tenant = Tenant::find($this->tenantId);
 
             if ($tenant !== null) {
-                \App\Models\Tenant::setCurrent($tenant);
+                Tenant::setCurrent($tenant);
             }
         }
 
@@ -194,30 +195,49 @@ class SendTelegramNotificationJob implements ShouldQueue
         // Build inline keyboard
         $replyMarkup = TelegramInlineKeyboard::buildForConversation($conversation, $project);
 
-        $response = $telegramBotService->sendMessage(
-            $token,
-            $chatId,
-            $formatted['telegram_text'],
-            $formatted['parse_mode'],
-            $replyMarkup,
-        );
+        try {
+            $response = $telegramBotService->sendMessage(
+                $token,
+                $chatId,
+                $formatted['telegram_text'],
+                $formatted['parse_mode'],
+                $replyMarkup,
+            );
 
-        $telegramMessageId = $response['result']['message_id'] ?? null;
+            $telegramMessageId = $response['result']['message_id'] ?? null;
 
-        if ($telegramMessageId !== null) {
-            $message->updateQuietly([
+            if ($telegramMessageId !== null) {
+                $message->updateQuietly([
+                    'telegram_message_id' => $telegramMessageId,
+                ]);
+            }
+
+            Log::info('Delivered Telegram notification with inline keyboard.', [
+                'channel' => 'jobs',
+                'job' => self::class,
+                'tenant_id' => $this->tenantId,
+                'message_id' => $this->messageId,
+                'conversation_id' => $this->conversationId,
                 'telegram_message_id' => $telegramMessageId,
             ]);
-        }
+        } catch (TelegramApiException $e) {
+            // Handle rate limiting by releasing job with delay
+            if ($e->retryAfterSeconds !== null && $e->isRetryable) {
+                Log::warning('Telegram rate limited, releasing job with delay.', [
+                    'channel' => 'jobs',
+                    'job' => self::class,
+                    'retry_after_seconds' => $e->retryAfterSeconds,
+                    'attempts' => $this->attempts(),
+                ]);
 
-        Log::info('Delivered Telegram notification with inline keyboard.', [
-            'channel' => 'jobs',
-            'job' => self::class,
-            'tenant_id' => $this->tenantId,
-            'message_id' => $this->messageId,
-            'conversation_id' => $this->conversationId,
-            'telegram_message_id' => $telegramMessageId,
-        ]);
+                $this->release($e->retryAfterSeconds);
+
+                return;
+            }
+
+            // Non-retryable errors — rethrow to mark as failed
+            throw $e;
+        }
     }
 
     /**

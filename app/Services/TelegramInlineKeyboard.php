@@ -156,8 +156,8 @@ class TelegramInlineKeyboard
 
         $hmac = hash_hmac('sha256', $payload, $secret);
 
-        // Use first 8 characters to stay within 64-byte limit
-        return substr($hmac, 0, 8);
+        // Use first 16 characters for stronger security while staying within 64-byte limit
+        return substr($hmac, 0, 16);
     }
 
     /**

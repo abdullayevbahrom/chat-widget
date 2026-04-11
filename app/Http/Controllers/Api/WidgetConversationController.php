@@ -7,6 +7,7 @@ use App\Models\Conversation;
 use App\Models\Project;
 use App\Models\Visitor;
 use App\Services\ConversationService;
+use App\Services\WidgetAntiReplayService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -15,6 +16,7 @@ class WidgetConversationController extends Controller
 {
     public function __construct(
         protected ConversationService $conversationService,
+        protected WidgetAntiReplayService $antiReplayService,
     ) {}
 
     /**
@@ -69,6 +71,16 @@ class WidgetConversationController extends Controller
      */
     public function close(Request $request): JsonResponse
     {
+        // Require X-Requested-With header to prevent CSRF-like attacks
+        $requestedWith = $request->header('X-Requested-With');
+
+        if (blank($requestedWith) || strtolower($requestedWith) !== 'xmlhttprequest') {
+            return response()->json([
+                'error' => 'X-Requested-With header is required.',
+                'code' => 'MISSING_REQUESTED_WITH_HEADER',
+            ], 400);
+        }
+
         /** @var Project|null $project */
         $project = $request->get('project');
 
@@ -80,6 +92,28 @@ class WidgetConversationController extends Controller
 
         if ($visitor === null) {
             return response()->json(['error' => 'Visitor not identified.'], 401);
+        }
+
+        // Validate anti-replay token
+        $antiReplayToken = $request->input('anti_replay_token');
+
+        if (blank($antiReplayToken)) {
+            return response()->json([
+                'error' => 'Anti-replay token is required.',
+                'code' => 'MISSING_ANTI_REPLAY_TOKEN',
+            ], 400);
+        }
+
+        if (! $this->antiReplayService->validateToken($project->id, $visitor->id, $antiReplayToken)) {
+            Log::warning('Invalid anti-replay token on close attempt.', [
+                'project_id' => $project->id,
+                'visitor_id' => $visitor->id,
+            ]);
+
+            return response()->json([
+                'error' => 'Invalid or expired anti-replay token.',
+                'code' => 'INVALID_ANTI_REPLAY_TOKEN',
+            ], 403);
         }
 
         $conversation = $this->conversationService->getOpenConversation($visitor, $project);

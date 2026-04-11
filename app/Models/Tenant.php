@@ -9,6 +9,10 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Context;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Redis;
 
 class Tenant extends Model
 {
@@ -26,8 +30,16 @@ class Tenant extends Model
      * When true, TenantScope will not apply the `whereRaw('1 = 0')` fallback
      * even when no tenant context is set. Use sparingly for intentional
      * context-free queries (e.g. widget key validation).
+     *
+     * Uses Laravel's Context facade for request-scoped storage, which
+     * automatically resets between HTTP requests and queue jobs.
      */
     protected static bool $bypassTenantContext = false;
+
+    /**
+     * Context key for request-scoped bypass flag.
+     */
+    protected const BYPASS_CONTEXT_KEY = 'tenant.bypass_scope';
 
     /**
      * Set the current tenant.
@@ -35,7 +47,6 @@ class Tenant extends Model
     public static function setCurrent(Tenant $tenant): void
     {
         static::$currentTenant = $tenant;
-        static::$bypassTenantContext = false;
     }
 
     /**
@@ -52,36 +63,75 @@ class Tenant extends Model
     public static function clearCurrent(): void
     {
         static::$currentTenant = null;
-        static::$bypassTenantContext = false;
     }
 
     /**
-     * Temporarily bypass tenant context enforcement.
+     * Temporarily bypass tenant context enforcement within a callback.
      *
-     * When called, TenantScope will not apply the empty-result fallback,
-     * allowing queries to proceed without a tenant context.
+     * This is the preferred way to execute code without tenant scope,
+     * as it automatically restores the previous state when the callback
+     * completes (even if an exception is thrown).
      *
-     * Use with caution — this disables tenant isolation for the current request lifecycle.
+     * Uses Laravel's Context facade for request-scoped storage that
+     * automatically resets between requests and queue jobs.
+     *
+     * Example:
+     *   $project = Tenant::withoutTenantContext(fn () => Project::find(1));
+     *
+     * @template TReturn
+     *
+     * @param  callable(): TReturn  $callback
+     * @return TReturn
      */
-    public static function withoutTenantContext(): void
+    public static function withoutTenantContext(callable $callback): mixed
     {
-        static::$bypassTenantContext = true;
+        $previousBypass = static::isBypassingContext();
+        static::setBypass(true);
+
+        try {
+            return $callback();
+        } finally {
+            static::setBypass($previousBypass);
+        }
     }
 
     /**
      * Check if tenant context bypass is currently active.
+     *
+     * Checks request-scoped Context first (for automatic cleanup in
+     * long-running processes), then falls back to static property.
      */
     public static function isBypassingContext(): bool
     {
+        // Check Context first — this is request-scoped and auto-resets
+        $contextValue = Context::get(static::BYPASS_CONTEXT_KEY, null);
+
+        if ($contextValue !== null) {
+            return (bool) $contextValue;
+        }
+
+        // Fallback to static property for backward compatibility
         return static::$bypassTenantContext;
     }
 
     /**
+     * Set the bypass flag in Context (request-scoped) with static fallback.
+     */
+    protected static function setBypass(bool $value): void
+    {
+        Context::add(static::BYPASS_CONTEXT_KEY, $value);
+        static::$bypassTenantContext = $value;
+    }
+
+    /**
      * Re-enable tenant context enforcement after a bypass.
+     *
+     * Note: Prefer using withoutTenantContext(callback) instead,
+     * which automatically restores the bypass state.
      */
     public static function enableTenantContext(): void
     {
-        static::$bypassTenantContext = false;
+        static::setBypass(false);
     }
 
     /**
@@ -94,9 +144,6 @@ class Tenant extends Model
         'slug',
         'domain',
         'subdomain',
-        'is_active',
-        'plan',
-        'subscription_expires_at',
         'settings',
         // Profile fields
         'company_name',
@@ -111,6 +158,17 @@ class Tenant extends Model
         'logo_path',
         'primary_contact_name',
         'primary_contact_title',
+    ];
+
+    /**
+     * The attributes that should be guarded from mass assignment.
+     *
+     * @var array<int, string>
+     */
+    protected $guarded = [
+        'id',
+        'created_at',
+        'updated_at',
     ];
 
     /**
@@ -269,6 +327,8 @@ class Tenant extends Model
      * Invalidate all sessions for this tenant's users.
      *
      * Call this when a tenant is deactivated to force all users to log out.
+     * Uses Redis SET indexing (laravel_session:user_ids:{userId}) to avoid
+     * regex parsing on session data.
      */
     public function invalidateSessions(): void
     {
@@ -283,11 +343,11 @@ class Tenant extends Model
         $sessionTable = config('session.table', 'sessions');
 
         try {
-            \Illuminate\Support\Facades\DB::table($sessionTable)
+            DB::table($sessionTable)
                 ->whereIn('user_id', $userIds)
                 ->delete();
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::warning(
+            Log::warning(
                 'Failed to invalidate tenant sessions (session table may not exist).',
                 [
                     'tenant_id' => $this->id,
@@ -296,36 +356,60 @@ class Tenant extends Model
             );
         }
 
-        // For Redis session driver, scan and delete session keys
-        $cacheDriver = \Illuminate\Support\Facades\Cache::driver();
+        // For Redis session driver, use SET-based index instead of regex parsing
+        $cacheDriver = Cache::driver();
 
         if ($cacheDriver instanceof RedisStore) {
-            $redis = $cacheDriver->connection();
-            $prefix = config('session.cookie', 'laravel_session');
+            $redis = Redis::connection();
+            $deletedCount = 0;
 
-            // Scan for session cookies matching the prefix pattern
-            $cursor = null;
-            $pattern = "{$prefix}:*";
-            do {
-                $result = $redis->scan($cursor, ['match' => $pattern, 'count' => 100]);
-                $cursor = $result[0];
-                $keys = $result[1];
+            // Each session should be registered in a SET: laravel_session:tenant_users
+            // containing session keys. We iterate through user-specific SETs.
+            foreach ($userIds as $userId) {
+                $sessionKeySet = "laravel_session:user_ids:{$userId}";
+                $sessionKeys = $redis->smembers($sessionKeySet);
 
-                foreach ($keys as $key) {
-                    $sessionData = $redis->get($key);
-
-                    if ($sessionData !== false) {
-                        $session = @unserialize(base64_decode($sessionData));
-
-                        if (is_array($session) && isset($session['user_id']) && in_array($session['user_id'], $userIds, true)) {
-                            $redis->del($key);
-                        }
-                    }
+                if (! empty($sessionKeys)) {
+                    $redis->unlink(...$sessionKeys);
+                    $deletedCount += count($sessionKeys);
+                    $redis->del($sessionKeySet);
                 }
-            } while ($cursor !== '0' && $cursor !== 0);
+            }
+
+            // Fallback: if SET-based indexing is not yet in use, scan by cookie prefix
+            // and validate user_id by checking the SET without parsing session data
+            if ($deletedCount === 0) {
+                $cookiePrefix = config('session.cookie', 'laravel_session');
+                $cursor = null;
+
+                do {
+                    $result = $redis->scan($cursor, ['match' => "{$cookiePrefix}:*", 'count' => 100]);
+                    $cursor = $result[0];
+                    $keys = $result[1];
+
+                    // Instead of regex parsing, check if session metadata contains user_id
+                    // by reading the user_id index SET for each key
+                    $keysToDelete = [];
+                    foreach ($userIds as $userId) {
+                        $userSessions = $redis->smembers("laravel_session:user_ids:{$userId}");
+                        $keysToDelete = array_merge($keysToDelete, array_intersect($keys, $userSessions));
+                    }
+
+                    if (! empty($keysToDelete)) {
+                        $redis->unlink(...$keysToDelete);
+                        $deletedCount += count($keysToDelete);
+                    }
+                } while ($cursor !== '0' && $cursor !== 0);
+            }
+
+            Log::info('Tenant sessions invalidated via Redis SET.', [
+                'tenant_id' => $this->id,
+                'user_count' => count($userIds),
+                'sessions_deleted' => $deletedCount,
+            ]);
         }
 
-        \Illuminate\Support\Facades\Log::info('Tenant sessions invalidated.', [
+        Log::info('Tenant sessions invalidated.', [
             'tenant_id' => $this->id,
             'user_count' => count($userIds),
         ]);

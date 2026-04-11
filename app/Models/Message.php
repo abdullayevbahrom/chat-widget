@@ -19,6 +19,12 @@ class Message extends Model
     /** @use HasFactory<MessageFactory> */
     use HasFactory, SoftDeletes;
 
+    /**
+     * Cached sender model to avoid repeated queries during validation.
+     * This property is not persisted to the database.
+     */
+    public mixed $_cached_sender = null;
+
     public const TYPE_TEXT = 'text';
 
     public const TYPE_IMAGE = 'image';
@@ -46,7 +52,7 @@ class Message extends Model
                 return;
             }
 
-            Log::info('Syncing conversation last_message_at from message creation.', [
+            Log::debug('Syncing conversation last_message_at from message creation.', [
                 'message_id' => $message->id,
                 'conversation_id' => $message->conversation_id,
                 'created_at' => optional($message->created_at)?->toISOString(),
@@ -55,10 +61,17 @@ class Message extends Model
             $message->conversation()->update([
                 'last_message_at' => $message->created_at,
             ]);
+
+            // Invalidate unread count cache for this conversation
+            try {
+                $message->conversation?->invalidateUnreadCountCache();
+            } catch (\Throwable) {
+                // Skip cache invalidation if conversation relation is not loaded
+            }
         });
 
         static::saving(function (Message $message): void {
-            Log::info('Validating message tenant state before save.', [
+            Log::debug('Validating message tenant state before save.', [
                 'message_id' => $message->id,
                 'tenant_id' => $message->tenant_id,
                 'conversation_id' => $message->conversation_id,
@@ -92,7 +105,7 @@ class Message extends Model
 
             // Cache sender model on the message to avoid repeated queries
             // when assertSenderIntegrity is called multiple times (e.g. retries)
-            $sender = $message->getRawOriginal('_cached_sender');
+            $sender = $message->_cached_sender;
 
             if ($sender === null) {
                 $senderClass = Relation::getMorphedModel($message->sender_type) ?? $message->sender_type;
@@ -113,7 +126,7 @@ class Message extends Model
                     throw new LogicException('Message sender must exist before saving.');
                 }
 
-                $message->setAttribute('_cached_sender', $sender);
+                $message->_cached_sender = $sender;
             }
 
             $message->assertSenderIntegrity($conversation, $sender);

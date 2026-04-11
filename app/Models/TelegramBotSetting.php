@@ -27,6 +27,8 @@ class TelegramBotSetting extends Model
      */
     protected $fillable = [
         'tenant_id',
+        'bot_token',
+        'webhook_secret',
         'bot_username',
         'bot_name',
         'chat_id',

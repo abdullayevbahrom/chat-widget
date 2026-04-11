@@ -35,11 +35,10 @@ class TenantScope implements Scope
      */
     public function apply(Builder $builder, Model $model): void
     {
-        // Non-HTTP contextlarda (queue jobs, tinker, migrations) auth mavjud emas
-        // Auth::check() barcha guard'larni tekshiradi (web, sanctum token, etc.)
-        // Auth::guard('web') faqat session-based auth bilan ishlaydi,
-        // Sanctum API token orqali kirgan super adminlar bypass qila olmaydi.
-        if (Auth::check()) {
+        // Non-HTTP contextlarda (queue jobs, tinker, migrations) Auth::user()
+        // chaqirish keraksiz va ba'zan xatolikka olib kelishi mumkin.
+        // Faqat HTTP context da auth tekshiramiz.
+        if ($this->isHttpContext()) {
             /** @var \App\Models\User|null $user */
             $user = Auth::user();
 
@@ -94,5 +93,13 @@ class TenantScope implements Scope
 
         // Scope to the current tenant via direct column
         $builder->where($model->getTable().'.tenant_id', $currentTenant->id);
+    }
+
+    /**
+     * Determine if we are in an HTTP request context.
+     */
+    protected function isHttpContext(): bool
+    {
+        return ! app()->runningInConsole() && app('request') !== null;
     }
 }

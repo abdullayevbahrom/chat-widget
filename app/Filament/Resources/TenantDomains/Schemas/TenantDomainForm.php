@@ -8,6 +8,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Schema;
 
+if (! class_exists(TenantDomainForm::class)) {
 class TenantDomainForm
 {
     public static function configure(Schema $schema): Schema
@@ -39,4 +40,5 @@ class TenantDomainForm
                     ->rows(3),
             ]);
     }
+}
 }

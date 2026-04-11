@@ -4,11 +4,9 @@ namespace App\Services;
 
 use App\Exceptions\TelegramApiException;
 use Illuminate\Http\Client\ConnectionException;
-use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Throwable;
 
 class TelegramBotService
 {
@@ -355,7 +353,7 @@ class TelegramBotService
 
                 // Handle rate limiting — use Retry-After if available
                 if ($e->retryAfterSeconds !== null) {
-                    Log::warning('Telegram API rate limited, waiting for Retry-After', [
+                    Log::warning('Telegram API rate limited, will retry after delay', [
                         'channel' => 'telegram',
                         ...$logContext,
                         'token_prefix' => $tokenPrefix,
@@ -364,9 +362,10 @@ class TelegramBotService
                         'max_attempts' => $this->maxRetries,
                     ]);
 
+                    // Don't sleep here — let the job layer handle release() delay
                     if ($attempt < $this->maxRetries) {
-                        sleep($e->retryAfterSeconds);
-                        continue;
+                        // Re-throw with rate limit info so job can release with delay
+                        throw $e;
                     }
                 }
 
@@ -622,7 +621,7 @@ class TelegramBotService
      */
     protected function circuitBreakerKey(string $token): string
     {
-        return 'telegram_circuit_' . md5($token);
+        return 'telegram_circuit_'.md5($token);
     }
 
     /**
@@ -645,6 +644,6 @@ class TelegramBotService
      */
     protected function sanitizeToken(string $token): string
     {
-        return preg_replace('/^(\d+:).{4,}([A-Za-z0-9_-]{4})$/', '$1****$2', $token) ?? substr($token, 0, 10) . '****';
+        return preg_replace('/^(\d+:).{4,}([A-Za-z0-9_-]{4})$/', '$1****$2', $token) ?? substr($token, 0, 10).'****';
     }
 }

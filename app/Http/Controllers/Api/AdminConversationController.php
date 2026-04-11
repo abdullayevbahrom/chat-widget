@@ -29,10 +29,61 @@ class AdminConversationController extends Controller
 
         Gate::authorize('viewAny', Conversation::class);
 
-        $status = $request->query('status');
-        $projectId = $request->query('project_id');
-        $assignedTo = $request->query('assigned_to');
-        $perPage = $request->validate(['per_page' => ['nullable', 'integer', 'min:1', 'max:100']])['per_page'] ?? 25;
+        $validated = $request->validate([
+            'status' => ['nullable', 'string', 'in:open,closed,archived'],
+            'project_id' => ['nullable', 'integer', 'min:1'],
+            'assigned_to' => ['nullable', 'integer', 'min:1'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        $status = $validated['status'] ?? null;
+        $projectId = $validated['project_id'] ?? null;
+        $assignedTo = $validated['assigned_to'] ?? null;
+        $perPage = $validated['per_page'] ?? 25;
+
+        // Determine current tenant context for non-super-admins
+        $userTenantId = $user->isSuperAdmin() ? null : $user->tenant_id;
+
+        // If non-super-admin has no tenant, return empty results
+        if (! $user->isSuperAdmin() && $userTenantId === null) {
+            return response()->json([
+                'data' => [],
+                'meta' => [
+                    'current_page' => 1,
+                    'last_page' => 1,
+                    'per_page' => $perPage,
+                    'total' => 0,
+                ],
+            ]);
+        }
+
+        // Validate that the requested project_id belongs to the current tenant
+        if ($projectId !== null && ! $user->isSuperAdmin()) {
+            $projectBelongsToTenant = Project::where('id', $projectId)
+                ->where('tenant_id', $userTenantId)
+                ->exists();
+
+            if (! $projectBelongsToTenant) {
+                return response()->json([
+                    'error' => 'Project not found or does not belong to your tenant.',
+                    'code' => 'PROJECT_NOT_IN_TENANT',
+                ], 403);
+            }
+        }
+
+        // Validate that the requested assigned_to user belongs to the current tenant
+        if ($assignedTo !== null && ! $user->isSuperAdmin()) {
+            $assigneeBelongsToTenant = User::where('id', $assignedTo)
+                ->where('tenant_id', $userTenantId)
+                ->exists();
+
+            if (! $assigneeBelongsToTenant) {
+                return response()->json([
+                    'error' => 'User not found or does not belong to your tenant.',
+                    'code' => 'USER_NOT_IN_TENANT',
+                ], 403);
+            }
+        }
 
         $query = Conversation::query()
             ->with(['visitor', 'project', 'assignedUser', 'closedUser'])
@@ -51,22 +102,8 @@ class AdminConversationController extends Controller
         }
 
         // Super admins see all; tenant users see only their tenant's conversations
-        // If a non-super-admin has no tenant_id, return empty results (security fallback)
         if (! $user->isSuperAdmin()) {
-            if ($user->tenant_id !== null) {
-                $query->where('tenant_id', $user->tenant_id);
-            } else {
-                // User has no tenant — return empty results to prevent data leakage
-                return response()->json([
-                    'data' => [],
-                    'meta' => [
-                        'current_page' => 1,
-                        'last_page' => 1,
-                        'per_page' => $perPage,
-                        'total' => 0,
-                    ],
-                ]);
-            }
+            $query->where('tenant_id', $userTenantId);
         }
 
         $paginator = $query->paginate($perPage);
@@ -125,8 +162,6 @@ class AdminConversationController extends Controller
             'id' => $visitor->id,
             'name' => $visitor->name ?? 'Anonim',
             'email' => $visitor->user?->email ?? null,
-            'session_id' => $visitor->session_id,
-            'user_agent' => $visitor->user_agent ?? null,
             'first_visit_at' => $visitor->first_visit_at?->toISOString(),
             'last_visit_at' => $visitor->last_visit_at?->toISOString(),
             'visit_count' => $visitor->visit_count,

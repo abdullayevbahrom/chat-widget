@@ -4,18 +4,12 @@ namespace App\Jobs;
 
 use App\Exceptions\TelegramApiException;
 use App\Models\TelegramBotSetting;
+use App\Models\Tenant;
 use App\Services\TelegramBotService;
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Foundation\Bus\Dispatchable;
-use Illuminate\Queue\InteractsWithQueue;
-use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
-class SetupTelegramWebhookJob implements ShouldQueue
+class SetupTelegramWebhookJob extends TenantAwareJob
 {
-    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
-
     /**
      * Number of times the job may be attempted.
      *
@@ -31,16 +25,17 @@ class SetupTelegramWebhookJob implements ShouldQueue
     public $backoff = 10;
 
     /**
-     * The Telegram bot setting instance.
+     * The Telegram bot setting ID.
      */
-    public TelegramBotSetting $setting;
+    public int $settingId;
 
     /**
      * Create a new job instance.
      */
-    public function __construct(TelegramBotSetting $setting)
+    public function __construct(int $settingId)
     {
-        $this->setting = $setting;
+        parent::__construct();
+        $this->settingId = $settingId;
     }
 
     /**
@@ -48,52 +43,59 @@ class SetupTelegramWebhookJob implements ShouldQueue
      */
     public function handle(TelegramBotService $telegramService): void
     {
-        // Restore tenant context for this job
-        if ($this->setting->tenant_id !== null) {
-            $tenant = \App\Models\Tenant::find($this->setting->tenant_id);
+        $this->withTenantContext(function () use ($telegramService): void {
+            $setting = TelegramBotSetting::withoutGlobalScopes()
+                ->where('id', $this->settingId)
+                ->first();
 
-            if ($tenant !== null) {
-                \App\Models\Tenant::setCurrent($tenant);
+            if ($setting === null) {
+                Log::warning('Telegram bot setting not found for webhook setup', [
+                    'channel' => 'jobs',
+                    'job' => self::class,
+                    'setting_id' => $this->settingId,
+                ]);
+
+                return;
             }
-        }
 
-        $token = $this->setting->bot_token;
+            $token = $setting->bot_token;
 
-        if ($token === null) {
-            throw new \Exception('Bot token is not set');
-        }
+            if ($token === null) {
+                throw new \Exception('Bot token is not set');
+            }
 
-        if ($this->setting->webhook_url === null) {
-            throw new \Exception('Webhook URL is not set');
-        }
+            if ($setting->webhook_url === null) {
+                throw new \Exception('Webhook URL is not set');
+            }
 
-        Log::info('Setting up Telegram webhook', [
-            'channel' => 'jobs',
-            'job' => self::class,
-            'setting_id' => $this->setting->id,
-            'tenant_id' => $this->setting->tenant_id,
-            'webhook_url' => $this->setting->webhook_url,
-            'attempt' => $this->attempts(),
-        ]);
+            Log::info('Setting up Telegram webhook', [
+                'channel' => 'jobs',
+                'job' => self::class,
+                'setting_id' => $setting->id,
+                'tenant_id' => $setting->tenant_id,
+                'webhook_url' => $setting->webhook_url,
+                'attempt' => $this->attempts(),
+            ]);
 
-        $result = $telegramService->setWebhook(
-            $token,
-            $this->setting->webhook_url,
-            $this->setting->webhook_secret
-        );
+            $result = $telegramService->setWebhook(
+                $token,
+                $setting->webhook_url,
+                $setting->webhook_secret
+            );
 
-        $this->setting->last_webhook_status = 'set';
-        $this->setting->last_webhook_error = null;
-        $this->setting->last_webhook_error_at = null;
-        $this->setting->save();
+            $setting->last_webhook_status = 'set';
+            $setting->last_webhook_error = null;
+            $setting->last_webhook_error_at = null;
+            $setting->save();
 
-        Log::info('Telegram webhook set successfully', [
-            'channel' => 'jobs',
-            'job' => self::class,
-            'setting_id' => $this->setting->id,
-            'tenant_id' => $this->setting->tenant_id,
-            'result' => $result,
-        ]);
+            Log::info('Telegram webhook set successfully', [
+                'channel' => 'jobs',
+                'job' => self::class,
+                'setting_id' => $setting->id,
+                'tenant_id' => $setting->tenant_id,
+                'result' => $result,
+            ]);
+        });
     }
 
     /**
@@ -101,21 +103,36 @@ class SetupTelegramWebhookJob implements ShouldQueue
      */
     public function failed(\Throwable $exception): void
     {
-        $this->setting->last_webhook_status = 'error';
-        $this->setting->last_webhook_error = [
+        $setting = Tenant::withoutTenantContext(fn() => TelegramBotSetting::withoutGlobalScopes()->find($this->settingId));
+
+        if ($setting === null) {
+            Log::error('Telegram webhook setup failed (setting not found)', [
+                'channel' => 'jobs',
+                'job' => self::class,
+                'setting_id' => $this->settingId,
+                'error' => $exception->getMessage(),
+                'error_type' => get_class($exception),
+                'attempts' => $this->attempts(),
+            ]);
+
+            return;
+        }
+
+        $setting->last_webhook_status = 'error';
+        $setting->last_webhook_error = [
             'message' => $exception->getMessage(),
             'type' => get_class($exception),
             'code' => $exception instanceof TelegramApiException ? $exception->errorCode : $exception->getCode(),
             'attempts' => $this->attempts(),
         ];
-        $this->setting->last_webhook_error_at = now();
-        $this->setting->save();
+        $setting->last_webhook_error_at = now();
+        $setting->save();
 
         Log::error('Telegram webhook setup failed', [
             'channel' => 'jobs',
             'job' => self::class,
-            'setting_id' => $this->setting->id,
-            'tenant_id' => $this->setting->tenant_id,
+            'setting_id' => $setting->id,
+            'tenant_id' => $setting->tenant_id,
             'error' => $exception->getMessage(),
             'error_type' => get_class($exception),
             'attempts' => $this->attempts(),

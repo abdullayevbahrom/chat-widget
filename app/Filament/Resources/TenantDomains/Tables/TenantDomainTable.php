@@ -12,6 +12,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 
+if (! class_exists(TenantDomainTable::class)) {
 class TenantDomainTable
 {
     public static function configure(Table $table): Table
@@ -63,4 +64,5 @@ class TenantDomainTable
                 ]),
             ]);
     }
+}
 }

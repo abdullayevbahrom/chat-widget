@@ -6,6 +6,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Schema;
 
+if (! class_exists(UserForm::class)) {
 class UserForm
 {
     public static function configure(Schema $schema): Schema
@@ -46,4 +47,5 @@ class UserForm
                             : null)),
             ]);
     }
+}
 }

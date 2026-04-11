@@ -46,6 +46,11 @@ class MessageFactory extends Factory
                 if ($message->conversation !== null) {
                     $message->tenant_id = $message->conversation->tenant_id;
                 }
+                // Ensure sender_type and sender_id are set before the saving hook
+                if ($message->sender !== null && $message->sender_type === null) {
+                    $message->sender_type = $message->sender::class;
+                    $message->sender_id = $message->sender->id ?? null;
+                }
             })
             ->afterCreating(function (Message $message): void {
                 $conversation = $message->conversation;

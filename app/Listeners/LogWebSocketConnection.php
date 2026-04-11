@@ -19,7 +19,7 @@ class LogWebSocketConnection
      */
     public function handleClientConnected(ClientConnected $event): void
     {
-        Log::info('WebSocket client connected', [
+        Log::debug('WebSocket client connected', [
             'channel' => 'websocket',
             'connection_id' => $event->connection->id() ?? null,
             'app_id' => $event->connection->app()->id() ?? null,
@@ -31,7 +31,7 @@ class LogWebSocketConnection
      */
     public function handleClientDisconnected(ClientDisconnected $event): void
     {
-        Log::info('WebSocket client disconnected', [
+        Log::debug('WebSocket client disconnected', [
             'channel' => 'websocket',
             'connection_id' => $event->connection->id() ?? null,
             'app_id' => $event->connection->app()->id() ?? null,

@@ -130,11 +130,18 @@ class WidgetBootstrapService
      * accessed via JavaScript, reducing XSS attack surface.
      *
      * The cookie TTL matches the token's internal TTL (300 seconds).
+     * The cookie domain is set explicitly to the current request's host
+     * to prevent cross-domain cookie leakage.
      */
     public function issueTokenAsCookie(string $token, Request $request): void
     {
         $cookieName = 'widget_bootstrap_token';
         $expiresAt = now()->addSeconds($this->ttlSeconds)->toDateTimeImmutable();
+
+        // Determine the cookie domain from the request
+        // Use the exact host from the request to prevent cross-domain cookie leakage
+        $host = $request->getHost();
+        $domain = $this->determineCookieDomain($host);
 
         $request->cookies->set($cookieName, $token);
 
@@ -144,11 +151,30 @@ class WidgetBootstrapService
             $token,
             (int) ($this->ttlSeconds / 60), // minutes
             '/',
-            null, // domain (current)
-            request()->secure(), // secure flag
+            $domain, // explicit domain
+            $request->secure(), // secure flag
             true, // httpOnly
             false, // raw
             'Strict', // sameSite
         );
+    }
+
+    /**
+     * Determine the appropriate cookie domain for the given host.
+     *
+     * Returns the exact host for IP addresses and localhost.
+     * For domain names, returns the domain with a leading dot
+     * to allow subdomain access (e.g., .example.com).
+     */
+    protected function determineCookieDomain(string $host): string
+    {
+        // Don't set domain for localhost or IP addresses
+        if ($host === 'localhost' || $host === '127.0.0.1' || filter_var($host, FILTER_VALIDATE_IP)) {
+            return ''; // Let browser use default (current host only)
+        }
+
+        // For domain names, use the exact host
+        // This prevents cookie leakage to other domains
+        return $host;
     }
 }

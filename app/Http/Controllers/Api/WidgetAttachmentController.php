@@ -18,6 +18,17 @@ class WidgetAttachmentController extends Controller
      */
     public function download(Request $request, int $projectId, int $conversationId, string $fileName): StreamedResponse
     {
+        // Validate fileName to prevent path traversal attacks
+        if (! $this->isValidFileName($fileName)) {
+            Log::warning('Attachment download rejected: invalid file name.', [
+                'project_id' => $projectId,
+                'conversation_id' => $conversationId,
+                'file_name' => $fileName,
+            ]);
+
+            abort(400, 'Invalid file name');
+        }
+
         /** @var Project|null $project */
         $project = $request->get('project');
 
@@ -76,7 +87,18 @@ class WidgetAttachmentController extends Controller
 
         $storagePath = $attachment['path'] ?? null;
 
-        if ($storagePath === null || ! Storage::disk('private')->exists($storagePath)) {
+        // Validate that the storage path is within the conversation's directory
+        if ($storagePath === null || ! $this->isPathWithinConversation($storagePath, $conversationId)) {
+            Log::warning('Attachment download rejected: path traversal attempt detected.', [
+                'project_id' => $projectId,
+                'conversation_id' => $conversationId,
+                'storage_path' => $storagePath,
+            ]);
+
+            abort(403, 'Forbidden');
+        }
+
+        if (! Storage::disk('private')->exists($storagePath)) {
             Log::warning('Attachment file does not exist on disk.', [
                 'project_id' => $projectId,
                 'conversation_id' => $conversationId,
@@ -100,11 +122,63 @@ class WidgetAttachmentController extends Controller
     }
 
     /**
+     * Validate that a file name is safe (no path traversal).
+     */
+    protected function isValidFileName(string $fileName): bool
+    {
+        // Reject empty names
+        if (trim($fileName) === '') {
+            return false;
+        }
+
+        // Reject path traversal patterns
+        if (str_contains($fileName, '..') || str_contains($fileName, '/') || str_contains($fileName, '\\')) {
+            return false;
+        }
+
+        // Reject null bytes
+        if (str_contains($fileName, "\0")) {
+            return false;
+        }
+
+        // Only allow alphanumeric, dots, hyphens, underscores
+        return preg_match('/^[a-zA-Z0-9._\-]+$/', $fileName) === 1;
+    }
+
+    /**
+     * Validate that a storage path is within the expected conversation directory.
+     */
+    protected function isPathWithinConversation(string $storagePath, int $conversationId): bool
+    {
+        // Normalize paths
+        $normalizedPath = str_replace('\\', '/', $storagePath);
+
+        // Check that the path contains the conversation ID as a directory component
+        // This prevents accessing files outside the conversation's scope
+        $expectedPattern = '/conversation(s)?/'.preg_quote((string) $conversationId, '/').'/i';
+
+        if (! preg_match($expectedPattern, $normalizedPath)) {
+            return false;
+        }
+
+        // Ensure no parent directory traversal
+        if (str_contains($normalizedPath, '../') || str_contains($normalizedPath, '..\\')) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
     protected function findAttachmentInConversation(Conversation $conversation, string $fileName): ?array
     {
-        $messages = $conversation->messages()->get();
+        // Use eager loading with a limit to prevent loading all messages
+        // and query the JSON column directly to narrow down results
+        $messages = $conversation->messages()
+            ->where('attachments', 'like', '%"name":"'.str_replace(['%', '_'], ['\%', '\_'], $fileName).'"%')
+            ->get(['id', 'attachments']);
 
         foreach ($messages as $message) {
             $attachments = $message->attachments ?? [];

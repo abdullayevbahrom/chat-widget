@@ -17,7 +17,8 @@ class TenantRunCommand extends Command
         {command : The artisan command to run}
         {--tenant= : Tenant ID or slug to run the command for}
         {--all : Run the command for all active tenants}
-        {--arguments= : Additional arguments as JSON string}';
+        {--arguments= : Additional arguments as JSON string}
+        {--force : Bypass command allowlist check (requires super admin confirmation)}';
 
     /**
      * The console command description.
@@ -25,6 +26,64 @@ class TenantRunCommand extends Command
      * @var string
      */
     protected $description = 'Run an artisan command within a tenant context';
+
+    /**
+     * Allowed commands that can be run via tenant:run.
+     *
+     * This allowlist prevents execution of dangerous commands
+     * (like migrate:fresh, db:seed, cache:clear, etc.) that could
+     *破坏 data or affect all tenants.
+     *
+     * @var array<string>
+     */
+    protected array $allowedCommands = [
+        // Safe read-only commands
+        'list',
+        'route:list',
+        'about',
+
+        // Tenant-specific data commands (safe)
+        'config:clear',
+        'view:clear',
+        'route:clear',
+        'optimize:clear',
+        'optimize',
+
+        // Queue management (read-only / retry operations)
+        'queue:failed',
+        'queue:retry',
+        'queue:flush',
+        'queue:prune-failed',
+        'queue:prune-batches',
+
+        // Storage commands
+        'storage:link',
+    ];
+
+    /**
+     * Commands that are never allowed regardless of --force flag.
+     *
+     * @var array<string>
+     */
+    protected array $blockedCommands = [
+        // Destructive database commands
+        'migrate:fresh',
+        'migrate:refresh',
+        'migrate:reset',
+        'db:seed',
+        'db:wipe',
+
+        // Commands that affect global state (not tenant-specific)
+        'cache:clear',
+        'queue:work',
+        'queue:listen',
+        'queue:restart',
+
+        // Security-sensitive commands
+        'key:generate',
+        'passport:install',
+        'sanctum:prune-expired',
+    ];
 
     /**
      * Execute the console command.
@@ -35,6 +94,26 @@ class TenantRunCommand extends Command
         $tenantOption = $this->option('tenant');
         $allTenants = $this->option('all');
         $arguments = $this->option('arguments');
+        $force = $this->option('force');
+
+        // Extract the base command (without arguments/options)
+        $baseCommand = explode(' ', $commandToRun)[0];
+
+        // Check if command is in the blocked list (never allowed)
+        if (in_array($baseCommand, $this->blockedCommands, true)) {
+            $this->error("Command '{$baseCommand}' is blocked for safety reasons. It cannot be run via tenant:run.");
+
+            return Command::FAILURE;
+        }
+
+        // Check if command is in the allowlist (or --force is used)
+        if (! $force && ! in_array($baseCommand, $this->allowedCommands, true)) {
+            $this->error("Command '{$baseCommand}' is not in the allowed list.");
+            $this->line('Allowed commands: '.implode(', ', $this->allowedCommands));
+            $this->line('Use --force to bypass the allowlist (only for trusted administrators).');
+
+            return Command::FAILURE;
+        }
 
         $parsedArguments = [];
 

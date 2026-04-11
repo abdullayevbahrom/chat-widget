@@ -446,7 +446,7 @@ class TelegramBotSettings extends Page
             return;
         }
 
-        SetupTelegramWebhookJob::dispatch($setting);
+        SetupTelegramWebhookJob::dispatch($setting->id);
 
         $setting->last_webhook_status = 'pending';
         $setting->save();

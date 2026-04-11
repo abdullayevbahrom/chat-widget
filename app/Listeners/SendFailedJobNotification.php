@@ -2,6 +2,8 @@
 
 namespace App\Listeners;
 
+use App\Jobs\SendTelegramNotificationJob;
+use App\Jobs\SetupTelegramWebhookJob;
 use App\Services\ErrorNotificationService;
 use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Support\Facades\Log;
@@ -18,8 +20,8 @@ class SendFailedJobNotification
      * Important job classes that should trigger admin notifications.
      */
     protected const IMPORTANT_JOBS = [
-        \App\Jobs\SendTelegramNotificationJob::class,
-        \App\Jobs\SetupTelegramWebhookJob::class,
+        SendTelegramNotificationJob::class,
+        SetupTelegramWebhookJob::class,
     ];
 
     public function __construct(
@@ -71,22 +73,26 @@ class SendFailedJobNotification
         ];
 
         // Try to extract tenant_id and other metadata from job payload
+        // SAFETY: Use JSON payload only — avoid unserialize() to prevent RCE
         try {
             $payload = json_decode($job->getRawBody(), true);
 
-            if (isset($payload['data']['command'])) {
-                $command = unserialize($payload['data']['command']);
+            // Extract job class name safely from JSON
+            if (isset($payload['displayName'])) {
+                $context['job_class'] = class_basename($payload['displayName']);
+            }
 
-                if (isset($command->tenantId)) {
-                    $context['tenant_id'] = $command->tenantId;
-                }
+            // Laravel serialized command is in data.command — we extract class name only
+            if (isset($payload['data']['commandName'])) {
+                $context['job_class'] = class_basename($payload['data']['commandName']);
+            }
 
-                if (isset($command->messageId)) {
-                    $context['message_id'] = $command->messageId;
-                }
-
-                if (isset($command->conversationId)) {
-                    $context['conversation_id'] = $command->conversationId;
+            // If command is stored as serialized string, extract class name via regex (safe)
+            if (isset($payload['data']['command']) && is_string($payload['data']['command'])) {
+                $serializedCommand = $payload['data']['command'];
+                // Extract class name from O: pattern without unserializing
+                if (preg_match('/^O:\d+:"([^"]+)"/', $serializedCommand, $matches)) {
+                    $context['job_class'] = class_basename($matches[1]);
                 }
             }
         } catch (\Throwable $e) {

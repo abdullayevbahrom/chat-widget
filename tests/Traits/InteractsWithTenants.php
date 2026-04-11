@@ -22,7 +22,7 @@ trait InteractsWithTenants
             'plan' => 'free',
         ];
 
-        return Tenant::create(array_merge($defaults, $attributes));
+        return Tenant::factory()->create(array_merge($defaults, $attributes));
     }
 
     /**

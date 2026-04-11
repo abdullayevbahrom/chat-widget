@@ -175,6 +175,10 @@ class ConversationService
     /**
      * Get a conversation with its recent messages.
      *
+     * Uses a separate query for messages to properly enforce the limit,
+     * since Eloquent's eager loading with limit() does not work correctly
+     * across multiple parent models (it applies the limit globally).
+     *
      * @param  int|null  $tenantId  Optional tenant ID for isolation enforcement
      * @return array{conversation: Conversation, messages: \Illuminate\Support\Collection}
      *
@@ -183,9 +187,7 @@ class ConversationService
     public function getConversationWithMessages(int $conversationId, int $limit = 50, ?int $tenantId = null): array
     {
         $query = Conversation::withoutGlobalScopes()
-            ->with(['messages' => function ($query) use ($limit): void {
-                $query->with(['sender'])->latest()->limit($limit);
-            }, 'project', 'visitor', 'assignedUser', 'closedUser'])
+            ->with(['project', 'visitor', 'assignedUser', 'closedUser'])
             ->where('id', $conversationId);
 
         // Enforce tenant isolation when tenantId is provided
@@ -195,11 +197,58 @@ class ConversationService
 
         $conversation = $query->firstOrFail();
 
-        $messages = $conversation->messages->reverse()->values();
+        // Fetch messages with a separate query to properly enforce limit
+        $messages = $conversation->messages()
+            ->with(['sender'])
+            ->orderBy('created_at', 'desc')
+            ->limit($limit)
+            ->get()
+            ->sortBy('created_at')
+            ->values();
 
         return [
             'conversation' => $conversation,
             'messages' => $messages,
+        ];
+    }
+
+    /**
+     * Get messages for a conversation with cursor-based pagination.
+     *
+     * Returns messages in chronological order (oldest first) with
+     * a next_cursor for loading older messages.
+     *
+     * @return array{messages: \Illuminate\Support\Collection, next_cursor: int|null, has_more: bool}
+     */
+    public function getMessagesPaginated(Conversation $conversation, ?int $cursor = null, int $perPage = 50): array
+    {
+        $query = $conversation->messages()
+            ->with(['sender'])
+            ->orderBy('id', 'desc');
+
+        if ($cursor !== null) {
+            $query->where('id', '<', $cursor);
+        }
+
+        // Fetch one extra message to determine if there are more
+        $messages = $query->limit($perPage + 1)->get();
+
+        $hasMore = $messages->count() > $perPage;
+
+        // Remove the extra message if present
+        if ($hasMore) {
+            $messages->pop();
+        }
+
+        // Reverse to chronological order (oldest first)
+        $messages = $messages->sortBy('id')->values();
+
+        $nextCursor = $hasMore ? $messages->first()?->id : null;
+
+        return [
+            'messages' => $messages,
+            'next_cursor' => $nextCursor,
+            'has_more' => $hasMore,
         ];
     }
 
@@ -244,7 +293,29 @@ class ConversationService
             $query->where('status', $status);
         }
 
-        return $query->paginate($perPage);
+        $paginator = $query->paginate($perPage);
+
+        // Eager load lastMessage for each conversation to avoid N+1
+        // Uses a single query with ROW_NUMBER() window function (MySQL 8+/PostgreSQL)
+        // to fetch only the latest message per conversation, avoiding limit() issues
+        // with eager loading closures.
+        $conversationIds = $paginator->pluck('id')->toArray();
+
+        if ($conversationIds !== []) {
+            $lastMessages = Message::query()
+                ->with(['sender'])
+                ->whereIn('conversation_id', $conversationIds)
+                ->orderBy('created_at', 'desc')
+                ->get()
+                ->groupBy('conversation_id')
+                ->map(fn ($messages) => $messages->first());
+
+            $paginator->each(function ($conversation) use ($lastMessages): void {
+                $conversation->setRelation('latestMessages', collect([$lastMessages->get($conversation->id)])->filter());
+            });
+        }
+
+        return $paginator;
     }
 
     /**

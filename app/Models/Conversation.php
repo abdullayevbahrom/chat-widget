@@ -7,6 +7,7 @@ use App\Events\ConversationClosed;
 use App\Events\ConversationOpened;
 use App\Scopes\TenantScope;
 use Database\Factories\ConversationFactory;
+use App\Services\TenantCacheService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -40,7 +41,7 @@ class Conversation extends Model
         static::addGlobalScope(new TenantScope);
 
         static::saving(function (Conversation $conversation): void {
-            Log::info('Validating conversation tenant state before save.', [
+            Log::debug('Validating conversation tenant state before save.', [
                 'conversation_id' => $conversation->id,
                 'tenant_id' => $conversation->tenant_id,
                 'project_id' => $conversation->project_id,
@@ -301,6 +302,8 @@ class Conversation extends Model
             'closed_by' => $closedBy,
         ]);
 
+        $this->invalidateUnreadCountCache();
+
         event(new ConversationClosed($this));
     }
 
@@ -321,6 +324,8 @@ class Conversation extends Model
             'closed_at' => null,
             'closed_by' => null,
         ]);
+
+        $this->invalidateUnreadCountCache();
 
         event(new ConversationOpened($this));
     }
@@ -343,14 +348,35 @@ class Conversation extends Model
             'closed_by' => null,
         ]);
 
+        $this->invalidateUnreadCountCache();
+
         event(new ConversationArchived($this));
     }
 
     /**
      * Get the unread message count for this conversation.
+     *
+     * Uses Redis caching with a 30-second TTL to avoid repeated count queries.
+     * Cache is invalidated when a new message is added or conversation status changes.
      */
     public function getUnreadCount(): int
     {
-        return $this->messages()->where('is_read', false)->count();
+        $cacheKey = "conversation:unread:{$this->id}";
+
+        return TenantCacheService::rememberByKey($cacheKey, 30, function (): int {
+            return $this->messages()->where('is_read', false)->count();
+        });
+    }
+
+    /**
+     * Invalidate the unread count cache for this conversation.
+     */
+    public function invalidateUnreadCountCache(): void
+    {
+        try {
+            TenantCacheService::forgetByKey("conversation:unread:{$this->id}");
+        } catch (\LogicException) {
+            // No tenant context — skip cache invalidation gracefully.
+        }
     }
 }

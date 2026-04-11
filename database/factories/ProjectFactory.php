@@ -38,14 +38,6 @@ class ProjectFactory extends Factory
                     'primary_color' => '#3B82F6',
                     'custom_css' => null,
                 ],
-                'analytics' => [
-                    'enabled' => true,
-                    'tracking_id' => null,
-                ],
-                'notifications' => [
-                    'enabled' => false,
-                    'channels' => [],
-                ],
             ],
             'is_active' => true,
         ];

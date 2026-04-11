@@ -19,7 +19,7 @@ class WidgetMessageSentTest extends TestCase
     {
         $tenant = Tenant::factory()->create();
         $project = Project::factory()->for($tenant)->create();
-        $visitor = Visitor::factory()->for($project)->create();
+        $visitor = Visitor::factory()->create(['tenant_id' => $tenant->id]);
         $conversation = Conversation::factory()->for($project)->for($visitor)->create();
 
         // Body already sanitized by resolveTelegramBody
@@ -49,7 +49,7 @@ class WidgetMessageSentTest extends TestCase
     {
         $tenant = Tenant::factory()->create();
         $project = Project::factory()->for($tenant)->create();
-        $visitor = Visitor::factory()->for($project)->create();
+        $visitor = Visitor::factory()->create(['tenant_id' => $tenant->id]);
         $conversation = Conversation::factory()->for($project)->for($visitor)->create();
 
         // Create a body longer than 5000 characters
@@ -76,7 +76,7 @@ class WidgetMessageSentTest extends TestCase
     {
         $tenant = Tenant::factory()->create();
         $project = Project::factory()->for($tenant)->create();
-        $visitor = Visitor::factory()->for($project)->create();
+        $visitor = Visitor::factory()->create(['tenant_id' => $tenant->id]);
         $conversation = Conversation::factory()->for($project)->for($visitor)->create();
 
         $message = Message::withoutGlobalScopes()->create([
@@ -110,7 +110,7 @@ class WidgetMessageSentTest extends TestCase
     {
         $tenant = Tenant::factory()->create();
         $project = Project::factory()->for($tenant)->create();
-        $visitor = Visitor::factory()->for($project)->create();
+        $visitor = Visitor::factory()->create(['tenant_id' => $tenant->id]);
         $conversation = Conversation::factory()->for($project)->for($visitor)->create();
 
         $message = Message::withoutGlobalScopes()->create([
@@ -132,7 +132,7 @@ class WidgetMessageSentTest extends TestCase
     {
         $tenant = Tenant::factory()->create();
         $project = Project::factory()->for($tenant)->create();
-        $visitor = Visitor::factory()->for($project)->create();
+        $visitor = Visitor::factory()->create(['tenant_id' => $tenant->id]);
         $conversation = Conversation::factory()->for($project)->for($visitor)->create();
 
         $message = Message::withoutGlobalScopes()->create([
@@ -149,15 +149,15 @@ class WidgetMessageSentTest extends TestCase
         $channels = $event->broadcastOn();
 
         $this->assertCount(2, $channels);
-        $this->assertEquals('tenant.'.$tenant->id.'.conversations', $channels[0]->name);
-        $this->assertEquals('widget.conversation.'.$conversation->id, $channels[1]->name);
+        $this->assertEquals('private-tenant.'.$tenant->id.'.conversations', $channels[0]->name);
+        $this->assertEquals('private-widget.conversation.'.$conversation->id, $channels[1]->name);
     }
 
     public function test_broadcast_with_includes_agent_name_when_provided(): void
     {
         $tenant = Tenant::factory()->create();
         $project = Project::factory()->for($tenant)->create();
-        $visitor = Visitor::factory()->for($project)->create();
+        $visitor = Visitor::factory()->create(['tenant_id' => $tenant->id]);
         $conversation = Conversation::factory()->for($project)->for($visitor)->create();
 
         $message = Message::withoutGlobalScopes()->create([
@@ -180,7 +180,7 @@ class WidgetMessageSentTest extends TestCase
     {
         $tenant = Tenant::factory()->create();
         $project = Project::factory()->for($tenant)->create();
-        $visitor = Visitor::factory()->for($project)->create();
+        $visitor = Visitor::factory()->create(['tenant_id' => $tenant->id]);
         $conversation = Conversation::factory()->for($project)->for($visitor)->create();
 
         $message = Message::withoutGlobalScopes()->create([

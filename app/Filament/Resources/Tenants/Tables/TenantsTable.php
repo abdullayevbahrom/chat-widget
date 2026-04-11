@@ -16,6 +16,7 @@ use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Collection;
 
+if (! class_exists(TenantsTable::class)) {
 class TenantsTable
 {
     public static function configure(Table $table): Table
@@ -103,4 +104,5 @@ class TenantsTable
                 ->withCount(['users', 'domains', 'projects'])
                 ->orderBy('created_at', 'desc'));
     }
+}
 }

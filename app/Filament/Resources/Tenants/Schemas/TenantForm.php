@@ -15,6 +15,7 @@ use Filament\Forms\Set;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Str;
 
+if (! class_exists(TenantForm::class)) {
 class TenantForm
 {
     public static function configure(Schema $schema): Schema
@@ -153,4 +154,5 @@ class TenantForm
                     ->helperText('Key-value pairs stored as JSON.'),
             ]);
     }
+}
 }

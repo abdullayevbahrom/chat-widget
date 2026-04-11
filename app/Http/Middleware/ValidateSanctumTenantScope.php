@@ -49,8 +49,18 @@ class ValidateSanctumTenantScope
         $accessToken = $request->user()->currentAccessToken();
 
         if ($accessToken instanceof PersonalAccessToken) {
-            // Check if token has tenant metadata
+            // Check if token has tenant metadata (from the tenant_id column added by migration)
             $tokenTenantId = $accessToken->tenant_id ?? null;
+
+            // Fallback: check abilities array for tenant_id (backward compatibility)
+            if ($tokenTenantId === null && is_array($accessToken->abilities)) {
+                foreach ($accessToken->abilities as $ability) {
+                    if (str_starts_with($ability, 'tenant:')) {
+                        $tokenTenantId = (int) substr($ability, 7);
+                        break;
+                    }
+                }
+            }
 
             if ($tokenTenantId !== null && (int) $tokenTenantId !== $currentTenant->id) {
                 return response()->json([

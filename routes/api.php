@@ -12,6 +12,8 @@ use App\Http\Controllers\Api\WidgetAttachmentController;
 use App\Http\Controllers\Api\WidgetConversationController;
 use App\Http\Controllers\Api\WidgetMessageController;
 use App\Http\Middleware\EnsureVerifiedWidgetDomain;
+use App\Http\Middleware\RestrictHealthEndpoint;
+use App\Http\Middleware\ValidateCorsOrigins;
 use App\Http\Middleware\ValidateSanctumTenantScope;
 use App\Http\Middleware\ValidateWidgetKey;
 use Illuminate\Support\Facades\Route;
@@ -40,8 +42,8 @@ Route::middleware(['throttle:telegram-webhook'])
     ->post('telegram/webhook/{tenantSlug}', [TelegramWebhookController::class, 'handle'])
     ->name('telegram.webhook');
 
-// Widget Message API — rate limited, widget key validated
-Route::middleware(['throttle:widget-message', ValidateWidgetKey::class, EnsureVerifiedWidgetDomain::class])
+// Widget Message API — rate limited, widget key validated, CORS origin validated
+Route::middleware(['throttle:widget-message', ValidateWidgetKey::class, EnsureVerifiedWidgetDomain::class, ValidateCorsOrigins::class])
     ->prefix('widget')
     ->group(function () {
         Route::post('messages', [WidgetMessageController::class, 'store'])->name('widget.messages.store');
@@ -51,7 +53,7 @@ Route::middleware(['throttle:widget-message', ValidateWidgetKey::class, EnsureVe
     });
 
 // Widget Attachment API — stricter rate limiting due to storage costs
-Route::middleware(['throttle:widget-attachment', 'throttle:widget-message', ValidateWidgetKey::class, EnsureVerifiedWidgetDomain::class])
+Route::middleware(['throttle:widget-attachment', ValidateWidgetKey::class, EnsureVerifiedWidgetDomain::class, ValidateCorsOrigins::class])
     ->prefix('widget')
     ->group(function () {
         Route::get('attachments/{projectId}/{conversationId}/{fileName}', [WidgetAttachmentController::class, 'download'])
@@ -83,7 +85,7 @@ Route::middleware(['throttle:widget-config'])
     ->name('widget.ws.connect');
 
 // Health Check endpoint — monitoring tool'lar uchun
-// Juda past rate limit (1 req/min) chunki monitoring tool'lar tez-tez so'rashi mumkin
-Route::middleware(['throttle:1,1'])
+// IP whitelist orqali himoyalangan; HEALTH_ALLOWED_IPS env da monitoring server IP'larni kiriting
+Route::middleware(['throttle:1,1', RestrictHealthEndpoint::class])
     ->get('health', [HealthController::class, 'index'])
     ->name('api.health');
