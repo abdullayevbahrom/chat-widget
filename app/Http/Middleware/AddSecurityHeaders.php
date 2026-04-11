@@ -67,6 +67,23 @@ class AddSecurityHeaders
             );
         }
 
+        // Content Security Policy — control allowed resources.
+        // Only set for non-widget-embed paths to avoid breaking widget iframes.
+        if (! $this->isIframeAllowedPath($request)) {
+            $cspParts = [
+                "default-src 'self'",
+                "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net",
+                "style-src 'self' 'unsafe-inline' https://fonts.bunny.net",
+                "font-src 'self' https://fonts.bunny.net",
+                "img-src 'self' data: blob: https:",
+                "connect-src 'self' https: wss: ws:",
+                "frame-ancestors 'none'",
+                "base-uri 'self'",
+                "form-action 'self'",
+            ];
+            $response->headers->set('Content-Security-Policy', implode('; ', $cspParts));
+        }
+
         // Remove server header to avoid information disclosure
         $response->headers->remove('X-Powered-By');
         $response->headers->remove('Server');

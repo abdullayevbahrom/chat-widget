@@ -120,4 +120,16 @@ return Application::configure(basePath: dirname(__DIR__))
 
             return $response;
         });
+
+        // Reportable exceptions - log with context
+        $exceptions->report(function (Throwable $e) {
+            // Log Telegram API errors with additional context
+            if ($e instanceof \GuzzleHttp\Exception\RequestException) {
+                \Illuminate\Support\Facades\Log::error('External API request failed', [
+                    'url' => $e->getRequest()->getUri(),
+                    'method' => $e->getRequest()->getMethod(),
+                    'status' => $e->hasResponse() ? $e->getResponse()->getStatusCode() : null,
+                ]);
+            }
+        });
     })->create();
