@@ -14,7 +14,6 @@ use App\Models\Visitor;
 use App\Services\ConversationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Event;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
@@ -30,8 +29,8 @@ class ConversationServiceTest extends TestCase
         parent::setUp();
         $this->service = app(ConversationService::class);
         
-        // Fake broadcasts to avoid Reverb connection errors
-        Broadcast::fake();
+        // Fake events to avoid broadcasting errors in tests
+        Event::fake();
     }
 
     #[Test]
