@@ -17,58 +17,45 @@ use App\Http\Middleware\TrackVisitors;
 use App\Http\Middleware\ValidateWidgetKey;
 use Illuminate\Support\Facades\Route;
 
-// Landing page — guests see this, authenticated users redirect to dashboard
+// ==========================================
+// Landing Page
+// ==========================================
 Route::get('/', function () {
     if (auth('tenant_user')->check()) {
-        return redirect('/app');
+        return redirect('/dashboard');
     }
-
     return view('welcome');
 })->name('home');
 
 // ==========================================
-// Tenant Auth Routes (Blade + Alpine.js)
+// Tenant Auth Routes
 // ==========================================
-Route::prefix('auth')->name('tenant.')->group(function () {
-    // Guest routes
-    Route::middleware('guest:tenant_user')->group(function () {
-        Route::get('/login', [TenantAuthController::class, 'showLoginForm'])->name('login');
-        Route::post('/login', [TenantAuthController::class, 'login']);
-        Route::get('/register', [TenantAuthController::class, 'showRegistrationForm'])->name('register');
-        Route::post('/register', [TenantAuthController::class, 'register']);
-    });
-    
-    // Authenticated routes
-    Route::post('/logout', [TenantAuthController::class, 'logout'])
-        ->middleware('auth:tenant_user')
-        ->name('logout');
+Route::prefix('auth')->name('tenant.')->middleware('guest:tenant_user')->group(function () {
+    Route::get('/login', [TenantAuthController::class, 'showLoginForm'])->name('login');
+    Route::post('/login', [TenantAuthController::class, 'login']);
+    Route::get('/register', [TenantAuthController::class, 'showRegistrationForm'])->name('register');
+    Route::post('/register', [TenantAuthController::class, 'register']);
 });
 
-// Redirect /app/* to /dashboard/* for Filament
-Route::prefix('app')->group(function () {
-    Route::get('/', function () {
-        return redirect('/dashboard');
-    });
-    Route::any('{any}', function ($any) {
-        return redirect('/dashboard/' . $any);
-    })->where('any', '.*');
-});
+Route::post('/auth/logout', [TenantAuthController::class, 'logout'])
+    ->middleware(['auth:tenant_user'])
+    ->name('tenant.logout');
 
+// ==========================================
 // Tenant Dashboard Routes
+// ==========================================
 Route::middleware(['auth:tenant_user', 'web'])->prefix('dashboard')->name('dashboard.')->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('index');
 
     // Projects CRUD
     Route::resource('projects', ProjectController::class)->except(['show']);
-    Route::post('/projects/{project}/regenerate-key', [ProjectController::class, 'regenerateKey'])
-        ->name('projects.regenerate-key');
+    Route::post('/projects/{project}/regenerate-key', [ProjectController::class, 'regenerateKey'])->name('projects.regenerate-key');
 
-    // Placeholder routes for other pages (will be implemented later)
+    // Domains CRUD
     Route::resource('tenant-domains', TenantDomainController::class)->except(['show'])->names('domains');
-    Route::post('/tenant-domains/{tenant_domain}/verify', [TenantDomainController::class, 'verify'])
-        ->name('domains.verify');
-    Route::post('/tenant-domains/{tenant_domain}/reverify', [TenantDomainController::class, 'reverify'])
-        ->name('domains.reverify');
+    Route::post('/tenant-domains/{tenant_domain}/verify', [TenantDomainController::class, 'verify'])->name('domains.verify');
+    Route::post('/tenant-domains/{tenant_domain}/reverify', [TenantDomainController::class, 'reverify'])->name('domains.reverify');
+
     // Tenant Profile
     Route::get('/tenant-profile', [TenantProfileController::class, 'index'])->name('profile');
     Route::put('/tenant-profile', [TenantProfileController::class, 'update'])->name('profile.update');
@@ -87,7 +74,9 @@ Route::middleware(['auth:tenant_user', 'web'])->prefix('dashboard')->name('dashb
     Route::patch('/conversations/{conversation}/archive', [ConversationController::class, 'archive'])->name('conversations.archive');
 });
 
-// Widget embed endpoints — the SDK bundle is public, runtime requests use widget headers.
+// ==========================================
+// Widget Embed Endpoints
+// ==========================================
 Route::get('/widget/embed', [WidgetEmbedController::class, 'embed'])
     ->middleware(['throttle:widget-config', TrackVisitors::class, ValidateWidgetKey::class, EnsureVerifiedWidgetDomain::class])
     ->name('widget.embed.view');
@@ -100,13 +89,8 @@ Route::get('/api/widget/config', [WidgetEmbedController::class, 'config'])
     ->middleware(['throttle:widget-config', ValidateWidgetKey::class, EnsureVerifiedWidgetDomain::class])
     ->name('widget.config');
 
-// Tenant-specific routes (accessible by tenant users)
-Route::middleware(['auth:tenant_user', 'web'])->group(function () {
-    // Additional tenant routes can be added here
-});
-
 // ==========================================
-// Admin Panel Routes (Blade + Alpine.js)
+// Admin Panel Routes
 // ==========================================
 Route::prefix('admin')->name('admin.')->group(function () {
     // Guest routes
@@ -114,7 +98,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/login', [AdminAuthController::class, 'showLoginForm'])->name('login');
         Route::post('/login', [AdminAuthController::class, 'login']);
     });
-    
+
     // Authenticated admin routes
     Route::middleware(['auth:web'])->group(function () {
         Route::post('/logout', [AdminAuthController::class, 'logout'])->name('logout');
