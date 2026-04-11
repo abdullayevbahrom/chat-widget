@@ -118,7 +118,7 @@ class Tenant extends Model
     /**
      * Set the bypass flag in Context (request-scoped) with static fallback.
      */
-    protected static function setBypass(bool $value): void
+    public static function setBypass(bool $value): void
     {
         Context::add(static::BYPASS_CONTEXT_KEY, $value);
         static::$bypassTenantContext = $value;
@@ -146,6 +146,10 @@ class Tenant extends Model
         'domain',
         'subdomain',
         'settings',
+        // Plan & status
+        'plan',
+        'is_active',
+        'subscription_expires_at',
         // Profile fields
         'company_name',
         'company_registration_number',

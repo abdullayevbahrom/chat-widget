@@ -15,8 +15,11 @@ abstract class TestCase extends BaseTestCase
         parent::setUp();
         
         // Disable tenant context for tests by default
-        // This allows tests to create and query tenants without scope interference
         Tenant::clearCurrent();
+        
+        // Enable tenant context bypass for all tests
+        // This prevents TenantScope from filtering out test data
+        Tenant::setBypass(true);
     }
 
     /**
@@ -33,5 +36,6 @@ abstract class TestCase extends BaseTestCase
     protected function clearTenantContext(): void
     {
         Tenant::clearCurrent();
+        Tenant::disableBypass();
     }
 }
