@@ -29,7 +29,7 @@ class ProjectDomain extends Model
      */
     protected static function booted(): void
     {
-        static::addGlobalScope(new TenantScope);
+        static::addGlobalScope(new TenantScope('project'));
     }
 
     /**

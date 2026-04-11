@@ -27,7 +27,8 @@ services:
       - DB_PORT=5432
       - DB_DATABASE=${DB_DATABASE:?DB_DATABASE is required}
       - DB_USERNAME=${DB_USERNAME:?DB_USERNAME is required}
-      - CACHE_DRIVER=redis
+      - DB_SSLMODE=${DB_SSLMODE:-disable}
+      - CACHE_STORE=redis
       - QUEUE_CONNECTION=redis
       - SESSION_DRIVER=redis
       - REDIS_HOST=redis
@@ -130,6 +131,9 @@ services:
       - REVERB_SCALING_CHANNEL=reverb
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - REDIS_PASSWORD_FILE=/run/secrets/redis_password
+    secrets:
+      - redis_password
     networks:
       - widget-network
     depends_on:

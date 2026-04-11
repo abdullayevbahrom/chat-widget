@@ -16,10 +16,13 @@ env:
   DB_PORT: 5432
   DB_DATABASE: widget_test
   DB_USERNAME: postgres
-  CACHE_DRIVER: file
+  DB_PASSWORD: postgres
+  DB_SSLMODE: disable
+  CACHE_STORE: file
   QUEUE_CONNECTION: sync
   SESSION_DRIVER: file
   REDIS_HOST: 127.0.0.1
+  REDIS_PASSWORD: redis
   REDIS_PORT: 6379
 
 jobs:
@@ -73,7 +76,7 @@ jobs:
         env:
           POSTGRES_DB: widget_test
           POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          POSTGRES_PASSWORD: postgres
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -83,7 +86,7 @@ jobs:
       redis:
         image: redis:7-alpine
         env:
-          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          REDIS_PASSWORD: redis
         options: >-
           --health-cmd "redis-cli --no-auth-warning -a $REDIS_PASSWORD ping"
           --health-interval 10s

@@ -88,7 +88,7 @@ class WidgetAttachmentController extends Controller
         $storagePath = $attachment['path'] ?? null;
 
         // Validate that the storage path is within the conversation's directory
-        if ($storagePath === null || ! $this->isPathWithinConversation($storagePath, $conversationId)) {
+        if ($storagePath === null || ! $this->isPathWithinConversation($storagePath, $projectId, $conversationId)) {
             Log::warning('Attachment download rejected: path traversal attempt detected.', [
                 'project_id' => $projectId,
                 'conversation_id' => $conversationId,
@@ -148,21 +148,20 @@ class WidgetAttachmentController extends Controller
     /**
      * Validate that a storage path is within the expected conversation directory.
      */
-    protected function isPathWithinConversation(string $storagePath, int $conversationId): bool
+    protected function isPathWithinConversation(string $storagePath, int $projectId, int $conversationId): bool
     {
-        // Normalize paths
         $normalizedPath = str_replace('\\', '/', $storagePath);
+        $expectedPrefix = sprintf(
+            'widget-attachments/project-%d/conversation-%d/',
+            $projectId,
+            $conversationId,
+        );
 
-        // Check that the path contains the conversation ID as a directory component
-        // This prevents accessing files outside the conversation's scope
-        $expectedPattern = '/conversation(s)?/'.preg_quote((string) $conversationId, '/').'/i';
-
-        if (! preg_match($expectedPattern, $normalizedPath)) {
+        if (! str_starts_with($normalizedPath, $expectedPrefix)) {
             return false;
         }
 
-        // Ensure no parent directory traversal
-        if (str_contains($normalizedPath, '../') || str_contains($normalizedPath, '..\\')) {
+        if (str_contains($normalizedPath, '../')) {
             return false;
         }
 

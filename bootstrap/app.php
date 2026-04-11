@@ -25,7 +25,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $trustedProxies = array_values(array_filter(
             array_map('trim', explode(',', (string) env('TRUSTED_PROXIES', ''))),
-            static fn (string $proxy): bool => $proxy !== ''
+            static fn (string $proxy): bool => $proxy !== '' && $proxy !== '*'
         ));
 
         // Register tenant middleware aliases

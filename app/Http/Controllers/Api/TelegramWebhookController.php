@@ -969,7 +969,7 @@ class TelegramWebhookController extends Controller
      */
     protected function getServerRemoteAddr(): string
     {
-        return $_SERVER['REMOTE_ADDR'] ?? $_SERVER['HTTP_X_REAL_IP'] ?? '0.0.0.0';
+        return $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
     }
 
     /**

@@ -88,24 +88,8 @@ class DomainVerificationService
             return false;
         }
 
-        $hostname = "_widget-verify.{$domainHost}";
+        $hostname = "_widget-verify.{$parsedHost}";
         $expectedValue = "widget-verify={$domain->verification_token}";
-
-        // Also validate the TXT record target hostname to prevent DNS rebinding
-        $txtTargetHost = parse_url($hostname, PHP_URL_HOST) ?: $hostname;
-        $txtTargetValidationError = $this->validateDnsVerificationTarget($txtTargetHost);
-
-        if ($txtTargetValidationError !== null) {
-            Log::warning('Rejected unsafe DNS TXT verification target.', [
-                'project_domain_id' => $domain->id,
-                'hostname' => $hostname,
-                'reason' => $txtTargetValidationError,
-            ]);
-
-            $domain->markAsFailed($txtTargetValidationError);
-
-            return false;
-        }
 
         $records = @dns_get_record($hostname, DNS_TXT);
 
@@ -180,6 +164,7 @@ class DomainVerificationService
         while ($retries < $this->maxRetries) {
             try {
                 $response = Http::timeout($this->httpTimeout)
+                    ->withoutRedirecting()
                     ->get($url);
 
                 if ($response->successful() && trim($response->body()) === $expectedContent) {
@@ -191,15 +176,13 @@ class DomainVerificationService
                     return true;
                 }
 
-                $domain->markAsFailed(
-                    "HTTP verification failed. Expected: {$expectedContent}, Got: ".trim($response->body())
-                );
+                $domain->markAsFailed("HTTP verification failed with status {$response->status()}. Token mismatch or verification file missing.");
 
                 return false;
             } catch (\Exception $e) {
                 $retries++;
                 if ($retries >= $this->maxRetries) {
-                    $domain->markAsFailed("HTTP verification failed after {$this->maxRetries} retries: {$e->getMessage()}");
+                    $domain->markAsFailed("HTTP verification failed after {$this->maxRetries} retries.");
 
                     return false;
                 }

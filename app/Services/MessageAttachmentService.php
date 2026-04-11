@@ -117,38 +117,13 @@ class MessageAttachmentService
     {
         // Get the MIME type detected by the server (not client-provided)
         $detectedMimeType = $attachment->getMimeType();
-        $clientExtension = strtolower($attachment->getClientOriginalExtension() ?: $attachment->extension() ?: 'bin');
-
-        // SECURITY: Validate that the file extension matches the detected MIME type.
-        // This prevents attackers from uploading malicious files disguised with
-        // innocent extensions (e.g., a PHP file named "image.jpg").
-        $safeExtension = $this->getExtensionForMimeType($detectedMimeType);
-
-        if ($safeExtension === null) {
-            // Unknown MIME type — use a safe default
-            $storedExtension = 'bin';
-
-            Log::warning('Attachment has unknown MIME type, using safe default extension.', [
-                'project_id' => $project->id,
-                'conversation_id' => $conversation->id,
-                'detected_mime' => $detectedMimeType,
-                'client_extension' => $clientExtension,
-            ]);
-        } elseif ($safeExtension !== $clientExtension) {
-            // MIME type and extension mismatch — use the MIME-derived extension
-            $storedExtension = $safeExtension;
-
-            Log::warning('Attachment extension does not match MIME type, using MIME-derived extension.', [
-                'project_id' => $project->id,
-                'conversation_id' => $conversation->id,
-                'detected_mime' => $detectedMimeType,
-                'safe_extension' => $safeExtension,
-                'client_extension' => $clientExtension,
-            ]);
-        } else {
-            // Match confirmed
-            $storedExtension = $clientExtension;
-        }
+        $storedExtension = $this->resolveStoredExtension(
+            $detectedMimeType,
+            $attachment->getClientOriginalName(),
+            'file',
+            $project,
+            $conversation,
+        );
 
         $storedName = sprintf('%s.%s', Str::uuid()->toString(), $storedExtension);
         $directory = $this->buildAttachmentDirectory($project, $conversation);
@@ -225,7 +200,13 @@ class MessageAttachmentService
         $originalName = $telegramFile['file_name']
             ?? basename($remotePath)
             ?? sprintf('%s.%s', $defaultType, $defaultType === 'image' ? 'jpg' : 'bin');
-        $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION) ?: ($defaultType === 'image' ? 'jpg' : 'bin'));
+        $extension = $this->resolveStoredExtension(
+            is_string($telegramFile['mime_type'] ?? null) ? $telegramFile['mime_type'] : null,
+            $originalName,
+            $defaultType,
+            $project,
+            $conversation,
+        );
         $storedName = sprintf('%s.%s', Str::uuid()->toString(), $extension);
         $directory = $this->buildAttachmentDirectory($project, $conversation);
         $storedPath = $directory.'/'.$storedName;
@@ -269,6 +250,40 @@ class MessageAttachmentService
         return mb_substr($name, 0, 255);
     }
 
+    protected function resolveStoredExtension(
+        ?string $mimeType,
+        string $originalName,
+        string $defaultType,
+        Project $project,
+        Conversation $conversation,
+    ): string {
+        $clientExtension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION) ?: '');
+        $safeExtension = $this->getExtensionForMimeType($mimeType);
+
+        if ($safeExtension !== null) {
+            if ($clientExtension !== '' && $safeExtension !== $clientExtension) {
+                Log::warning('Attachment extension does not match MIME type, using MIME-derived extension.', [
+                    'project_id' => $project->id,
+                    'conversation_id' => $conversation->id,
+                    'detected_mime' => $mimeType,
+                    'safe_extension' => $safeExtension,
+                    'client_extension' => $clientExtension,
+                ]);
+            }
+
+            return $safeExtension;
+        }
+
+        Log::warning('Attachment has unknown or disallowed MIME type, using safe default extension.', [
+            'project_id' => $project->id,
+            'conversation_id' => $conversation->id,
+            'detected_mime' => $mimeType,
+            'client_extension' => $clientExtension,
+        ]);
+
+        return $defaultType === 'image' ? 'jpg' : 'bin';
+    }
+
     /**
      * Map a MIME type to its canonical file extension.
      *
@@ -283,38 +298,16 @@ class MessageAttachmentService
         }
 
         $map = [
-            // Images
+            // Images allowed by widget upload validation.
             'image/jpeg' => 'jpg',
             'image/png' => 'png',
             'image/gif' => 'gif',
             'image/webp' => 'webp',
-            'image/svg+xml' => 'svg',
-            'image/bmp' => 'bmp',
-            'image/tiff' => 'tiff',
-            'image/x-icon' => 'ico',
-            // Documents
+            // Documents allowed by widget upload validation.
             'application/pdf' => 'pdf',
             'text/plain' => 'txt',
             'application/msword' => 'doc',
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => 'docx',
-            'application/vnd.ms-excel' => 'xls',
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' => 'xlsx',
-            'application/vnd.ms-powerpoint' => 'ppt',
-            'application/vnd.openxmlformats-officedocument.presentationml.presentation' => 'pptx',
-            'text/csv' => 'csv',
-            'text/html' => 'html',
-            // Archives
-            'application/zip' => 'zip',
-            'application/gzip' => 'gz',
-            'application/x-tar' => 'tar',
-            'application/x-rar-compressed' => 'rar',
-            // Audio/Video
-            'audio/mpeg' => 'mp3',
-            'audio/wav' => 'wav',
-            'audio/ogg' => 'ogg',
-            'video/mp4' => 'mp4',
-            'video/webm' => 'webm',
-            'video/ogg' => 'ogv',
         ];
 
         return $map[$mimeType] ?? null;

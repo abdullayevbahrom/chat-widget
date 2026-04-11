@@ -61,7 +61,7 @@ Route::middleware(['throttle:widget-attachment', ValidateWidgetKey::class, Ensur
     });
 
 // Admin Conversation API — authenticated, tenant-scoped
-Route::middleware(['auth:sanctum', 'set.tenant', 'enforce.tenant', ValidateSanctumTenantScope::class, 'throttle:tenant-api'])
+Route::middleware(['auth:sanctum', 'set.tenant', 'enforce.tenant', ValidateSanctumTenantScope::class, 'throttle:admin-conversation'])
     ->prefix('tenant')
     ->group(function () {
         Route::apiResource('conversations', AdminConversationController::class)->only(['index', 'show']);
@@ -80,7 +80,7 @@ Route::middleware(['throttle:60,1'])
 
 // Widget WebSocket connection endpoint — authenticates via widget key/bootstrap token
 // and returns Reverb connection config without exposing the app_key directly
-Route::middleware(['throttle:widget-config'])
+Route::middleware(['throttle:widget-config', ValidateWidgetKey::class, EnsureVerifiedWidgetDomain::class, ValidateCorsOrigins::class])
     ->get('widget/ws/connect', [WidgetMessageController::class, 'wsConnect'])
     ->name('widget.ws.connect');
 

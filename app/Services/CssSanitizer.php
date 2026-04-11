@@ -43,11 +43,20 @@ class CssSanitizer
      */
     public function sanitize(string $css): string
     {
+        $css = preg_replace('/<\s*(script|style)\b[^>]*>.*?<\s*\/\s*\1\s*>/is', '', $css) ?? '';
+
         // Strip all HTML tags — CSS should never contain HTML
         $css = strip_tags($css);
 
         // Strip null bytes
         $css = str_replace("\0", '', $css);
+
+        // Remove comments before inserting block markers for dangerous patterns.
+        $css = preg_replace(
+            '/\/\*[^*]*\*+(?:[^*\/][^*]*\*+)*\//',
+            '',
+            $css
+        ) ?? '';
 
         // Remove dangerous CSS patterns
         foreach ($this->dangerousPatterns as $pattern) {
@@ -61,14 +70,6 @@ class CssSanitizer
         // Remove backslash-based escapes that could bypass filters
         // e.g., \65\78\70\72\65\73\73\69\6f\6e (expression in hex escapes)
         $css = $this->removeEscapedAttacks($css);
-
-        // Remove comments that might contain blocked patterns
-        // (Keep simple comments, remove ones with dangerous content)
-        $css = preg_replace(
-            '/\/\*[^*]*\*+(?:[^*\/][^*]*\*+)*\//',
-            '',
-            $css
-        );
 
         return trim($css);
     }
