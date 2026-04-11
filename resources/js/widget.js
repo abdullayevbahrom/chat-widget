@@ -9,7 +9,7 @@
  * - Polling-based message updates
  * - WebSocket support via Laravel Echo + Pusher
  *
- * @version 1.2.0
+ * @version 1.3.0
  */
 
 // Import Echo and Pusher for WebSocket support (bundled by Vite IIFE build)
@@ -25,7 +25,7 @@ if (typeof window !== 'undefined') {
 (function(global) {
   'use strict';
 
-  const WIDGET_VERSION = '1.1.0';
+  const WIDGET_VERSION = '1.3.0';
   const MAX_ATTACHMENTS = 3;
   const WIDGET_SCRIPT = document.currentScript ||
     document.querySelector('script[data-widget-key]') ||
@@ -150,11 +150,11 @@ if (typeof window !== 'undefined') {
         bootstrap_token: config.bootstrapToken ?? config.bootstrap_token ?? null,
         trusted_origin: config.trustedOrigin ?? config.trusted_origin ?? null,
         settings,
-        theme: settings.theme ?? config.theme ?? 'light',
+        theme: settings.theme ?? config.theme ?? 'dark',
         position: settings.position ?? config.position ?? 'bottom-right',
-        width: settings.width ?? config.width ?? 350,
-        height: settings.height ?? config.height ?? 500,
-        primary_color: settings.primary_color ?? config.primary_color ?? '#3B82F6',
+        width: settings.width ?? config.width ?? 360,
+        height: settings.height ?? config.height ?? 520,
+        primary_color: settings.primary_color ?? config.primary_color ?? '#8b5cf6',
         custom_css: settings.custom_css ?? config.custom_css ?? null,
         verified_domains: config.verifiedDomains ?? config.verified_domains ?? [],
         api_base_url: config.apiBaseUrl ?? config.api_base_url ?? WIDGET_HOST,
@@ -331,6 +331,7 @@ if (typeof window !== 'undefined') {
       btn.className = `position-${state.config?.position || 'bottom-right'}`;
       btn.setAttribute('aria-label', 'Open chat');
       btn.innerHTML = `
+        <span class="widget-toggle-pulse" aria-hidden="true"></span>
         <svg class="widget-icon widget-icon-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
         </svg>
@@ -351,43 +352,50 @@ if (typeof window !== 'undefined') {
       container.innerHTML = `
         <div id="widget-header">
           <div id="widget-header-info">
-            <div id="widget-avatar">💬</div>
+            <div id="widget-avatar">✦</div>
             <div id="widget-header-text">
-              <h3>${utils.escapeHtml(state.config?.project_name || 'Chat Support')}</h3>
-              <p>Reply from your site inbox or Telegram</p>
+              <h3>${utils.escapeHtml(state.config?.project_name || 'Support')}</h3>
+              <p><span class="widget-status-dot"></span>Online now</p>
             </div>
           </div>
-          <button id="widget-close-btn" aria-label="Close chat">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
+          <div id="widget-header-actions">
+            <button id="widget-minimize-btn" aria-label="Minimize chat">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="6" y1="12" x2="18" y2="12"></line>
+              </svg>
+            </button>
+            <button id="widget-close-btn" aria-label="Close chat">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
         </div>
 
-        <div id="widget-pre-chat-form">
-          <h4>Welcome! 👋</h4>
-          <p>Please introduce yourself so we can better assist you.</p>
-          <div class="widget-form-field">
-            <label for="widget-visitor-name">Your Name *</label>
-            <input type="text" id="widget-visitor-name" placeholder="John Doe" required>
+        <div id="widget-messages">
+          <div id="widget-pre-chat-form">
+            <div class="widget-intro-badge">Live support</div>
+            <h4>Welcome! Let’s get you an answer.</h4>
+            <p>Leave your name to start chatting. The thread stays here, just like in the reference widget.</p>
+            <div class="widget-form-field">
+              <label for="widget-visitor-name">Your name</label>
+              <input type="text" id="widget-visitor-name" placeholder="John Doe" required>
+            </div>
+            <div class="widget-form-field">
+              <label for="widget-visitor-email">Email address</label>
+              <input type="email" id="widget-visitor-email" placeholder="john@example.com">
+            </div>
+            <button id="widget-start-chat-btn">Start Chat</button>
           </div>
-          <div class="widget-form-field">
-            <label for="widget-visitor-email">Email Address</label>
-            <input type="email" id="widget-visitor-email" placeholder="john@example.com">
-          </div>
-          <button id="widget-start-chat-btn">Start Chat</button>
-        </div>
-
-        <div id="widget-messages" class="widget-hidden">
           <div id="widget-welcome">
-            <div id="widget-welcome-icon">👋</div>
-            <h4>Welcome to ${utils.escapeHtml(state.config?.project_name || 'our support')}</h4>
-            <p>Send us a message or attachment and we'll get back to you shortly.</p>
+            <div id="widget-welcome-icon">✦</div>
+            <h4>${utils.escapeHtml(state.config?.project_name || 'Support team')}</h4>
+            <p>Ask a question, send a file, or continue an existing conversation.</p>
           </div>
         </div>
 
-        <div id="widget-input-area" class="widget-hidden">
+        <div id="widget-input-area">
           <input id="widget-attachment-input" type="file" multiple class="widget-hidden" accept="image/*,.pdf,.txt,.doc,.docx">
           <div id="widget-composer">
             <div id="widget-attachment-list" class="widget-hidden"></div>
@@ -397,7 +405,7 @@ if (typeof window !== 'undefined') {
                   <path d="M21.44 11.05l-8.49 8.49a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.82-2.83l8.49-8.48"></path>
                 </svg>
               </button>
-              <textarea id="widget-input" placeholder="Type your message..." rows="1" maxlength="2000"></textarea>
+              <textarea id="widget-input" placeholder="Write a message..." rows="1" maxlength="2000"></textarea>
               <button id="widget-send-btn" aria-label="Send message">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <line x1="22" y1="2" x2="11" y2="13"></line>
@@ -439,6 +447,7 @@ if (typeof window !== 'undefined') {
       elements.input = document.getElementById('widget-input');
       elements.sendBtn = document.getElementById('widget-send-btn');
       elements.closeBtn = document.getElementById('widget-close-btn');
+      elements.minimizeBtn = document.getElementById('widget-minimize-btn');
       elements.loading = document.getElementById('widget-loading');
       elements.error = document.getElementById('widget-error');
       elements.nameInput = document.getElementById('widget-visitor-name');
@@ -451,6 +460,7 @@ if (typeof window !== 'undefined') {
       this.bindEvents();
 
       this.applyDynamicColors();
+      this.lockComposerUntilIdentity();
 
       if (state.config?.custom_css) {
         const style = document.createElement('style');
@@ -460,7 +470,7 @@ if (typeof window !== 'undefined') {
     },
 
     applyDynamicColors() {
-      const primaryColor = state.config?.primary_color || '#3B82F6';
+      const primaryColor = state.config?.primary_color || '#8B5CF6';
 
       if (elements.container) {
         elements.container.style.setProperty('--w-bg-header', primaryColor);
@@ -477,6 +487,7 @@ if (typeof window !== 'undefined') {
     bindEvents() {
       elements.toggleBtn.addEventListener('click', () => toggle());
       elements.closeBtn.addEventListener('click', () => close());
+      elements.minimizeBtn.addEventListener('click', () => close());
       elements.startChatBtn.addEventListener('click', () => this.startChat());
       elements.sendBtn.addEventListener('click', () => this.sendMessage());
       elements.attachmentBtn.addEventListener('click', () => elements.attachmentInput.click());
@@ -517,8 +528,7 @@ if (typeof window !== 'undefined') {
       state.visitorEmail = email || null;
 
       elements.preChatForm.classList.add('widget-hidden');
-      elements.messages.classList.remove('widget-hidden');
-      elements.inputArea.classList.remove('widget-hidden');
+      this.unlockComposer();
       elements.input.focus();
 
       await this.loadMessages();
@@ -528,6 +538,30 @@ if (typeof window !== 'undefined') {
       if (!wsInitialized) {
         startPolling();
       }
+    },
+
+    lockComposerUntilIdentity() {
+      if (!elements.input || !elements.sendBtn || !elements.attachmentBtn) {
+        return;
+      }
+
+      elements.input.disabled = true;
+      elements.sendBtn.disabled = true;
+      elements.attachmentBtn.disabled = true;
+      elements.input.placeholder = 'Enter your name above to begin chatting';
+      elements.inputArea.classList.add('widget-composer-locked');
+    },
+
+    unlockComposer() {
+      if (!elements.input || !elements.sendBtn || !elements.attachmentBtn) {
+        return;
+      }
+
+      elements.input.disabled = false;
+      elements.sendBtn.disabled = false;
+      elements.attachmentBtn.disabled = false;
+      elements.input.placeholder = 'Write a message...';
+      elements.inputArea.classList.remove('widget-composer-locked');
     },
 
     initWebSocket(conversationId) {
@@ -867,7 +901,7 @@ if (typeof window !== 'undefined') {
     buildMessageElement(message) {
       const isVisitor = message.type === 'visitor' || message.direction === 'inbound';
       const messageEl = document.createElement('div');
-      messageEl.className = `widget-message widget-message-${isVisitor ? 'visitor' : 'agent'}`;
+      messageEl.className = `widget-message-row widget-message-row-${isVisitor ? 'visitor' : 'agent'}`;
       messageEl.dataset.messageId = message.id;
 
       // Track message ID in Set for fast lookup
@@ -916,11 +950,18 @@ if (typeof window !== 'undefined') {
           }).join('')}</div>`
         : '';
 
+      const avatarMarkup = !isVisitor
+        ? `<div class="widget-message-avatar" aria-hidden="true">✦</div>`
+        : '';
+
       messageEl.innerHTML = `
-        ${agentNameMarkup}
-        ${bodyMarkup}
-        ${attachmentsMarkup}
-        <div class="widget-message-time">${time}</div>
+        ${avatarMarkup}
+        <div class="widget-message widget-message-${isVisitor ? 'visitor' : 'agent'}">
+          ${agentNameMarkup}
+          ${bodyMarkup}
+          ${attachmentsMarkup}
+          <div class="widget-message-time">${time}</div>
+        </div>
       `;
 
       return messageEl;

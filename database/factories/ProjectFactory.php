@@ -31,11 +31,11 @@ class ProjectFactory extends Factory
             'primary_domain' => fake()->optional()->domainName(),
             'settings' => [
                 'widget' => [
-                    'theme' => 'light',
+                    'theme' => 'dark',
                     'position' => 'bottom-right',
-                    'width' => 350,
-                    'height' => 500,
-                    'primary_color' => '#3B82F6',
+                    'width' => 360,
+                    'height' => 520,
+                    'primary_color' => '#8B5CF6',
                     'custom_css' => null,
                 ],
             ],

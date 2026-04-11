@@ -44,6 +44,8 @@ class CssSanitizer
     public function sanitize(string $css): string
     {
         $css = preg_replace('/<\s*(script|style)\b[^>]*>.*?<\s*\/\s*\1\s*>/is', '', $css) ?? '';
+        $css = preg_replace('/<\s*script\b[^>]*>[^<]*/is', '', $css) ?? '';
+        $css = preg_replace('/<\s*\/?\s*(script|style)\b[^>]*>/is', '', $css) ?? '';
 
         // Strip all HTML tags — CSS should never contain HTML
         $css = strip_tags($css);

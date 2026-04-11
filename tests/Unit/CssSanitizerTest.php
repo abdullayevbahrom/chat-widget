@@ -22,6 +22,21 @@ class CssSanitizerTest extends TestCase
     }
 
     #[Test]
+    public function it_strips_unclosed_script_and_style_tags_from_css(): void
+    {
+        $sanitizer = new CssSanitizer();
+        $scriptResult = $sanitizer->sanitize('<script>alert("xss")<div>p{margin:0;}</div>');
+        $styleResult = $sanitizer->sanitize('<style>body{color:red;}');
+
+        $this->assertStringNotContainsString('<script', $scriptResult);
+        $this->assertStringNotContainsString('alert', $scriptResult);
+        $this->assertStringContainsString('p{margin:0;}', $scriptResult);
+
+        $this->assertStringNotContainsString('<style', $styleResult);
+        $this->assertStringContainsString('body{color:red;}', $styleResult);
+    }
+
+    #[Test]
     public function it_blocks_css_expression(): void
     {
         $sanitizer = new CssSanitizer();

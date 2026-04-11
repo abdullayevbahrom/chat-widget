@@ -40,8 +40,7 @@
 
         {{-- Dynamic primary color from tenant settings --}}
         #widget-chat-container {
-            --w-bg-header: {{ $settings['primary_color'] ?? '#3B82F6' }};
-            --w-bg-message-visitor: {{ $settings['primary_color'] ?? '#3B82F6' }};
+            --w-bg-header: {{ $settings['primary_color'] ?? '#8B5CF6' }};
         }
 
         {{-- Additional iframe-specific styles --}}
@@ -67,7 +66,7 @@
         @endif
     </style>
 </head>
-<body data-theme="{{ $settings['theme'] ?? 'light' }}" data-project-id="{{ (int) $project_id }}">
+<body data-theme="{{ $settings['theme'] ?? 'dark' }}" data-project-id="{{ (int) $project_id }}">
     <div id="widget-root">
         {{-- Will be populated by JavaScript --}}
     </div>
