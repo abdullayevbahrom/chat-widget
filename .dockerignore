@@ -83,7 +83,7 @@ pnpm-lock.yaml
 *.cache
 
 # AI/Code assistant files
-.ai-factory/
+.ai*
 .claude/
 .codex/
 .qwen/
@@ -108,3 +108,7 @@ psalm.xml.dist
 # Laravel specific
 bootstrap/cache/*.php
 !bootstrap/cache/.gitignore
+
+*.phpstorm*
+.phpactor.json
+.phpunit*
