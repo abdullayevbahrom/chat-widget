@@ -20,6 +20,9 @@ class TenantResolverTest extends TestCase
     {
         parent::setUp();
         $this->resolver = app(TenantResolver::class);
+        
+        // Clear tenant context for tests
+        Tenant::clearCurrent();
     }
 
     #[Test]
@@ -27,12 +30,15 @@ class TenantResolverTest extends TestCase
     {
         config(['domains.regex' => '/^[a-zA-Z0-9][a-zA-Z0-9\-\.]*\.[a-zA-Z]{2,}$/']);
 
-        $tenant = Tenant::factory()->create();
+        $tenant = Tenant::factory()->create(['is_active' => true]);
         \App\Models\TenantDomain::factory()->create([
             'tenant_id' => $tenant->id,
-            'domain' => 'https://example.com',
+            'domain' => 'example.com',
             'is_active' => true,
         ]);
+
+        // Set tenant context so TenantScope doesn't filter results
+        Tenant::setCurrent($tenant);
 
         $result = $this->resolver->resolveFromDomain('example.com');
 
@@ -54,6 +60,7 @@ class TenantResolverTest extends TestCase
     public function it_resolves_tenant_from_subdomain(): void
     {
         $tenant = Tenant::factory()->create(['subdomain' => 'acme', 'is_active' => true]);
+        Tenant::setCurrent($tenant);
 
         $result = $this->resolver->resolveFromSubdomain('acme');
 
@@ -72,9 +79,10 @@ class TenantResolverTest extends TestCase
         $tenant = Tenant::factory()->create(['subdomain' => 'acme', 'is_active' => true]);
         \App\Models\TenantDomain::factory()->create([
             'tenant_id' => $tenant->id,
-            'domain' => 'https://custom-domain.com',
+            'domain' => 'custom-domain.com',
             'is_active' => true,
         ]);
+        Tenant::setCurrent($tenant);
 
         // Domain match
         $result1 = $this->resolver->resolve('custom-domain.com');
@@ -93,9 +101,10 @@ class TenantResolverTest extends TestCase
         $tenant = Tenant::factory()->create();
         \App\Models\TenantDomain::factory()->create([
             'tenant_id' => $tenant->id,
-            'domain' => 'https://cached-domain.com',
+            'domain' => 'cached-domain.com',
             'is_active' => true,
         ]);
+        Tenant::setCurrent($tenant);
 
         $this->resolver->resolveFromDomain('cached-domain.com');
 

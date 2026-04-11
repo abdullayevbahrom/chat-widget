@@ -25,9 +25,10 @@ class TenantResolver
                     return null;
                 }
 
-                return Tenant::whereHas('domains', function ($query) use ($domain) {
-                    $query->where('domain', $domain)->where('is_active', true);
-                })->first();
+                return Tenant::withoutGlobalScopes()
+                    ->whereHas('domains', function ($query) use ($domain) {
+                        $query->where('domain', $domain)->where('is_active', true);
+                    })->first();
             }
         );
     }
@@ -40,7 +41,8 @@ class TenantResolver
         return Cache::remember(
             "tenant:subdomain:{$subdomain}",
             $this->cacheTtl,
-            fn () => Tenant::where('subdomain', $subdomain)
+            fn () => Tenant::withoutGlobalScopes()
+                ->where('subdomain', $subdomain)
                 ->where('is_active', true)
                 ->first()
         );

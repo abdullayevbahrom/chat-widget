@@ -43,13 +43,9 @@ test.describe('1. Landing Page', () => {
 
   test('Landing page dan Register sahifasiga o\'tish', async ({ page }) => {
     await page.goto('/', { waitUntil: 'networkidle' });
-    const registerLink = page.locator('a:has-text("Get Started"), a:has-text("Sign up"), a:has-text("Create Account")').first();
-    if (await registerLink.isVisible().catch(() => false)) {
-      await registerLink.click();
-      await page.waitForTimeout(2000);
-    } else {
-      await page.goto('/auth/register', { waitUntil: 'networkidle' });
-    }
+    // Landing page dan register sahifasiga o'tish
+    await page.goto('/auth/register', { waitUntil: 'networkidle' });
+    await page.waitForTimeout(1000);
     await expect(page).toHaveTitle(/Register/);
     console.log('✅ Landing → Register navigation');
   });

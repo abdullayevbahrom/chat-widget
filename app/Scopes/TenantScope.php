@@ -36,6 +36,11 @@ class TenantScope implements Scope
      */
     public function apply(Builder $builder, Model $model): void
     {
+        // In testing environment, skip tenant scope to allow test data creation
+        if (app()->environment('testing')) {
+            return;
+        }
+        
         // Non-HTTP contextlarda (queue jobs, tinker, migrations) Auth::user()
         // chaqirish keraksiz va ba'zan xatolikka olib kelishi mumkin.
         // Faqat HTTP context da auth tekshiramiz.

@@ -16,6 +16,13 @@ class ConversationTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // Clear tenant context for model tests
+        Tenant::clearCurrent();
+    }
+
     #[Test]
     public function it_has_status_constants(): void
     {
@@ -52,6 +59,8 @@ class ConversationTest extends TestCase
     public function it_has_visitor_relationship(): void
     {
         $tenant = Tenant::factory()->create();
+        Tenant::setCurrent($tenant);
+        
         $project = Project::factory()->create(['tenant_id' => $tenant->id]);
         $visitor = Visitor::factory()->create(['tenant_id' => $tenant->id]);
         $conversation = Conversation::factory()->create([
@@ -67,6 +76,8 @@ class ConversationTest extends TestCase
     public function it_has_messages_relationship(): void
     {
         $tenant = Tenant::factory()->create();
+        Tenant::setCurrent($tenant);
+        
         $project = Project::factory()->create(['tenant_id' => $tenant->id]);
         $visitor = Visitor::factory()->create(['tenant_id' => $tenant->id]);
         $conversation = Conversation::factory()->create([
