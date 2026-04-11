@@ -4,6 +4,7 @@ namespace Tests\Unit\Models;
 
 use App\Models\Project;
 use App\Models\ProjectDomain;
+use App\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
@@ -11,6 +12,12 @@ use Tests\TestCase;
 class ProjectDomainTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Tenant::setBypass(true);
+    }
 
     #[Test]
     public function it_has_status_constants(): void
@@ -37,23 +44,23 @@ class ProjectDomainTest extends TestCase
         // With protocol
         $domain = ProjectDomain::factory()->create([
             'project_id' => $project->id,
-            'domain' => 'https://Example.COM',
+            'domain' => 'https://Example1.COM',
         ]);
-        $this->assertEquals('https://example.com', $domain->domain);
+        $this->assertEquals('https://example1.com', $domain->domain);
 
         // Without protocol - adds https://
         $domain2 = ProjectDomain::factory()->create([
             'project_id' => $project->id,
-            'domain' => 'example.com',
+            'domain' => 'example2.com',
         ]);
-        $this->assertEquals('https://example.com', $domain2->domain);
+        $this->assertEquals('https://example2.com', $domain2->domain);
 
         // With http protocol
         $domain3 = ProjectDomain::factory()->create([
             'project_id' => $project->id,
-            'domain' => 'http://example.com:8080',
+            'domain' => 'http://example3.com:8080',
         ]);
-        $this->assertEquals('http://example.com:8080', $domain3->domain);
+        $this->assertEquals('http://example3.com:8080', $domain3->domain);
     }
 
     #[Test]

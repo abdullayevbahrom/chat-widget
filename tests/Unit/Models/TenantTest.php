@@ -16,6 +16,13 @@ class TenantTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // Tenant testlar uchun bypass yoqamiz
+        Tenant::setBypass(true);
+    }
+
     #[Test]
     public function it_creates_tenant_with_valid_data(): void
     {

@@ -28,9 +28,10 @@ class ConversationServiceTest extends TestCase
     {
         parent::setUp();
         $this->service = app(ConversationService::class);
-        
-        // Fake events to avoid broadcasting errors in tests
+
+        // Fake events and broadcasting to avoid WebSocket errors in tests
         Event::fake();
+        $this->app['config']->set('broadcasting.default', 'null');
     }
 
     #[Test]

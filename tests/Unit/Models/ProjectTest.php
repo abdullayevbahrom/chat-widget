@@ -13,6 +13,12 @@ class ProjectTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Tenant::setBypass(true);
+    }
+
     #[Test]
     public function it_generates_widget_key_with_hash(): void
     {

@@ -13,6 +13,12 @@ class TelegramBotSettingTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Tenant::setBypass(true);
+    }
+
     #[Test]
     public function it_has_tenant_relationship(): void
     {

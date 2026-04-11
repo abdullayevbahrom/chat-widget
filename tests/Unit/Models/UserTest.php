@@ -13,6 +13,12 @@ class UserTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Tenant::setBypass(true);
+    }
+
     #[Test]
     public function it_checks_if_user_is_super_admin(): void
     {

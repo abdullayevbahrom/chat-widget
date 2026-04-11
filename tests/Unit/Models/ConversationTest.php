@@ -21,6 +21,7 @@ class ConversationTest extends TestCase
         parent::setUp();
         // Clear tenant context for model tests
         Tenant::clearCurrent();
+        Tenant::setBypass(true);
     }
 
     #[Test]

@@ -6,6 +6,7 @@ use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\Project;
 use App\Models\Tenant;
+use App\Models\User;
 use App\Models\Visitor;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
@@ -14,6 +15,12 @@ use Tests\TestCase;
 class MessageTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Tenant::setBypass(true);
+    }
 
     #[Test]
     public function it_has_type_constants(): void
@@ -43,7 +50,7 @@ class MessageTest extends TestCase
             'project_id' => $project->id,
             'visitor_id' => $visitor->id,
         ]);
-        $message = Message::factory()->create([
+        $message = Message::factory()->for($visitor, 'sender')->create([
             'conversation_id' => $conversation->id,
             'tenant_id' => $tenant->id,
         ]);
@@ -93,7 +100,7 @@ class MessageTest extends TestCase
             'project_id' => $project->id,
             'visitor_id' => $visitor->id,
         ]);
-        $message = Message::factory()->create([
+        $message = Message::factory()->for($visitor, 'sender')->create([
             'conversation_id' => $conversation->id,
             'tenant_id' => $tenant->id,
             'is_read' => false,
@@ -131,13 +138,13 @@ class MessageTest extends TestCase
             'visitor_id' => $visitor->id,
         ]);
 
-        Message::factory()->create([
+        Message::factory()->for($visitor, 'sender')->create([
             'conversation_id' => $conversation->id,
             'tenant_id' => $tenant->id,
             'direction' => 'inbound',
             'is_read' => false,
         ]);
-        Message::factory()->create([
+        Message::factory()->for($visitor, 'sender')->create([
             'conversation_id' => $conversation->id,
             'tenant_id' => $tenant->id,
             'direction' => 'outbound',
@@ -163,7 +170,8 @@ class MessageTest extends TestCase
             'visitor_id' => $visitor->id,
         ]);
 
-        Message::factory()->create([
+        // Create message with visitor sender to avoid tenant mismatch
+        Message::factory()->for($visitor, 'sender')->create([
             'conversation_id' => $conversation->id,
             'tenant_id' => $tenant->id,
             'message_type' => 'system',
@@ -185,7 +193,7 @@ class MessageTest extends TestCase
             'project_id' => $project->id,
             'visitor_id' => $visitor->id,
         ]);
-        $message = Message::factory()->create([
+        $message = Message::factory()->for($visitor, 'sender')->create([
             'conversation_id' => $conversation->id,
             'tenant_id' => $tenant->id,
         ]);
@@ -227,7 +235,7 @@ class MessageTest extends TestCase
             'project_id' => $project->id,
             'visitor_id' => $visitor->id,
         ]);
-        $message = Message::factory()->create([
+        $message = Message::factory()->for($visitor, 'sender')->create([
             'conversation_id' => $conversation->id,
             'tenant_id' => $tenant->id,
             'read_at' => now(),
