@@ -134,7 +134,7 @@ class TelegramInlineKeyboard
      * The signature prevents cross-tenant callback forgery.
      * We use a short prefix (8 chars) to stay within Telegram's 64-byte callback_data limit.
      */
-    protected static function signCallbackData(int $tenantId, int $conversationId): string
+    public static function signCallbackData(int $tenantId, int $conversationId): string
     {
         $payload = $tenantId.':'.$conversationId;
 

@@ -66,24 +66,6 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(5)->by($request->ip());
         });
 
-        // Rate limiter for Telegram webhook with IP spoofing protection
-        // Uses X-Forwarded-For validation and per-tenant limiting
-        RateLimiter::for('telegram-webhook', function ($request) {
-            // Use the real client IP, accounting for trusted proxies
-            $clientIp = $request->ip();
-
-            // Also rate limit by tenant slug to prevent abuse targeting a specific tenant
-            $tenantSlug = $request->route('tenantSlug');
-            $tenantKey = $tenantSlug !== null ? "tenant:{$tenantSlug}" : 'unknown';
-
-            return [
-                // Global IP-based limit: 120 requests per minute
-                Limit::perMinute(120)->by("ip:{$clientIp}"),
-                // Per-tenant limit: 60 requests per minute
-                Limit::perMinute(60)->by($tenantKey),
-            ];
-        });
-
         // Rate limiter for widget config endpoint
         // Limited by widget key AND IP to prevent abuse of a specific widget
         // and to provide per-IP protection against credential stuffing
@@ -115,6 +97,50 @@ class AppServiceProvider extends ServiceProvider
                 Limit::perMinute(20)->by("widget-msg-ip:{$clientIp}"),
                 // Per-widget key limit: 30 messages per minute
                 Limit::perMinute(30)->by("widget-msg:{$widgetKey}"),
+            ];
+        });
+
+        // Rate limiter for widget attachment uploads
+        // Stricter limit to prevent storage abuse
+        RateLimiter::for('widget-attachment', function (Request $request) {
+            $clientIp = $request->ip() ?? 'unknown';
+            $widgetKey = $request->header('X-Widget-Key')
+                ?? $request->header('X-Widget-Bootstrap')
+                ?? $clientIp;
+
+            return [
+                // Per-IP limit: 5 uploads per minute
+                Limit::perMinute(5)->by("widget-attach-ip:{$clientIp}"),
+                // Per-widget key limit: 10 uploads per minute
+                Limit::perMinute(10)->by("widget-attach:{$widgetKey}"),
+            ];
+        });
+
+        // Rate limiter for admin conversation API
+        // Authenticated users get higher limits since they are verified
+        RateLimiter::for('admin-conversation', function (Request $request) {
+            $userId = $request->user()?->getAuthIdentifier() ?? $request->ip() ?? 'unknown';
+
+            return Limit::perMinute(120)->by("admin-conv:{$userId}");
+        });
+
+        // Enhanced Telegram webhook rate limiter with burst protection
+        // Uses a two-tier approach: strict short-term burst limit + per-minute limit
+        RateLimiter::for('telegram-webhook', function ($request) {
+            // Use the real client IP, accounting for trusted proxies
+            $clientIp = $request->ip();
+
+            // Also rate limit by tenant slug to prevent abuse targeting a specific tenant
+            $tenantSlug = $request->route('tenantSlug');
+            $tenantKey = $tenantSlug !== null ? "tenant:{$tenantSlug}" : 'unknown';
+
+            return [
+                // Burst protection: 10 requests per 10 seconds
+                Limit::perSecond(1)->by("telegram-burst-ip:{$clientIp}"),
+                // Global IP-based limit: 120 requests per minute
+                Limit::perMinute(120)->by("telegram-ip:{$clientIp}"),
+                // Per-tenant limit: 60 requests per minute
+                Limit::perMinute(60)->by("telegram-{$tenantKey}"),
             ];
         });
     }

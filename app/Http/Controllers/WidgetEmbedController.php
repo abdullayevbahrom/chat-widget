@@ -80,11 +80,16 @@ class WidgetEmbedController extends Controller
 
         $bootstrapToken = $this->widgetBootstrapService->issueToken($project, $trustedOrigin);
 
+        // Generate a CSP nonce for this request — unique per response
+        // to prevent XSS via inline scripts/styles
+        $cspNonce = base64_encode(random_bytes(16));
+
         $response = response(view('widget.embed', [
             'project_id' => $project->id,
             'project_name' => $project->name,
             'bootstrap_token' => $bootstrapToken,
             'trusted_origin' => $trustedOrigin,
+            'csp_nonce' => $cspNonce,
             'settings' => [
                 'theme' => $project->getWidgetSetting('theme', 'light'),
                 'position' => $project->getWidgetSetting('position', 'bottom-right'),
@@ -96,13 +101,19 @@ class WidgetEmbedController extends Controller
         ]));
 
         // CSP via HTTP header (instead of meta tag in HTML)
+        // SECURITY: Uses nonce-based script-src and style-src instead of 'unsafe-inline'
+        // to prevent XSS attacks. Each response gets a unique nonce that is
+        // injected into <script> and <style> tags.
+        //
         // frame-ancestors: restrict which origins can embed this page in an iframe
         // connect-src: allow connection to Reverb WebSocket host
+        // report-uri: send CSP violations to our reporting endpoint
         $reverbHost = parse_url(config('app.url'), PHP_URL_HOST);
         $reverbPort = config('broadcasting.connections.reverb.port', 6001);
         $reverbScheme = config('broadcasting.connections.reverb.options.tls', false) ? 'wss' : 'ws';
+        $appUrl = rtrim(config('app.url'), '/');
 
-        $response->header('Content-Security-Policy', "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' {$reverbScheme}://{$reverbHost}:{$reverbPort}; media-src 'self' blob:; object-src 'none'; frame-src 'none'; frame-ancestors {$trustedOrigin}; base-uri 'none'; form-action 'self';");
+        $response->header('Content-Security-Policy', "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'nonce-{$cspNonce}'; style-src 'self' https://cdn.jsdelivr.net 'nonce-{$cspNonce}'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' {$reverbScheme}://{$reverbHost}:{$reverbPort}; media-src 'self' blob:; object-src 'none'; frame-src 'none'; frame-ancestors {$trustedOrigin}; base-uri 'none'; form-action 'self'; report-uri {$appUrl}/api/csp-report;");
 
         return $response;
     }

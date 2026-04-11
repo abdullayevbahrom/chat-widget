@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Events\WidgetMessageSent;
 use App\Http\Controllers\Controller;
-use App\Models\Conversation;
+use App\Jobs\SendTelegramNotificationJob;
 use App\Models\Message;
 use App\Models\Project;
 use App\Models\TelegramBotSetting;
@@ -70,6 +70,14 @@ class WidgetMessageController extends Controller
         // Sanitize visitor_name to prevent XSS
         if (isset($validated['visitor_name'])) {
             $validated['visitor_name'] = $this->sanitizeVisitorName($validated['visitor_name']);
+        }
+
+        // Sanitize visitor_email — additional filter_var check beyond validation rule
+        if (isset($validated['visitor_email'])) {
+            $sanitizedEmail = filter_var(trim($validated['visitor_email']), FILTER_SANITIZE_EMAIL);
+            $validated['visitor_email'] = filter_var($sanitizedEmail, FILTER_VALIDATE_EMAIL)
+                ? $sanitizedEmail
+                : null;
         }
 
         Log::info('Handling widget message create request.', [
@@ -270,7 +278,7 @@ class WidgetMessageController extends Controller
             return;
         }
 
-        \App\Jobs\SendTelegramNotificationJob::dispatch(
+        SendTelegramNotificationJob::dispatch(
             $project->tenant_id,
             $project->id,
             $message->id,
@@ -334,10 +342,13 @@ class WidgetMessageController extends Controller
         $token = $this->buildVisitorToken($project, $visitor);
         $sameSite = $request->isSecure() ? 'none' : 'lax';
 
+        // Cookie TTL reduced from 30 days to 7 days to minimize the window
+        // for token replay attacks. Visitors automatically get a new token
+        // on each message send.
         Cookie::queue(Cookie::make(
             $this->getVisitorCookieName($project),
             $token,
-            60 * 24 * 30,
+            60 * 24 * 7, // 7 days
             '/',
             null,
             $request->isSecure(),

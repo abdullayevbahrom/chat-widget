@@ -2,8 +2,6 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Str;
-
 class CssSanitizer
 {
     /**
@@ -20,6 +18,12 @@ class CssSanitizer
         '/-moz-binding\s*:/i',
         '/binding\s*:/i',
         '/-webkit-binding\s*:/i',
+        // Block @property and @supports which can be used for CSS injection attacks
+        // to probe for browser features or exfiltrate data
+        '/@property\s/i',
+        '/@supports\s*\(/i',
+        // Block expression() nested inside url() (double-encoding bypass)
+        '/url\s*\([^)]*expression\s*\(/i',
     ];
 
     /**

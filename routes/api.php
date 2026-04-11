@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AdminConversationController;
+use App\Http\Controllers\Api\CspReportController;
 use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\ProjectDomainController;
 use App\Http\Controllers\Api\TelegramWebhookController;
@@ -42,12 +43,18 @@ Route::middleware(['throttle:widget-message', ValidateWidgetKey::class, EnsureVe
         Route::get('messages', [WidgetMessageController::class, 'index'])->name('widget.messages.index');
         Route::get('conversation', [WidgetConversationController::class, 'show'])->name('widget.conversation.show');
         Route::post('conversation/close', [WidgetConversationController::class, 'close'])->name('widget.conversation.close');
+    });
+
+// Widget Attachment API — stricter rate limiting due to storage costs
+Route::middleware(['throttle:widget-attachment', 'throttle:widget-message', ValidateWidgetKey::class, EnsureVerifiedWidgetDomain::class])
+    ->prefix('widget')
+    ->group(function () {
         Route::get('attachments/{projectId}/{conversationId}/{fileName}', [WidgetAttachmentController::class, 'download'])
             ->name('widget.attachments.download');
     });
 
 // Admin Conversation API — authenticated, tenant-scoped
-Route::middleware(['auth:sanctum'])->prefix('tenant')->group(function () {
+Route::middleware(['auth:sanctum', 'throttle:admin-conversation'])->prefix('tenant')->group(function () {
     Route::apiResource('conversations', AdminConversationController::class)->only(['index', 'show']);
     Route::post('conversations/{conversation}/close', [AdminConversationController::class, 'close'])->name('tenant.conversations.close');
     Route::post('conversations/{conversation}/reopen', [AdminConversationController::class, 'reopen'])->name('tenant.conversations.reopen');
@@ -55,3 +62,9 @@ Route::middleware(['auth:sanctum'])->prefix('tenant')->group(function () {
     Route::post('conversations/{conversation}/assign', [AdminConversationController::class, 'assign'])->name('tenant.conversations.assign');
     Route::get('conversations/unread-count', [AdminConversationController::class, 'unreadCount'])->name('tenant.conversations.unread-count');
 });
+
+// CSP Violation Report endpoint — accepts reports from browsers when CSP policies are violated
+// Rate limited to prevent abuse; no authentication needed (reports come from browsers)
+Route::middleware(['throttle:60,1'])
+    ->post('csp-report', [CspReportController::class, 'store'])
+    ->name('csp.report.store');

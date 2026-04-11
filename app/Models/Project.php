@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Scopes\TenantScope;
+use App\Services\CssSanitizer;
 use Database\Factories\ProjectFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -71,31 +72,17 @@ class Project extends Model
     /**
      * Sanitize widget settings to prevent XSS and injection attacks.
      *
+     * Delegates CSS sanitization to the dedicated CssSanitizer service
+     * to ensure consistent protection and follow the DRY principle.
+     *
      * @param  array<string, mixed>  $settings
      * @return array<string, mixed>
      */
     protected function sanitizeSettings(array $settings): array
     {
         if (isset($settings['widget']['custom_css']) && is_string($settings['widget']['custom_css'])) {
-            // Strip all HTML tags first
-            $css = strip_tags($settings['widget']['custom_css']);
-
-            // Remove dangerous CSS patterns (expression, javascript:, url with javascript, etc.)
-            $dangerousPatterns = [
-                '/expression\s*\(/i',
-                '/javascript\s*:/i',
-                '/vbscript\s*:/i',
-                '/url\s*\(\s*["\']?\s*javascript\s*:/i',
-                '/@import\s/i',
-                '/behavior\s*:/i',
-                '/-moz-binding\s*:/i',
-            ];
-
-            foreach ($dangerousPatterns as $pattern) {
-                $css = preg_replace($pattern, '/* blocked */', $css);
-            }
-
-            $settings['widget']['custom_css'] = trim($css);
+            $cssSanitizer = app(CssSanitizer::class);
+            $settings['widget']['custom_css'] = $cssSanitizer->sanitize($settings['widget']['custom_css']);
         }
 
         return $settings;

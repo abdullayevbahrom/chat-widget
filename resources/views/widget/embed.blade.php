@@ -31,7 +31,7 @@
     <title>{{ $project_name ?? 'Chat Widget' }}</title>
 
     {{-- Inline CSS to avoid external requests — sanitized for XSS protection --}}
-    <style>
+    <style nonce="{{ $csp_nonce ?? '' }}">
         @php
             $cssSanitizer = app(\App\Services\CssSanitizer::class);
             $widgetCssPath = resource_path('css/widget.css');
@@ -72,7 +72,7 @@
         {{-- Will be populated by JavaScript --}}
     </div>
 
-    <script>
+    <script nonce="{{ $csp_nonce ?? '' }}">
         // Pass configuration from server to JS
         window.WIDGET_CONFIG = {
             projectId: {{ (int) $project_id }},
@@ -80,8 +80,8 @@
             bootstrapToken: @json($bootstrap_token),
             trustedOrigin: @json($trusted_origin),
             settings: @json($settings),
-            apiBaseUrl: '{{ url('') }}',
-            appOrigin: '{{ url('') }}',
+            apiBaseUrl: @json(url('')),
+            appOrigin: @json(url('')),
         };
     </script>
 
@@ -98,7 +98,7 @@
     <script src="https://cdn.jsdelivr.net/npm/pusher-js@8.3.0/dist/web/pusher.min.js" integrity="sha256-NopFWyUj+yHPuIa03O9/OR8c4VgVrNLTceVGwBBPYaE=" crossorigin="anonymous" referrerpolicy="strict-origin"></script>
     <script src="https://cdn.jsdelivr.net/npm/laravel-echo@1.15.3/dist/echo.iife.js" integrity="sha256-Gu7IYm2jyVE8D16z+74W0hB1PUAcmsmDic7baYHSlN8=" crossorigin="anonymous" referrerpolicy="strict-origin"></script>
 
-    <script>
+    <script nonce="{{ $csp_nonce ?? '' }}">
         // Initialize widget when loaded in iframe
         // Use DOMContentLoaded to ensure ChatWidget SDK is fully loaded
         (function() {
