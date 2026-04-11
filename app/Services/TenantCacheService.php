@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Tenant;
 use Closure;
+use Illuminate\Cache\TaggedCache;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redis;
@@ -47,8 +48,7 @@ class TenantCacheService
     /**
      * Remember a value in the cache with tenant prefix (static convenience method).
      *
-     * @param  \DateTimeInterface|\DateInterval|int|\Closure  $ttl
-     * @return mixed
+     * @param  \DateTimeInterface|\DateInterval|int|Closure  $ttl
      */
     public static function rememberByKey(string $baseKey, $ttl, Closure $callback): mixed
     {
@@ -103,8 +103,6 @@ class TenantCacheService
 
     /**
      * Retrieve an item from the cache with tenant prefix.
-     *
-     * @return mixed
      */
     public function get(string $baseKey, mixed $default = null): mixed
     {
@@ -114,8 +112,7 @@ class TenantCacheService
     /**
      * Get an item from the cache or store it with tenant prefix.
      *
-     * @param  \DateTimeInterface|\DateInterval|int|\Closure  $ttl
-     * @return mixed
+     * @param  \DateTimeInterface|\DateInterval|int|Closure  $ttl
      */
     public function remember(string $baseKey, $ttl, Closure $callback): mixed
     {
@@ -127,8 +124,6 @@ class TenantCacheService
 
     /**
      * Get an item from the cache or store it with tenant prefix (forever).
-     *
-     * @return mixed
      */
     public function rememberForever(string $baseKey, Closure $callback): mixed
     {
@@ -202,11 +197,10 @@ class TenantCacheService
      * Get cache tags for the current tenant.
      *
      * @param  array<string>  $tags
-     * @return \Illuminate\Cache\TaggedCache
      *
      * @throws LogicException if cache driver doesn't support tags
      */
-    public function tags(array $tags): \Illuminate\Cache\TaggedCache
+    public function tags(array $tags): TaggedCache
     {
         $tenant = Tenant::current();
 
@@ -240,12 +234,20 @@ class TenantCacheService
      *
      * Uses Redis SADD to add the key to a tenant-specific SET,
      * enabling efficient SCAN-free cleanup via SMEMBERS + UNLINK.
+     *
+     * Stores the FULL cache key (including Laravel's cache prefix) so that
+     * clearTenantCache() can delete the correct Redis keys.
      */
     protected static function registerKeyInRedisSet(string $key, int $tenantId): void
     {
         try {
             $redis = Redis::connection();
-            $redis->sadd("tenant:{$tenantId}:cache_keys", $key);
+
+            // Prefix the key with Laravel's cache prefix so UNLINK targets the correct Redis key
+            $cachePrefix = (string) config('cache.prefix', 'laravel-cache-');
+            $fullKey = $cachePrefix . $key;
+
+            $redis->sadd("tenant:{$tenantId}:cache_keys", $fullKey);
         } catch (\Throwable $e) {
             Log::debug('Failed to register cache key in Redis SET.', [
                 'tenant_id' => $tenantId,
@@ -271,24 +273,29 @@ class TenantCacheService
             $totalDeleted = 0;
 
             // Use SSCAN to iterate over the SET in batches
-            // This avoids loading all keys into memory at once
-            $redis->sscan(
-                $keySet,
-                0,
-                function ($keys) use ($redis, &$totalDeleted, $batchSize): void {
-                    if (empty($keys)) {
-                        return;
-                    }
+            // The correct callback signature is: function (&$iterator, $keys)
+            $iterator = 0;
+            do {
+                $keys = [];
+                $result = $redis->sscan($keySet, $iterator, null, $batchSize);
 
-                    // Delete in batches using UNLINK (async, non-blocking)
-                    $chunks = array_chunk($keys, $batchSize);
-                    foreach ($chunks as $chunk) {
-                        $redis->unlink(...$chunk);
-                        $totalDeleted += count($chunk);
-                    }
-                },
-                $batchSize
-            );
+                // sscan returns an array: [iterator_cursor, keys_array]
+                if (is_array($result) && count($result) === 2) {
+                    $iterator = (int) $result[0];
+                    $keys = $result[1] ?? [];
+                }
+
+                if (empty($keys)) {
+                    continue;
+                }
+
+                // Delete in batches using UNLINK (async, non-blocking)
+                $chunks = array_chunk($keys, $batchSize);
+                foreach ($chunks as $chunk) {
+                    $redis->unlink(...$chunk);
+                    $totalDeleted += count($chunk);
+                }
+            } while ($iterator > 0);
 
             // Remove the SET itself
             $redis->del($keySet);

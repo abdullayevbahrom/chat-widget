@@ -164,7 +164,9 @@ Broadcast::channel('widget.conversation.{conversationId}', function (Request $re
     }
 
     // Validate the conversation exists and belongs to an active project
-    $conversation = Conversation::with('project')->find($conversationId);
+    // Use withoutGlobalScopes() because TenantScope would prevent finding
+    // the conversation when no tenant context is set during WebSocket auth.
+    $conversation = Conversation::withoutGlobalScopes()->with('project')->find($conversationId);
 
     if (! $conversation || ! $conversation->project) {
         Log::warning('Widget broadcast auth rejected: conversation or project not found.', [

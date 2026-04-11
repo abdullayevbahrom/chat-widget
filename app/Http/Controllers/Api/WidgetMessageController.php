@@ -50,101 +50,105 @@ class WidgetMessageController extends Controller
 
         $this->initializeTenantContext($project);
 
-        $validated = $request->validate([
-            'message' => [
-                'nullable',
-                'string',
-                'max:2000',
-                Rule::requiredIf(fn (): bool => ! $request->hasFile('attachments')),
-            ],
-            'visitor_name' => ['nullable', 'string', 'max:100'],
-            'visitor_email' => ['nullable', 'email', 'max:255'],
-            'attachments' => ['sometimes', 'array', 'max:'.MessageAttachmentService::MAX_ATTACHMENTS],
-            'attachments.*' => [
-                'file',
-                'max:'.MessageAttachmentService::MAX_FILE_SIZE_KB,
-                'mimetypes:image/jpeg,image/png,image/gif,image/webp,application/pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            ],
-        ]);
+        try {
+            $validated = $request->validate([
+                'message' => [
+                    'nullable',
+                    'string',
+                    'max:2000',
+                    Rule::requiredIf(fn (): bool => ! $request->hasFile('attachments')),
+                ],
+                'visitor_name' => ['nullable', 'string', 'max:100'],
+                'visitor_email' => ['nullable', 'email', 'max:255'],
+                'attachments' => ['sometimes', 'array', 'max:'.MessageAttachmentService::MAX_ATTACHMENTS],
+                'attachments.*' => [
+                    'file',
+                    'max:'.MessageAttachmentService::MAX_FILE_SIZE_KB,
+                    'mimetypes:image/jpeg,image/png,image/gif,image/webp,application/pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                ],
+            ]);
 
-        // Sanitize visitor_name to prevent XSS
-        if (isset($validated['visitor_name'])) {
-            $validated['visitor_name'] = $this->sanitizeVisitorName($validated['visitor_name']);
-        }
+            // Sanitize visitor_name to prevent XSS
+            if (isset($validated['visitor_name'])) {
+                $validated['visitor_name'] = $this->sanitizeVisitorName($validated['visitor_name']);
+            }
 
-        // Sanitize visitor_email — additional filter_var check beyond validation rule
-        if (isset($validated['visitor_email'])) {
-            $sanitizedEmail = filter_var(trim($validated['visitor_email']), FILTER_SANITIZE_EMAIL);
-            $validated['visitor_email'] = filter_var($sanitizedEmail, FILTER_VALIDATE_EMAIL)
-                ? $sanitizedEmail
-                : null;
-        }
+            // Sanitize visitor_email — additional filter_var check beyond validation rule
+            if (isset($validated['visitor_email'])) {
+                $sanitizedEmail = filter_var(trim($validated['visitor_email']), FILTER_SANITIZE_EMAIL);
+                $validated['visitor_email'] = filter_var($sanitizedEmail, FILTER_VALIDATE_EMAIL)
+                    ? $sanitizedEmail
+                    : null;
+            }
 
-        Log::info('Handling widget message create request.', [
-            'project_id' => $project->id,
-            'has_body' => filled($validated['message'] ?? null),
-            'attachment_count' => count($request->file('attachments', [])),
-        ]);
+            Log::info('Handling widget message create request.', [
+                'project_id' => $project->id,
+                'has_body' => filled($validated['message'] ?? null),
+                'attachment_count' => count($request->file('attachments', [])),
+            ]);
 
-        $visitor = $this->resolveVisitor($request, $project);
-        $conversation = $this->conversationService->openConversation($visitor, $project);
+            $visitor = $this->resolveVisitor($request, $project);
+            $conversation = $this->conversationService->openConversation($visitor, $project);
 
-        // Reject messages on closed conversations
-        if ($conversation->isClosed() || $conversation->isArchived()) {
-            Log::info('Widget message rejected: conversation is not open.', [
+            // Reject messages on closed conversations
+            if ($conversation->isClosed() || $conversation->isArchived()) {
+                Log::info('Widget message rejected: conversation is not open.', [
+                    'project_id' => $project->id,
+                    'conversation_id' => $conversation->id,
+                    'status' => $conversation->status,
+                ]);
+
+                return response()->json([
+                    'error' => 'This conversation is no longer open.',
+                    'code' => 'CONVERSATION_CLOSED',
+                    'conversation_status' => $conversation->status,
+                ], 400);
+            }
+
+            $attachments = $this->messageAttachmentService->storeUploadedAttachments(
+                $request->file('attachments', []),
+                $project,
+                $conversation
+            );
+            $body = $this->sanitizeBody($validated['message'] ?? null);
+
+            $message = $conversation->messages()->create([
+                'tenant_id' => $conversation->tenant_id,
+                'sender_type' => $visitor->getMorphClass(),
+                'sender_id' => $visitor->id,
+                'message_type' => $this->resolveMessageType($attachments),
+                'body' => $body,
+                'attachments' => $attachments !== [] ? $attachments : null,
+                'direction' => Message::DIRECTION_INBOUND,
+                'metadata' => array_filter([
+                    'visitor_name' => $validated['visitor_name'] ?? null,
+                    'visitor_email' => $validated['visitor_email'] ?? null,
+                    'attachment_count' => count($attachments),
+                ], static fn (mixed $value): bool => filled($value)),
+            ]);
+
+            // Broadcast the message to real-time listeners
+            broadcast(new WidgetMessageSent($conversation, $message))->toOthers();
+
+            $this->notifyTelegram($project, $message, $validated);
+            $this->issueVisitorBinding($request, $project, $visitor);
+
+            Log::info('Stored widget visitor message.', [
                 'project_id' => $project->id,
                 'conversation_id' => $conversation->id,
-                'status' => $conversation->status,
+                'message_id' => $message->id,
+                'message_type' => $message->message_type,
             ]);
 
             return response()->json([
-                'error' => 'This conversation is no longer open.',
-                'code' => 'CONVERSATION_CLOSED',
-                'conversation_status' => $conversation->status,
-            ], 400);
+                'success' => true,
+                'message' => $this->serializeMessage($message->fresh()),
+                'message_id' => $message->id,
+                'conversation_id' => $conversation->id,
+            ]);
+        } finally {
+            Tenant::clearCurrent();
         }
-
-        $attachments = $this->messageAttachmentService->storeUploadedAttachments(
-            $request->file('attachments', []),
-            $project,
-            $conversation
-        );
-        $body = $this->sanitizeBody($validated['message'] ?? null);
-
-        $message = $conversation->messages()->create([
-            'tenant_id' => $conversation->tenant_id,
-            'sender_type' => $visitor->getMorphClass(),
-            'sender_id' => $visitor->id,
-            'message_type' => $this->resolveMessageType($attachments),
-            'body' => $body,
-            'attachments' => $attachments !== [] ? $attachments : null,
-            'direction' => Message::DIRECTION_INBOUND,
-            'metadata' => array_filter([
-                'visitor_name' => $validated['visitor_name'] ?? null,
-                'visitor_email' => $validated['visitor_email'] ?? null,
-                'attachment_count' => count($attachments),
-            ], static fn (mixed $value): bool => filled($value)),
-        ]);
-
-        // Broadcast the message to real-time listeners
-        broadcast(new WidgetMessageSent($conversation, $message))->toOthers();
-
-        $this->notifyTelegram($project, $message, $validated);
-        $this->issueVisitorBinding($request, $project, $visitor);
-
-        Log::info('Stored widget visitor message.', [
-            'project_id' => $project->id,
-            'conversation_id' => $conversation->id,
-            'message_id' => $message->id,
-            'message_type' => $message->message_type,
-        ]);
-
-        return response()->json([
-            'success' => true,
-            'message' => $this->serializeMessage($message->fresh()),
-            'message_id' => $message->id,
-            'conversation_id' => $conversation->id,
-        ]);
     }
 
     /**
@@ -161,44 +165,48 @@ class WidgetMessageController extends Controller
 
         $this->initializeTenantContext($project);
 
-        $visitor = $this->resolveBoundVisitor($request, $project);
+        try {
+            $visitor = $this->resolveBoundVisitor($request, $project);
 
-        if ($visitor === null) {
-            Log::info('Widget history request rejected because visitor binding is missing or invalid.', [
+            if ($visitor === null) {
+                Log::info('Widget history request rejected because visitor binding is missing or invalid.', [
+                    'project_id' => $project->id,
+                    'has_cookie' => $request->cookies->has($this->getVisitorCookieName($project)),
+                ]);
+
+                return response()->json(['messages' => [], 'next_cursor' => null, 'has_more' => false]);
+            }
+
+            $cursor = $request->integer('cursor');
+            $perPage = max(1, min($request->integer('per_page', 50), 100));
+
+            // Find the visitor's most recent open conversation
+            $conversation = $this->conversationService->getOpenConversation($visitor, $project);
+
+            if ($conversation === null) {
+                return response()->json(['messages' => [], 'next_cursor' => null, 'has_more' => false]);
+            }
+
+            // Use cursor-based pagination from ConversationService
+            $result = $this->conversationService->getMessagesPaginated($conversation, $cursor > 0 ? $cursor : null, $perPage);
+
+            Log::info('Returning widget message history with cursor pagination.', [
                 'project_id' => $project->id,
-                'has_cookie' => $request->cookies->has($this->getVisitorCookieName($project)),
+                'visitor_id' => $visitor->id,
+                'conversation_id' => $conversation->id,
+                'message_count' => $result['messages']->count(),
+                'next_cursor' => $result['next_cursor'],
+                'has_more' => $result['has_more'],
             ]);
 
-            return response()->json(['messages' => [], 'next_cursor' => null, 'has_more' => false]);
+            return response()->json([
+                'messages' => $result['messages']->map(fn (Message $message): array => $this->serializeMessage($message))->values(),
+                'next_cursor' => $result['next_cursor'],
+                'has_more' => $result['has_more'],
+            ]);
+        } finally {
+            Tenant::clearCurrent();
         }
-
-        $cursor = $request->integer('cursor');
-        $perPage = min($request->integer('per_page', 50), 100);
-
-        // Find the visitor's most recent open conversation
-        $conversation = $this->conversationService->getOpenConversation($visitor, $project);
-
-        if ($conversation === null) {
-            return response()->json(['messages' => [], 'next_cursor' => null, 'has_more' => false]);
-        }
-
-        // Use cursor-based pagination from ConversationService
-        $result = $this->conversationService->getMessagesPaginated($conversation, $cursor > 0 ? $cursor : null, $perPage);
-
-        Log::info('Returning widget message history with cursor pagination.', [
-            'project_id' => $project->id,
-            'visitor_id' => $visitor->id,
-            'conversation_id' => $conversation->id,
-            'message_count' => $result['messages']->count(),
-            'next_cursor' => $result['next_cursor'],
-            'has_more' => $result['has_more'],
-        ]);
-
-        return response()->json([
-            'messages' => $result['messages']->map(fn (Message $message): array => $this->serializeMessage($message))->values(),
-            'next_cursor' => $result['next_cursor'],
-            'has_more' => $result['has_more'],
-        ]);
     }
 
     /**
@@ -350,6 +358,11 @@ class WidgetMessageController extends Controller
         $token = $this->buildVisitorToken($project, $visitor);
         $sameSite = $request->isSecure() ? 'none' : 'lax';
 
+        // Determine cookie domain using the same logic as WidgetBootstrapService
+        // to ensure consistent domain handling across all widget cookies
+        $host = $request->getHost();
+        $domain = $this->determineCookieDomain($host);
+
         // Cookie TTL reduced from 30 days to 7 days to minimize the window
         // for token replay attacks. Visitors automatically get a new token
         // on each message send.
@@ -358,7 +371,7 @@ class WidgetMessageController extends Controller
             $token,
             60 * 24 * 7, // 7 days
             '/',
-            null,
+            $domain, // explicit domain instead of null
             $request->isSecure(),
             true,
             false,
@@ -369,6 +382,7 @@ class WidgetMessageController extends Controller
             'project_id' => $project->id,
             'visitor_id' => $visitor->id,
             'cookie_name' => $this->getVisitorCookieName($project),
+            'cookie_domain' => $domain,
         ]);
     }
 
@@ -392,6 +406,28 @@ class WidgetMessageController extends Controller
             'visitor_id' => $visitor->id,
             'session_id' => $visitor->session_id,
         ], JSON_THROW_ON_ERROR));
+    }
+
+    /**
+     * Determine the appropriate cookie domain for the given host.
+     *
+     * Matches the logic in WidgetBootstrapService to ensure consistent
+     * cookie domain handling across all widget endpoints.
+     *
+     * Returns an empty string for IP addresses and localhost (browser uses
+     * default current host). For domain names, returns the exact host
+     * without a leading dot to prevent cross-domain cookie leakage.
+     */
+    protected function determineCookieDomain(string $host): string
+    {
+        // Don't set domain for localhost or IP addresses
+        if ($host === 'localhost' || $host === '127.0.0.1' || filter_var($host, FILTER_VALIDATE_IP)) {
+            return ''; // Let browser use default (current host only)
+        }
+
+        // For domain names, use the exact host
+        // This prevents cookie leakage to other domains
+        return $host;
     }
 
     /**

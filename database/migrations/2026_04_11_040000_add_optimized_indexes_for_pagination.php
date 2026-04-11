@@ -11,7 +11,7 @@ return new class extends Migration
      * CONCURRENTLY indexlar transaction ichida ishlamaydi (PostgreSQL).
      * Shuning uchun migration ni transaction tashqarisida ishga tushiramiz.
      */
-    public bool $withinTransaction = false;
+    public $withinTransaction = false;
 
     /**
      * Run the migrations.

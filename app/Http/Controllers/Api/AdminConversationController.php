@@ -5,8 +5,12 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Conversation;
 use App\Models\Project;
+use App\Models\Tenant;
 use App\Models\User;
+use App\Models\Visitor;
 use App\Services\ConversationService;
+use App\Services\MessageAttachmentService;
+use App\Traits\TelegramMessageHelpers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -15,8 +19,11 @@ use Illuminate\Support\Facades\Log;
 
 class AdminConversationController extends Controller
 {
+    use TelegramMessageHelpers;
+
     public function __construct(
         protected ConversationService $conversationService,
+        protected MessageAttachmentService $messageAttachmentService,
     ) {}
 
     /**
@@ -138,9 +145,9 @@ class AdminConversationController extends Controller
         $messages = $data['messages']->map(function ($message): array {
             $senderName = match (true) {
                 $message->sender_type === null => 'System',
-                $message->sender instanceof \App\Models\Visitor => $message->sender->name ?? 'Visitor',
-                $message->sender instanceof \App\Models\User => $message->sender->name,
-                $message->sender instanceof \App\Models\Tenant => $message->sender->name ?? 'Tenant',
+                $message->sender instanceof Visitor => $message->sender->name ?? 'Visitor',
+                $message->sender instanceof User => $message->sender->name,
+                $message->sender instanceof Tenant => $message->sender->name ?? 'Tenant',
                 default => $message->sender_type,
             };
 
@@ -149,7 +156,10 @@ class AdminConversationController extends Controller
                 'message_type' => $message->message_type,
                 'direction' => $message->direction,
                 'body' => $message->body,
-                'attachments' => $message->attachments ?? [],
+                'attachments' => array_values(array_map(
+                    fn (array $attachment): array => $this->messageAttachmentService->serializeForApi($attachment),
+                    $message->attachments ?? [],
+                )),
                 'is_read' => $message->is_read,
                 'sender_name' => $senderName,
                 'created_at' => $message->created_at->toISOString(),

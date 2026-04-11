@@ -21,8 +21,23 @@ class RestrictHealthEndpoint
     public function handle(Request $request, Closure $next): Response
     {
         $allowedIps = $this->getAllowedIps();
+        $isProduction = ! app()->environment('local', 'testing');
 
-        // If no IPs are configured, allow access (development mode)
+        // In production: deny access if no IPs are configured
+        if ($allowedIps === [] && $isProduction) {
+            Log::warning('Health endpoint access denied: no IPs configured in production.', [
+                'ip' => $request->ip(),
+                'path' => $request->path(),
+                'env' => app()->environment(),
+            ]);
+
+            return response()->json([
+                'error' => 'Access denied.',
+                'code' => 'IP_NOT_ALLOWED',
+            ], Response::HTTP_FORBIDDEN);
+        }
+
+        // In development/testing: allow access if no IPs configured
         if ($allowedIps === []) {
             return $next($request);
         }

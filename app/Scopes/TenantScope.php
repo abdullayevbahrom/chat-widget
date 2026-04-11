@@ -3,6 +3,7 @@
 namespace App\Scopes;
 
 use App\Models\Tenant;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Scope;
@@ -39,7 +40,7 @@ class TenantScope implements Scope
         // chaqirish keraksiz va ba'zan xatolikka olib kelishi mumkin.
         // Faqat HTTP context da auth tekshiramiz.
         if ($this->isHttpContext()) {
-            /** @var \App\Models\User|null $user */
+            /** @var User|null $user */
             $user = Auth::user();
 
             if ($user !== null && $user->isSuperAdmin()) {
@@ -82,7 +83,17 @@ class TenantScope implements Scope
             'tenant_id' => $currentTenant->id,
         ]);
 
-        // If a relation column is specified, scope via the relationship
+        // Agar model da to'g'ridan-to'g'ri `tenant_id` ustuni mavjud bo'lsa,
+        // whereHas o'rniga oddiy where() ishlatamiz — bu ancha samarali.
+        $hasTenantColumn = $this->modelHasTenantColumn($model);
+
+        if ($hasTenantColumn) {
+            $builder->where($model->getTable().'.tenant_id', $currentTenant->id);
+
+            return;
+        }
+
+        // Agar tenant_id ustuni bo'lmasa, relation orqali scope qilamiz
         if ($this->relationColumn !== null) {
             $builder->whereHas($this->relationColumn, function (Builder $query) use ($currentTenant): void {
                 $query->where('tenant_id', $currentTenant->id);
@@ -91,8 +102,32 @@ class TenantScope implements Scope
             return;
         }
 
-        // Scope to the current tenant via direct column
+        // Fallback: agar tenant_id ustuni ham, relation ham bo'lmasa,
+        // jadval nomiga tenant_id qo'shib where() ishlatamiz
         $builder->where($model->getTable().'.tenant_id', $currentTenant->id);
+    }
+
+    /**
+     * Tekshirish: model jadvalida `tenant_id` ustuni mavjudmi?
+     *
+     * Fillable array dan foydalanib aniqlaymiz — bu eng ishonchli usul,
+     * chunki column mavjudligi migrations da bo'lishi kerak.
+     */
+    protected function modelHasTenantColumn(Model $model): bool
+    {
+        $fillable = $model->getFillable();
+
+        if (in_array('tenant_id', $fillable, true)) {
+            return true;
+        }
+
+        // Agar guarded bo'sh bo'lsa (barcha fillable), tenant_id mavjud deb hisoblaymiz
+        $guarded = $model->getGuarded();
+        if (empty($guarded)) {
+            return true;
+        }
+
+        return false;
     }
 
     /**

@@ -25,7 +25,10 @@ class ProjectDomainObserver
         });
 
         // Clear project's verified domains cache
-        $projectDomain->project->clearVerifiedDomainsCache();
+        $projectDomain->loadMissing('project');
+        if ($projectDomain->project !== null) {
+            $projectDomain->project->clearVerifiedDomainsCache();
+        }
     }
 
     /**
@@ -48,7 +51,10 @@ class ProjectDomainObserver
 
         // Clear project's verified domains cache if verification status changed
         if ($projectDomain->isDirty('verification_status') || $projectDomain->isDirty('is_active')) {
-            $projectDomain->project->clearVerifiedDomainsCache();
+            $projectDomain->loadMissing('project');
+            if ($projectDomain->project !== null) {
+                $projectDomain->project->clearVerifiedDomainsCache();
+            }
         }
     }
 
@@ -58,6 +64,9 @@ class ProjectDomainObserver
     public function deleted(ProjectDomain $projectDomain): void
     {
         // Clear project's verified domains cache
-        $projectDomain->project->clearVerifiedDomainsCache();
+        $projectDomain->loadMissing('project');
+        if ($projectDomain->project !== null) {
+            $projectDomain->project->clearVerifiedDomainsCache();
+        }
     }
 }

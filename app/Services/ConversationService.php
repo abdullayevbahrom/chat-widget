@@ -11,11 +11,12 @@ use App\Models\Project;
 use App\Models\User;
 use App\Models\Visitor;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use LogicException;
 
 class ConversationService
 {
@@ -180,9 +181,9 @@ class ConversationService
      * across multiple parent models (it applies the limit globally).
      *
      * @param  int|null  $tenantId  Optional tenant ID for isolation enforcement
-     * @return array{conversation: Conversation, messages: \Illuminate\Support\Collection}
+     * @return array{conversation: Conversation, messages: Collection}
      *
-     * @throws \Illuminate\Database\Eloquent\ModelNotFoundException
+     * @throws ModelNotFoundException
      */
     public function getConversationWithMessages(int $conversationId, int $limit = 50, ?int $tenantId = null): array
     {
@@ -218,7 +219,7 @@ class ConversationService
      * Returns messages in chronological order (oldest first) with
      * a next_cursor for loading older messages.
      *
-     * @return array{messages: \Illuminate\Support\Collection, next_cursor: int|null, has_more: bool}
+     * @return array{messages: Collection, next_cursor: int|null, has_more: bool}
      */
     public function getMessagesPaginated(Conversation $conversation, ?int $cursor = null, int $perPage = 50): array
     {
@@ -235,14 +236,18 @@ class ConversationService
 
         $hasMore = $messages->count() > $perPage;
 
-        // Remove the extra message if present
+        // Remove the extra message (the oldest one, which has the smallest id)
+        // Since we queried in descending order, the last item in the collection
+        // is the oldest message. We remove it if hasMore is true.
         if ($hasMore) {
-            $messages->pop();
+            $messages = $messages->take($perPage);
         }
 
         // Reverse to chronological order (oldest first)
         $messages = $messages->sortBy('id')->values();
 
+        // next_cursor should be the id of the oldest message we returned
+        // (so the client can request messages older than this)
         $nextCursor = $hasMore ? $messages->first()?->id : null;
 
         return [
@@ -278,16 +283,24 @@ class ConversationService
 
     /**
      * Get paginated conversations for a project with optional status filter.
+     *
+     * @param  int|null  $tenantId  Optional tenant ID for explicit tenant filtering
      */
     public function getConversationsForProject(
         Project $project,
         ?string $status = null,
         int $perPage = 25,
+        ?int $tenantId = null,
     ): LengthAwarePaginator {
-        $query = Conversation::query()
-            ->forProject($project->id)
+        $query = Conversation::withoutGlobalScopes()
+            ->where('project_id', $project->id)
             ->with(['visitor', 'assignedUser', 'closedUser'])
             ->latest('last_message_at');
+
+        // Enforce explicit tenant filter when tenantId is provided
+        if ($tenantId !== null) {
+            $query->where('tenant_id', $tenantId);
+        }
 
         if ($status !== null) {
             $query->where('status', $status);
@@ -347,8 +360,8 @@ class ConversationService
                         });
 
                         $closedCount++;
-                    } catch (LogicException) {
-                        // Skip conversations that can't be closed (e.g. already closed)
+                    } catch (\Throwable) {
+                        // Skip conversations that can't be closed (e.g. already closed, validation errors)
                         continue;
                     }
                 }
