@@ -201,10 +201,10 @@
                 <a href="#features" class="text-white/80 hover:text-white transition">Features</a>
                 <a href="#how-it-works" class="text-white/80 hover:text-white transition">How It Works</a>
                 <a href="#pricing" class="text-white/80 hover:text-white transition">Pricing</a>
-                <a href="/app/login"
+                <a href="/auth/login"
                     class="px-5 py-2.5 rounded-lg bg-white/10 hover:bg-white/20 text-white font-medium transition">Sign
                     In</a>
-                <a href="/app/register"
+                <a href="/auth/register"
                     class="px-5 py-2.5 rounded-lg bg-white text-brand-600 font-semibold hover:bg-brand-50 transition">Get
                     Started</a>
             </div>
@@ -242,7 +242,7 @@
                         instantly, and grow your business — all from your phone.
                     </p>
                     <div class="flex flex-col sm:flex-row gap-4 animate-fade-in-up delay-3">
-                        <a href="/app/register"
+                        <a href="/auth/register"
                             class="px-8 py-4 rounded-xl gradient-cta text-white font-semibold text-lg hover:opacity-90 transition shadow-lg shadow-brand-500/30">
                             🚀 Start Free — No Card Required
                         </a>
@@ -749,7 +749,7 @@
                                     clip-rule="evenodd" />
                             </svg> Custom Branding</li>
                     </ul>
-                    <a href="/app/register"
+                    <a href="/auth/register"
                         class="block text-center px-6 py-3 rounded-xl border-2 border-gray-200 text-gray-700 font-semibold hover:border-brand-400 hover:text-brand-600 transition">Get
                         Started</a>
                 </div>
@@ -789,7 +789,7 @@
                                     clip-rule="evenodd" />
                             </svg> Custom Branding</li>
                     </ul>
-                    <a href="/app/register"
+                    <a href="/auth/register"
                         class="block text-center px-6 py-3 rounded-xl gradient-cta text-white font-semibold hover:opacity-90 transition shadow-lg shadow-brand-500/30">Start
                         Free Trial</a>
                 </div>
@@ -825,7 +825,7 @@
                                     clip-rule="evenodd" />
                             </svg> Custom Integrations</li>
                     </ul>
-                    <a href="/app/register"
+                    <a href="/auth/register"
                         class="block text-center px-6 py-3 rounded-xl border-2 border-gray-200 text-gray-700 font-semibold hover:border-brand-400 hover:text-brand-600 transition">Contact
                         Sales</a>
                 </div>
@@ -844,7 +844,7 @@
             <h2 class="text-4xl lg:text-5xl font-bold text-white mb-6">Ready to Engage Your Visitors?</h2>
             <p class="text-xl text-white/80 mb-10 max-w-2xl mx-auto">Join thousands of businesses using ChatWidget to
                 connect with their customers in real-time via Telegram.</p>
-            <a href="/app/register"
+            <a href="/auth/register"
                 class="inline-block px-10 py-4 rounded-xl bg-white text-brand-600 font-bold text-lg hover:bg-brand-50 transition shadow-xl">
                 🎯 Get Started Free — Setup in 5 Minutes
             </a>
