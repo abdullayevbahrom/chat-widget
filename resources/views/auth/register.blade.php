@@ -21,6 +21,7 @@
         }
     </script>
     <style>
+        [x-cloak] { display: none !important; }
         .glass { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
         .gradient-bg { background: linear-gradient(135deg, #1e1b4b 0%, #312e81 30%, #4338ca 60%, #6366f1 100%); }
         .btn-gradient { background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); }

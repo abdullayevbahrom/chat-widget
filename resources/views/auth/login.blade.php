@@ -21,6 +21,7 @@
         }
     </script>
     <style>
+        [x-cloak] { display: none !important; }
         .glass {
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(12px);

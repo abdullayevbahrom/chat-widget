@@ -89,7 +89,10 @@ class ProjectDomainTest extends TestCase
     public function it_has_project_relationship(): void
     {
         $project = Project::factory()->create();
-        $domain = ProjectDomain::factory()->create(['project_id' => $project->id]);
+        $domain = ProjectDomain::factory()->create([
+            'project_id' => $project->id,
+            'domain' => 'https://project-rel-domain1.com',
+        ]);
 
         $this->assertInstanceOf(Project::class, $domain->project);
         $this->assertEquals($project->id, $domain->project->id);
@@ -99,7 +102,10 @@ class ProjectDomainTest extends TestCase
     public function it_generates_verification_token(): void
     {
         $project = Project::factory()->create();
-        $domain = ProjectDomain::factory()->create(['project_id' => $project->id]);
+        $domain = ProjectDomain::factory()->create([
+            'project_id' => $project->id,
+            'domain' => 'https://gen-token-domain1.com',
+        ]);
 
         $token = $domain->generateVerificationToken();
 
@@ -146,16 +152,19 @@ class ProjectDomainTest extends TestCase
 
         $verifiedDomain = ProjectDomain::factory()->create([
             'project_id' => $project->id,
+            'domain' => 'https://verified-domain1.com',
             'verification_status' => 'verified',
             'is_active' => true,
         ]);
         $pendingDomain = ProjectDomain::factory()->create([
             'project_id' => $project->id,
+            'domain' => 'https://pending-domain1.com',
             'verification_status' => 'pending',
             'is_active' => true,
         ]);
         $inactiveVerifiedDomain = ProjectDomain::factory()->create([
             'project_id' => $project->id,
+            'domain' => 'https://inactive-verified-domain1.com',
             'verification_status' => 'verified',
             'is_active' => false,
         ]);
@@ -171,6 +180,7 @@ class ProjectDomainTest extends TestCase
         $project = Project::factory()->create();
         $domain = ProjectDomain::factory()->create([
             'project_id' => $project->id,
+            'domain' => 'https://token-domain1.com',
             'verification_token' => 'some-token',
             'updated_at' => now()->subHours(1),
         ]);
@@ -192,6 +202,7 @@ class ProjectDomainTest extends TestCase
         $project = Project::factory()->create();
         $domain = ProjectDomain::factory()->create([
             'project_id' => $project->id,
+            'domain' => 'https://blank-token-domain1.com',
             'verification_token' => null,
         ]);
 
@@ -204,10 +215,10 @@ class ProjectDomainTest extends TestCase
         $project = Project::factory()->create();
         $domain = ProjectDomain::factory()->create([
             'project_id' => $project->id,
-            'domain' => 'https://example.com:8080',
+            'domain' => 'https://host-verification-domain1.com:8080',
         ]);
 
-        $this->assertEquals('example.com', $domain->getHostForVerification());
+        $this->assertEquals('host-verification-domain1.com', $domain->getHostForVerification());
     }
 
     #[Test]
@@ -216,11 +227,11 @@ class ProjectDomainTest extends TestCase
         $project = Project::factory()->create();
         $domain = ProjectDomain::factory()->create([
             'project_id' => $project->id,
-            'domain' => 'https://example.com',
+            'domain' => 'https://exists-domain1.com',
         ]);
 
-        $this->assertTrue(ProjectDomain::existsForProject($project->id, 'https://example.com'));
-        $this->assertFalse(ProjectDomain::existsForProject($project->id, 'https://other.com'));
+        $this->assertTrue(ProjectDomain::existsForProject($project->id, 'https://exists-domain1.com'));
+        $this->assertFalse(ProjectDomain::existsForProject($project->id, 'https://other-domain1.com'));
     }
 
     #[Test]
@@ -229,6 +240,7 @@ class ProjectDomainTest extends TestCase
         $project = Project::factory()->create();
         $domain = ProjectDomain::factory()->create([
             'project_id' => $project->id,
+            'domain' => 'https://cast-active-domain1.com',
             'is_active' => 1,
         ]);
 
@@ -242,6 +254,7 @@ class ProjectDomainTest extends TestCase
         $project = Project::factory()->create();
         $domain = ProjectDomain::factory()->create([
             'project_id' => $project->id,
+            'domain' => 'https://cast-verified-domain1.com',
             'verified_at' => now(),
         ]);
 
