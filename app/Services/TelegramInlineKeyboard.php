@@ -117,7 +117,13 @@ class TelegramInlineKeyboard
      */
     protected static function buildDashboardUrl(Conversation $conversation, Project $project): string
     {
-        $baseUrl = config('app.url', 'https://app.example.com');
+        try {
+            $baseUrl = function_exists('config') ? config('app.url') : null;
+        } catch (\Throwable $e) {
+            $baseUrl = null;
+        }
+
+        $baseUrl ??= $_ENV['APP_URL'] ?? 'https://app.example.com';
 
         return rtrim($baseUrl, '/').'/conversations/'.$conversation->id;
     }
@@ -131,7 +137,14 @@ class TelegramInlineKeyboard
     protected static function signCallbackData(int $tenantId, int $conversationId): string
     {
         $payload = $tenantId.':'.$conversationId;
-        $secret = config('app.key', 'fallback-secret');
+
+        try {
+            $secret = function_exists('config') ? config('app.key') : null;
+        } catch (\Throwable $e) {
+            $secret = null;
+        }
+
+        $secret ??= $_ENV['APP_KEY'] ?? 'fallback-secret';
         $hmac = hash_hmac('sha256', $payload, $secret);
 
         // Use first 8 characters to stay within 64-byte limit

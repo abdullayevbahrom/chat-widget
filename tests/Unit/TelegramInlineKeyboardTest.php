@@ -9,6 +9,14 @@ use PHPUnit\Framework\TestCase;
 
 class TelegramInlineKeyboardTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // Set APP_KEY for HMAC signing in unit tests
+        if (! isset($_ENV['APP_KEY'])) {
+            $_ENV['APP_KEY'] = 'base64:1uSGMthiynjqxVR4Ez64SlGR/JnvH7FqGkWXwE330yw=';
+        }
+    }
     public function test_build_for_conversation_returns_valid_structure(): void
     {
         $conversation = new class extends Conversation {
@@ -16,6 +24,7 @@ class TelegramInlineKeyboardTest extends TestCase
             {
                 parent::__construct();
                 $this->attributes['id'] = 42;
+                $this->attributes['tenant_id'] = 1;
             }
         };
 
@@ -38,14 +47,14 @@ class TelegramInlineKeyboardTest extends TestCase
         // First row: Reply and Close
         $this->assertCount(2, $keyboard['inline_keyboard'][0]);
         $this->assertEquals('💬 Javob', $keyboard['inline_keyboard'][0][0]['text']);
-        $this->assertEquals('reply:42', $keyboard['inline_keyboard'][0][0]['callback_data']);
+        $this->assertStringContainsString('reply:1:42:', $keyboard['inline_keyboard'][0][0]['callback_data']);
         $this->assertEquals('🔒 Yopish', $keyboard['inline_keyboard'][0][1]['text']);
-        $this->assertEquals('close:42', $keyboard['inline_keyboard'][0][1]['callback_data']);
+        $this->assertStringContainsString('close:1:42:', $keyboard['inline_keyboard'][0][1]['callback_data']);
 
         // Second row: Assign and Dashboard
         $this->assertCount(2, $keyboard['inline_keyboard'][1]);
         $this->assertEquals('👤 Menga tayinlash', $keyboard['inline_keyboard'][1][0]['text']);
-        $this->assertEquals('assign:42', $keyboard['inline_keyboard'][1][0]['callback_data']);
+        $this->assertStringContainsString('assign:1:42:', $keyboard['inline_keyboard'][1][0]['callback_data']);
         $this->assertArrayHasKey('url', $keyboard['inline_keyboard'][1][1]);
     }
 
@@ -56,6 +65,7 @@ class TelegramInlineKeyboardTest extends TestCase
             {
                 parent::__construct();
                 $this->attributes['id'] = 999999;
+                $this->attributes['tenant_id'] = 1;
             }
         };
 
@@ -97,6 +107,7 @@ class TelegramInlineKeyboardTest extends TestCase
             {
                 parent::__construct();
                 $this->attributes['id'] = 10;
+                $this->attributes['tenant_id'] = 1;
             }
         };
 
@@ -131,6 +142,7 @@ class TelegramInlineKeyboardTest extends TestCase
             {
                 parent::__construct();
                 $this->attributes['id'] = 123;
+                $this->attributes['tenant_id'] = 1;
             }
         };
 
