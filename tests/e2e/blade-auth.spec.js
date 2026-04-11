@@ -2,6 +2,22 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Blade + Alpine.js Auth', () => {
+  test('Register validation matnlari faqat kerak bo‘lganda chiqadi', async ({ page }) => {
+    await page.goto('/auth/register', { waitUntil: 'networkidle' });
+
+    await expect(page.getByText('Passwords do not match')).toBeHidden();
+    await expect(page.getByText('Passwords match')).toBeHidden();
+
+    await page.locator('#password').fill('Mismatch123!');
+    await page.locator('#password_confirmation').fill('Mismatch1234!');
+    await expect(page.getByText('Passwords do not match')).toBeVisible();
+    await expect(page.getByText('Passwords match')).toBeHidden();
+
+    await page.locator('#password_confirmation').fill('Mismatch123!');
+    await expect(page.getByText('Passwords do not match')).toBeHidden();
+    await expect(page.getByText('Passwords match')).toBeVisible();
+  });
+
   test('Login sahifasi ochiladi va dizayn to\'g\'ri', async ({ page }) => {
     await page.goto('/auth/login', { waitUntil: 'networkidle' });
     

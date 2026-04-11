@@ -36,7 +36,7 @@ test.describe('Admin Panel - Blade + Alpine.js', () => {
     await page.locator('button[type="submit"]').click();
     await page.waitForTimeout(2000);
     
-    await page.goto('/admin/tenants', { waitUntil: 'networkidle' });
+    await page.goto('/admin/manage-tenants', { waitUntil: 'networkidle' });
     await page.waitForTimeout(1000);
     
     const url = page.url();
@@ -55,7 +55,7 @@ test.describe('Admin Panel - Blade + Alpine.js', () => {
     await page.locator('button[type="submit"]').click();
     await page.waitForTimeout(2000);
     
-    await page.goto('/admin/users', { waitUntil: 'networkidle' });
+    await page.goto('/admin/manage-users', { waitUntil: 'networkidle' });
     await page.waitForTimeout(1000);
     
     const url = page.url();

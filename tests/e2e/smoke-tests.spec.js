@@ -288,21 +288,21 @@ test.describe('9. Admin Panel', () => {
 
   test('Admin Tenants sahifasi', async ({ page }) => {
     await adminLogin(page, 'admin@example.com', 'Admin123!');
-    await page.goto('/admin/tenants', { waitUntil: 'networkidle' });
+    await page.goto('/admin/manage-tenants', { waitUntil: 'networkidle' });
     
     const url = page.url();
     expect(url).not.toContain('/admin/login');
-    expect(url).toContain('/admin/tenants');
+    expect(url).toContain('/admin/manage-tenants');
     console.log('✅ Admin Tenants sahifasi ochildi');
   });
 
   test('Admin Users sahifasi', async ({ page }) => {
     await adminLogin(page, 'admin@example.com', 'Admin123!');
-    await page.goto('/admin/users', { waitUntil: 'networkidle' });
+    await page.goto('/admin/manage-users', { waitUntil: 'networkidle' });
     
     const url = page.url();
     expect(url).not.toContain('/admin/login');
-    expect(url).toContain('/admin/users');
+    expect(url).toContain('/admin/manage-users');
     console.log('✅ Admin Users sahifasi ochildi');
   });
 });

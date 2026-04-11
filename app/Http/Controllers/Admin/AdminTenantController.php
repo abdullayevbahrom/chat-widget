@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Tenant;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 
@@ -72,7 +73,11 @@ class AdminTenantController extends Controller
 
     public function destroy(Tenant $tenant)
     {
-        $tenant->delete();
+        DB::transaction(function () use ($tenant): void {
+            User::where('tenant_id', $tenant->id)->delete();
+            $tenant->delete();
+        });
+
         return redirect()->route('admin.tenants.index')->with('success', 'Tenant deleted successfully.');
     }
 }

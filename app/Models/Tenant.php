@@ -231,6 +231,14 @@ class Tenant extends Model
     }
 
     /**
+     * Get the projects that belong to this tenant.
+     */
+    public function projects(): HasMany
+    {
+        return $this->hasMany(Project::class);
+    }
+
+    /**
      * Get the conversations for this tenant.
      */
     public function conversations(): HasMany

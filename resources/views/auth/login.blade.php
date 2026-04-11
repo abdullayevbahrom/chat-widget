@@ -7,7 +7,6 @@
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=inter:300,400,500,600,700,800" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -21,7 +20,6 @@
         }
     </script>
     <style>
-        [x-cloak] { display: none !important; }
         .glass {
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(12px);
@@ -60,7 +58,7 @@
 
             <!-- Error Messages -->
             @if ($errors->any())
-                <div class="mb-6 p-4 rounded-xl bg-red-50 border border-red-200" x-data="{ show: true }" x-show="show" x-transition>
+                <div class="mb-6 p-4 rounded-xl bg-red-50 border border-red-200">
                     <div class="flex items-start">
                         <svg class="w-5 h-5 text-red-500 mt-0.5 mr-2" fill="currentColor" viewBox="0 0 20 20">
                             <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
@@ -74,21 +72,7 @@
                 </div>
             @endif
 
-            <!-- Login Form -->
-            <form method="POST" action="{{ route('tenant.login') }}" x-data="{
-                email: '{{ old('email') }}',
-                password: '',
-                remember: {{ old('remember') ? 'true' : 'false' }},
-                loading: false,
-                get canSubmit() {
-                    return this.email.length > 0 && this.password.length >= 8;
-                },
-                async submit() {
-                    if (!this.canSubmit) return;
-                    this.loading = true;
-                    this.$el.submit();
-                }
-            }" @submit.prevent="submit">
+            <form method="POST" action="{{ route('tenant.login') }}">
                 @csrf
                 
                 <!-- Email -->
@@ -98,7 +82,6 @@
                         type="email" 
                         name="email" 
                         id="email" 
-                        x-model="email"
                         value="{{ old('email') }}"
                         class="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 transition-all duration-200 outline-none"
                         placeholder="you@example.com"
@@ -114,7 +97,6 @@
                         type="password" 
                         name="password" 
                         id="password" 
-                        x-model="password"
                         class="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 transition-all duration-200 outline-none"
                         placeholder="••••••••"
                         required
@@ -127,7 +109,7 @@
                         <input 
                             type="checkbox" 
                             name="remember" 
-                            x-model="remember"
+                            {{ old('remember') ? 'checked' : '' }}
                             class="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                         >
                         <span class="ml-2 text-sm text-gray-600">Remember me</span>
@@ -142,11 +124,9 @@
                 <!-- Submit Button -->
                 <button
                     type="submit"
-                    :disabled="!canSubmit || loading"
-                    :class="{ 'opacity-70 cursor-not-allowed pointer-events-none': !canSubmit || loading }"
                     class="w-full btn-gradient text-white font-semibold py-3.5 px-6 rounded-xl transition-all duration-200 shadow-lg relative"
-                    x-text="loading ? 'Signing in...' : 'Sign In'"
                 >
+                    Sign In
                 </button>
             </form>
 

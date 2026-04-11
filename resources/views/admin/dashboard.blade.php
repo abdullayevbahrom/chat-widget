@@ -30,7 +30,7 @@
 
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
     <div class="glass rounded-2xl p-6">
-        <div class="flex items-center justify-between mb-4"><h2 class="text-lg font-bold text-gray-900">Recent Tenants</h2><a href="/admin/tenants" class="text-sm font-medium text-admin-600 hover:underline">View All →</a></div>
+        <div class="flex items-center justify-between mb-4"><h2 class="text-lg font-bold text-gray-900">Recent Tenants</h2><a href="{{ route('admin.tenants.index') }}" class="text-sm font-medium text-admin-600 hover:underline">View All →</a></div>
         @if($recentTenants->count() > 0)
             <div class="space-y-3">@foreach($recentTenants as $tenant)
                 <div class="flex items-center justify-between p-4 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
@@ -41,7 +41,7 @@
         @else <p class="text-gray-500 text-center py-8">No tenants yet</p> @endif
     </div>
     <div class="glass rounded-2xl p-6">
-        <div class="flex items-center justify-between mb-4"><h2 class="text-lg font-bold text-gray-900">Recent Users</h2><a href="/admin/users" class="text-sm font-medium text-admin-600 hover:underline">View All →</a></div>
+        <div class="flex items-center justify-between mb-4"><h2 class="text-lg font-bold text-gray-900">Recent Users</h2><a href="{{ route('admin.users.index') }}" class="text-sm font-medium text-admin-600 hover:underline">View All →</a></div>
         @if($recentUsers->count() > 0)
             <div class="space-y-3">@foreach($recentUsers as $user)
                 <div class="flex items-center justify-between p-4 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">

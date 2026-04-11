@@ -7,9 +7,7 @@
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=inter:300,400,500,600,700,800" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>
-        [x-cloak] { display: none !important; }
         .glass { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
         .gradient-bg { background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%); }
         .btn-gradient { background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); }
@@ -36,17 +34,18 @@
                 </div>
             @endif
 
-            <form method="POST" action="{{ route('admin.login') }}" x-data="{ email: '{{ old('email') }}', password: '', loading: false, get canSubmit() { return this.email.length > 0 && this.password.length > 0; }, async submit() { if (!this.canSubmit) return; this.loading = true; this.$el.submit(); } }" @submit.prevent="submit">
+            <form method="POST" action="{{ route('admin.login') }}">
                 @csrf
                 <div class="mb-5">
                     <label for="email" class="block text-sm font-semibold text-gray-700 mb-2">Email Address</label>
-                    <input type="email" name="email" id="email" x-model="email" class="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 transition-all duration-200 outline-none" placeholder="admin@example.com" required autofocus>
+                    <input type="email" name="email" id="email" value="{{ old('email') }}" class="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 transition-all duration-200 outline-none" placeholder="admin@example.com" required autofocus>
                 </div>
                 <div class="mb-6">
                     <label for="password" class="block text-sm font-semibold text-gray-700 mb-2">Password</label>
-                    <input type="password" name="password" id="password" x-model="password" class="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 transition-all duration-200 outline-none" placeholder="••••••••" required>
+                    <input type="password" name="password" id="password" class="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 transition-all duration-200 outline-none" placeholder="••••••••" required>
                 </div>
-                <button type="submit" :disabled="!canSubmit || loading" :class="{ 'opacity-70 cursor-not-allowed pointer-events-none': !canSubmit || loading }" class="w-full btn-gradient text-white font-semibold py-3.5 px-6 rounded-xl transition-all duration-200 shadow-lg relative" x-text="loading ? 'Signing in...' : 'Sign In'">
+                <button type="submit" class="w-full btn-gradient text-white font-semibold py-3.5 px-6 rounded-xl transition-all duration-200 shadow-lg relative">
+                    Sign In
                 </button>
             </form>
         </div>

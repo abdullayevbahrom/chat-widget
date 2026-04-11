@@ -103,7 +103,13 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::middleware(['auth:web'])->group(function () {
         Route::post('/logout', [AdminAuthController::class, 'logout'])->name('logout');
         Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
-        Route::resource('tenants', AdminTenantController::class)->except(['show'])->names('tenants');
-        Route::resource('users', AdminUserController::class)->except(['show'])->names('users');
+        Route::resource('manage-tenants', AdminTenantController::class)
+            ->parameters(['manage-tenants' => 'tenant'])
+            ->except(['show'])
+            ->names('tenants');
+        Route::resource('manage-users', AdminUserController::class)
+            ->parameters(['manage-users' => 'user'])
+            ->except(['show'])
+            ->names('users');
     });
 });

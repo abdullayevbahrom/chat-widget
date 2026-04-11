@@ -7,7 +7,6 @@
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=inter:300,400,500,600,700,800" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -21,13 +20,11 @@
         }
     </script>
     <style>
-        [x-cloak] { display: none !important; }
         .glass { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
         .gradient-bg { background: linear-gradient(135deg, #1e1b4b 0%, #312e81 30%, #4338ca 60%, #6366f1 100%); }
         .btn-gradient { background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); }
         .btn-gradient:hover { opacity: 0.95; transform: translateY(-2px); box-shadow: 0 8px 25px rgba(99, 102, 241, 0.45); }
         input:focus { border-color: #6366f1 !important; box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12); }
-        .password-strength { height: 4px; border-radius: 2px; transition: all 0.3s; }
     </style>
 </head>
 <body class="font-sans antialiased">
@@ -61,38 +58,7 @@
             @endif
 
             <!-- Register Form -->
-            <form method="POST" action="{{ route('tenant.register') }}" x-data="{
-                email: '{{ old('email') }}',
-                password: '',
-                password_confirmation: '',
-                loading: false,
-                get passwordStrength() {
-                    let strength = 0;
-                    if (this.password.length >= 8) strength++;
-                    if (/[a-z]/.test(this.password) && /[A-Z]/.test(this.password)) strength++;
-                    if (/\d/.test(this.password)) strength++;
-                    if (/[^a-zA-Z0-9]/.test(this.password)) strength++;
-                    return strength;
-                },
-                get passwordStrengthText() {
-                    const texts = ['Very Weak', 'Weak', 'Fair', 'Strong', 'Very Strong'];
-                    const colors = ['bg-red-500', 'bg-orange-500', 'bg-yellow-500', 'bg-green-500', 'bg-emerald-500'];
-                    return { text: texts[this.passwordStrength] || '', color: colors[this.passwordStrength] || 'bg-gray-200' };
-                },
-                get passwordsMatch() {
-                    return this.password_confirmation === this.password;
-                },
-                get canSubmit() {
-                    return this.email.length > 0 && 
-                           this.password.length >= 8 && 
-                           this.password === this.password_confirmation;
-                },
-                async submit() {
-                    if (!this.canSubmit) return;
-                    this.loading = true;
-                    this.$el.submit();
-                }
-            }" @submit.prevent="submit">
+            <form method="POST" action="{{ route('tenant.register') }}">
                 @csrf
                 
                 <!-- Email -->
@@ -102,7 +68,7 @@
                         type="email" 
                         name="email" 
                         id="email" 
-                        x-model="email"
+                        value="{{ old('email') }}"
                         class="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 transition-all duration-200 outline-none"
                         placeholder="you@example.com"
                         required
@@ -117,21 +83,10 @@
                         type="password" 
                         name="password" 
                         id="password" 
-                        x-model="password"
                         class="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 transition-all duration-200 outline-none"
                         placeholder="Min. 8 characters"
                         required
                     >
-                    @if (old('password'))
-                        <div class="mt-2">
-                            <div class="flex gap-1 mb-1">
-                                <template x-for="i in 4">
-                                    <div class="password-strength flex-1" :class="i <= passwordStrength ? passwordStrengthText.color : 'bg-gray-200'"></div>
-                                </template>
-                            </div>
-                            <p class="text-xs text-gray-500" x-text="passwordStrengthText.text"></p>
-                        </div>
-                    @endif
                 </div>
 
                 <!-- Confirm Password -->
@@ -141,24 +96,20 @@
                         type="password" 
                         name="password_confirmation" 
                         id="password_confirmation" 
-                        x-model="password_confirmation"
-                        :class="{ 'border-green-500': passwordsMatch && password_confirmation.length > 0, 'border-red-500': !passwordsMatch && password_confirmation.length > 0 }"
                         class="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 transition-all duration-200 outline-none"
                         placeholder="Re-enter password"
                         required
                     >
-                    <p x-show="!passwordsMatch && password_confirmation.length > 0" class="mt-1 text-xs text-red-600">Passwords do not match</p>
-                    <p x-show="passwordsMatch && password_confirmation.length > 0" class="mt-1 text-xs text-green-600">✓ Passwords match</p>
+                    <p id="password-mismatch-message" class="mt-1 text-xs text-red-600 hidden">Passwords do not match</p>
+                    <p id="password-match-message" class="mt-1 text-xs text-green-600 hidden">✓ Passwords match</p>
                 </div>
 
                 <!-- Submit Button -->
                 <button
                     type="submit"
-                    :disabled="!canSubmit || loading"
-                    :class="{ 'opacity-70 cursor-not-allowed pointer-events-none': !canSubmit || loading }"
                     class="w-full btn-gradient text-white font-semibold py-3.5 px-6 rounded-xl transition-all duration-200 shadow-lg relative"
-                    x-text="loading ? 'Creating...' : 'Create Account'"
                 >
+                    Create Account
                 </button>
             </form>
 
@@ -171,5 +122,33 @@
             </p>
         </div>
     </div>
+    <script>
+        const passwordInput = document.getElementById('password');
+        const passwordConfirmationInput = document.getElementById('password_confirmation');
+        const mismatchMessage = document.getElementById('password-mismatch-message');
+        const matchMessage = document.getElementById('password-match-message');
+
+        const updatePasswordValidation = () => {
+            const password = passwordInput.value;
+            const confirmation = passwordConfirmationInput.value;
+            const hasConfirmation = confirmation.length > 0;
+            const matches = hasConfirmation && password === confirmation;
+
+            mismatchMessage.classList.toggle('hidden', !hasConfirmation || matches);
+            matchMessage.classList.toggle('hidden', !matches);
+
+            passwordConfirmationInput.classList.remove('border-red-500', 'border-green-500');
+
+            if (!hasConfirmation) {
+                return;
+            }
+
+            passwordConfirmationInput.classList.add(matches ? 'border-green-500' : 'border-red-500');
+        };
+
+        passwordInput.addEventListener('input', updatePasswordValidation);
+        passwordConfirmationInput.addEventListener('input', updatePasswordValidation);
+        updatePasswordValidation();
+    </script>
 </body>
 </html>

@@ -21,7 +21,9 @@ class AdminUserController extends Controller
     public function create()
     {
         $tenants = Tenant::all();
-        return view('admin.users.form', compact('tenants'));
+        $user = null;
+
+        return view('admin.users.form', compact('tenants', 'user'));
     }
 
     public function store(Request $request)
