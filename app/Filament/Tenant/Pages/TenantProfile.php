@@ -9,22 +9,39 @@ use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Form;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use Filament\Schemas\Components\Actions;
+use Filament\Schemas\Components\Component;
+use Filament\Schemas\Components\EmbeddedSchema;
+use Filament\Schemas\Components\Form as SchemaForm;
+use Filament\Schemas\Schema;
+use Filament\Forms\Form;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class TenantProfile extends Page
 {
-    protected static ?string $navigationIcon = 'heroicon-o-building-office';
+    public static function getNavigationIcon(): string
+    {
+        return 'heroicon-o-building-office';
+    }
 
-    protected static string $view = 'filament.tenant.pages.tenant-profile';
+    public static function getNavigationLabel(): string
+    {
+        return 'Profile';
+    }
 
-    protected static ?string $navigationLabel = 'Profile';
+    public static function getNavigationSort(): ?int
+    {
+        return 10;
+    }
 
-    protected static ?int $navigationSort = 10;
+    public function getView(): string
+    {
+        return 'filament.tenant.pages.tenant-profile';
+    }
 
     public ?array $data = [];
 
@@ -158,7 +175,7 @@ class TenantProfile extends Page
      */
     protected function handleLogoUpload(Tenant $tenant, array &$data): void
     {
-        if (! empty($data['logo_path']) && $data['logo_path'] !== $tenant->logo_path) {
+        if (!empty($data['logo_path']) && $data['logo_path'] !== $tenant->logo_path) {
             if ($tenant->logo_path) {
                 Storage::disk('public')->delete($tenant->logo_path);
             }
@@ -187,6 +204,28 @@ class TenantProfile extends Page
                 ->label('Save Changes')
                 ->submit('save'),
         ];
+    }
+
+    public function content(Schema $schema): Schema
+    {
+        return $schema
+            ->components([
+                $this->getFormContentComponent(),
+            ]);
+    }
+
+    public function getFormContentComponent(): Component
+    {
+        return SchemaForm::make([EmbeddedSchema::make('form')])
+            ->id('form')
+            ->livewireSubmitHandler('save')
+            ->footer([
+                Actions::make($this->getFormActions())
+                    ->alignment($this->getFormActionsAlignment())
+                    ->fullWidth($this->hasFullWidthFormActions())
+                    ->sticky($this->areFormActionsSticky())
+                    ->key('form-actions'),
+            ]);
     }
 
     protected function getTenant(): ?Tenant

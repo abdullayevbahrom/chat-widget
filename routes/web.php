@@ -1,17 +1,95 @@
 <?php
 
+use App\Http\Controllers\Admin\AdminAuthController;
+use App\Http\Controllers\Admin\AdminDashboardController;
+use App\Http\Controllers\Admin\AdminTenantController;
+use App\Http\Controllers\Admin\AdminUserController;
+use App\Http\Controllers\Auth\TenantAuthController;
+use App\Http\Controllers\ConversationController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\TelegramBotController;
+use App\Http\Controllers\TenantDomainController;
+use App\Http\Controllers\TenantProfileController;
 use App\Http\Controllers\WidgetEmbedController;
 use App\Http\Middleware\EnsureVerifiedWidgetDomain;
+use App\Http\Middleware\TrackVisitors;
 use App\Http\Middleware\ValidateWidgetKey;
 use Illuminate\Support\Facades\Route;
 
+// Landing page — guests see this, authenticated users redirect to dashboard
 Route::get('/', function () {
+    if (auth('tenant_user')->check()) {
+        return redirect('/app');
+    }
+
     return view('welcome');
+})->name('home');
+
+// ==========================================
+// Tenant Auth Routes (Blade + Alpine.js)
+// ==========================================
+Route::prefix('auth')->name('tenant.')->group(function () {
+    // Guest routes
+    Route::middleware('guest:tenant_user')->group(function () {
+        Route::get('/login', [TenantAuthController::class, 'showLoginForm'])->name('login');
+        Route::post('/login', [TenantAuthController::class, 'login']);
+        Route::get('/register', [TenantAuthController::class, 'showRegistrationForm'])->name('register');
+        Route::post('/register', [TenantAuthController::class, 'register']);
+    });
+    
+    // Authenticated routes
+    Route::post('/logout', [TenantAuthController::class, 'logout'])
+        ->middleware('auth:tenant_user')
+        ->name('logout');
+});
+
+// Redirect /app/* to /dashboard/* for Filament
+Route::prefix('app')->group(function () {
+    Route::get('/', function () {
+        return redirect('/dashboard');
+    });
+    Route::any('{any}', function ($any) {
+        return redirect('/dashboard/' . $any);
+    })->where('any', '.*');
+});
+
+// Tenant Dashboard Routes
+Route::middleware(['auth:tenant_user', 'web'])->prefix('dashboard')->name('dashboard.')->group(function () {
+    Route::get('/', [DashboardController::class, 'index'])->name('index');
+
+    // Projects CRUD
+    Route::resource('projects', ProjectController::class)->except(['show']);
+    Route::post('/projects/{project}/regenerate-key', [ProjectController::class, 'regenerateKey'])
+        ->name('projects.regenerate-key');
+
+    // Placeholder routes for other pages (will be implemented later)
+    Route::resource('tenant-domains', TenantDomainController::class)->except(['show'])->names('domains');
+    Route::post('/tenant-domains/{tenant_domain}/verify', [TenantDomainController::class, 'verify'])
+        ->name('domains.verify');
+    Route::post('/tenant-domains/{tenant_domain}/reverify', [TenantDomainController::class, 'reverify'])
+        ->name('domains.reverify');
+    // Tenant Profile
+    Route::get('/tenant-profile', [TenantProfileController::class, 'index'])->name('profile');
+    Route::put('/tenant-profile', [TenantProfileController::class, 'update'])->name('profile.update');
+
+    // Telegram Bot Settings
+    Route::get('/telegram-bot-settings', [TelegramBotController::class, 'index'])->name('telegram');
+    Route::put('/telegram-bot-settings', [TelegramBotController::class, 'update'])->name('telegram.update');
+    Route::post('/telegram-bot-settings/test-message', [TelegramBotController::class, 'testMessage'])->name('telegram.test-message');
+    Route::delete('/telegram-bot-settings/delete-webhook', [TelegramBotController::class, 'deleteWebhook'])->name('telegram.delete-webhook');
+
+    // Conversations
+    Route::get('/conversations', [ConversationController::class, 'index'])->name('conversations.index');
+    Route::get('/conversations/{conversation}', [ConversationController::class, 'show'])->name('conversations.show');
+    Route::patch('/conversations/{conversation}/close', [ConversationController::class, 'close'])->name('conversations.close');
+    Route::patch('/conversations/{conversation}/reopen', [ConversationController::class, 'reopen'])->name('conversations.reopen');
+    Route::patch('/conversations/{conversation}/archive', [ConversationController::class, 'archive'])->name('conversations.archive');
 });
 
 // Widget embed endpoints — the SDK bundle is public, runtime requests use widget headers.
 Route::get('/widget/embed', [WidgetEmbedController::class, 'embed'])
-    ->middleware(['throttle:widget-config', ValidateWidgetKey::class, EnsureVerifiedWidgetDomain::class])
+    ->middleware(['throttle:widget-config', TrackVisitors::class, ValidateWidgetKey::class, EnsureVerifiedWidgetDomain::class])
     ->name('widget.embed.view');
 
 Route::get('/widget.js', [WidgetEmbedController::class, 'script'])
@@ -25,4 +103,23 @@ Route::get('/api/widget/config', [WidgetEmbedController::class, 'config'])
 // Tenant-specific routes (accessible by tenant users)
 Route::middleware(['auth:tenant_user', 'web'])->group(function () {
     // Additional tenant routes can be added here
+});
+
+// ==========================================
+// Admin Panel Routes (Blade + Alpine.js)
+// ==========================================
+Route::prefix('admin')->name('admin.')->group(function () {
+    // Guest routes
+    Route::middleware('guest:web')->group(function () {
+        Route::get('/login', [AdminAuthController::class, 'showLoginForm'])->name('login');
+        Route::post('/login', [AdminAuthController::class, 'login']);
+    });
+    
+    // Authenticated admin routes
+    Route::middleware(['auth:web'])->group(function () {
+        Route::post('/logout', [AdminAuthController::class, 'logout'])->name('logout');
+        Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
+        Route::resource('tenants', AdminTenantController::class)->except(['show'])->names('tenants');
+        Route::resource('users', AdminUserController::class)->except(['show'])->names('users');
+    });
 });

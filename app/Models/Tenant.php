@@ -7,6 +7,7 @@ use Illuminate\Cache\RedisStore;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Context;
@@ -255,6 +256,14 @@ class Tenant extends Model
     public function activeDomains(): HasMany
     {
         return $this->hasMany(TenantDomain::class)->where('is_active', true);
+    }
+
+    /**
+     * Get the Telegram bot settings for this tenant.
+     */
+    public function telegramBotSetting(): HasOne
+    {
+        return $this->hasOne(TelegramBotSetting::class);
     }
 
     /**

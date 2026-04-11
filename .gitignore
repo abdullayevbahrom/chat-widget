@@ -35,3 +35,12 @@ Thumbs.db
 .codex
 .claude
 .ai*
+
+# Test artifacts
+test-results/
+playwright-report/
+
+# Test files
+test-*.cjs
+test-*.js
+test-*.mjs

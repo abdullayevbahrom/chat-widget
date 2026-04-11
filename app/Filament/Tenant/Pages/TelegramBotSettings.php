@@ -11,22 +11,39 @@ use Filament\Forms\Components\Badge;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
-use Filament\Forms\Form;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use Filament\Schemas\Components\Actions;
+use Filament\Schemas\Components\Component;
+use Filament\Schemas\Components\EmbeddedSchema;
+use Filament\Schemas\Components\Form as SchemaForm;
+use Filament\Schemas\Schema;
+use Filament\Forms\Form;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class TelegramBotSettings extends Page
 {
-    protected static ?string $navigationIcon = 'heroicon-o-paper-airplane';
+    public static function getNavigationIcon(): string
+    {
+        return 'heroicon-o-paper-airplane';
+    }
 
-    protected static string $view = 'filament.tenant.pages.telegram-bot-settings';
+    public static function getNavigationLabel(): string
+    {
+        return 'Telegram Bot';
+    }
 
-    protected static ?string $navigationLabel = 'Telegram Bot';
+    public static function getNavigationSort(): ?int
+    {
+        return 20;
+    }
 
-    protected static ?int $navigationSort = 20;
+    public function getView(): string
+    {
+        return 'filament.tenant.pages.telegram-bot-settings';
+    }
 
     public static function canAccess(): bool
     {
@@ -105,7 +122,7 @@ class TelegramBotSettings extends Page
             return str_repeat('•', $length);
         }
 
-        return str_repeat('•', $length - 4).substr($token, -4);
+        return str_repeat('•', $length - 4) . substr($token, -4);
     }
 
     public function form(Form $form): Form
@@ -126,7 +143,7 @@ class TelegramBotSettings extends Page
                                 'required',
                                 'string',
                                 function ($attribute, $value, $fail) {
-                                    if (! $this->telegramService->validateToken($value)) {
+                                    if (!$this->telegramService->validateToken($value)) {
                                         $fail('The bot token format is invalid. Expected format: 123456789:ABCdef-GHIjkl.');
                                     }
                                 },
@@ -160,7 +177,7 @@ class TelegramBotSettings extends Page
 
                         Badge::make('webhookStatus')
                             ->label('Webhook Status')
-                            ->hidden(fn ($state) => $state === null),
+                            ->hidden(fn($state) => $state === null),
 
                         Toggle::make('isActive')
                             ->label('Activate Bot')
@@ -211,7 +228,7 @@ class TelegramBotSettings extends Page
                 ->modalHeading('Setup Webhook')
                 ->modalDescription('This will register your webhook URL with Telegram. The process runs in the background.')
                 ->modalSubmitActionLabel('Setup Webhook')
-                ->visible(fn () => $this->settingId !== null && $this->botUsername !== null),
+                ->visible(fn() => $this->settingId !== null && $this->botUsername !== null),
 
             Action::make('deleteWebhook')
                 ->label('Delete Webhook')
@@ -222,7 +239,7 @@ class TelegramBotSettings extends Page
                 ->modalHeading('Delete Webhook')
                 ->modalDescription('This will remove the webhook registration from Telegram.')
                 ->modalSubmitActionLabel('Delete Webhook')
-                ->visible(fn () => $this->settingId !== null && $this->webhookStatus === 'set'),
+                ->visible(fn() => $this->settingId !== null && $this->webhookStatus === 'set'),
 
             Action::make('sendTestMessage')
                 ->label('Send Test Message')
@@ -233,15 +250,37 @@ class TelegramBotSettings extends Page
                 ->modalHeading('Send Test Message')
                 ->modalDescription('This will send a test message to the bound Telegram chat.')
                 ->modalSubmitActionLabel('Send')
-                ->visible(fn () => $this->settingId !== null && $this->botUsername !== null),
+                ->visible(fn() => $this->settingId !== null && $this->botUsername !== null),
 
             Action::make('refreshWebhookStatus')
                 ->label('Refresh Webhook Status')
                 ->action('refreshWebhookStatus')
                 ->color('gray')
                 ->icon('heroicon-o-arrow-path')
-                ->visible(fn () => $this->settingId !== null && $this->botUsername !== null),
+                ->visible(fn() => $this->settingId !== null && $this->botUsername !== null),
         ];
+    }
+
+    public function content(Schema $schema): Schema
+    {
+        return $schema
+            ->components([
+                $this->getFormContentComponent(),
+            ]);
+    }
+
+    public function getFormContentComponent(): Component
+    {
+        return SchemaForm::make([EmbeddedSchema::make('form')])
+            ->id('form')
+            ->livewireSubmitHandler('save')
+            ->footer([
+                Actions::make($this->getFormActions())
+                    ->alignment($this->getFormActionsAlignment())
+                    ->fullWidth($this->hasFullWidthFormActions())
+                    ->sticky($this->areFormActionsSticky())
+                    ->key('form-actions'),
+            ]);
     }
 
     public function validateToken(): void
@@ -253,7 +292,7 @@ class TelegramBotSettings extends Page
         // Resolve the actual token (may be masked)
         $actualToken = $this->resolveToken();
 
-        if (! $this->telegramService->validateToken($actualToken)) {
+        if (!$this->telegramService->validateToken($actualToken)) {
             Notification::make()
                 ->title('Invalid Token Format')
                 ->body('The bot token format is invalid. Expected format: 123456789:ABCdef-GHIjkl.')
@@ -265,9 +304,9 @@ class TelegramBotSettings extends Page
 
         // Rate limiting: max 3 validation attempts per 3 minutes
         // Use atomic Cache::add() to prevent race conditions
-        $rateLimitKey = 'telegram_token_validation_'.hash('sha256', $actualToken);
+        $rateLimitKey = 'telegram_token_validation_' . hash('sha256', $actualToken);
 
-        if (! Cache::add($rateLimitKey.'_locked', true, now()->addMinutes(3))) {
+        if (!Cache::add($rateLimitKey . '_locked', true, now()->addMinutes(3))) {
             Notification::make()
                 ->title('Rate Limited')
                 ->body('Too many validation attempts. Please wait a few moments and try again.')
@@ -278,7 +317,7 @@ class TelegramBotSettings extends Page
         }
 
         // Cache successful validation result for 5 minutes
-        $cacheKey = 'telegram_bot_info_'.md5($actualToken);
+        $cacheKey = 'telegram_bot_info_' . md5($actualToken);
         $cachedBotInfo = Cache::get($cacheKey);
 
         if ($cachedBotInfo !== null) {
@@ -381,7 +420,7 @@ class TelegramBotSettings extends Page
         }
 
         // Validate token format with regex before processing
-        if (! $this->telegramService->validateToken($actualToken)) {
+        if (!$this->telegramService->validateToken($actualToken)) {
             Notification::make()
                 ->title('Invalid Token Format')
                 ->body('The bot token format is invalid. Expected format: 123456789:ABCdef-GHIjkl.')
@@ -393,9 +432,9 @@ class TelegramBotSettings extends Page
 
         // Rate limiting: max 5 save attempts per 5 minutes per tenant
         // Use atomic Cache::add() to prevent race conditions
-        $saveRateLimitKey = 'telegram_save_'.hash('sha256', 'tenant_'.$tenant->id);
+        $saveRateLimitKey = 'telegram_save_' . hash('sha256', 'tenant_' . $tenant->id);
 
-        if (! Cache::add($saveRateLimitKey.'_locked', true, now()->addMinutes(5))) {
+        if (!Cache::add($saveRateLimitKey . '_locked', true, now()->addMinutes(5))) {
             Notification::make()
                 ->title('Rate Limited')
                 ->body('Too many save attempts. Please wait a few moments and try again.')
@@ -591,10 +630,10 @@ class TelegramBotSettings extends Page
             };
 
             Notification::make()
-                ->title('Webhook Status: '.ucfirst($status['status']))
-                ->body($statusMessage)
+                        ->title('Webhook Status: ' . ucfirst($status['status']))
+                        ->body($statusMessage)
                 ->{$status['status'] === 'active' ? 'success' : ($status['status'] === 'error' ? 'danger' : 'info')}()
-                ->send();
+                    ->send();
         } catch (\Exception $e) {
             Notification::make()
                 ->title('Failed to Check Webhook Status')
@@ -682,14 +721,14 @@ class TelegramBotSettings extends Page
                 $suffixLength = strlen($suffix);
 
                 if ($suffixLength > 4) {
-                    $maskedSuffix = substr($suffix, 0, 2).'****'.substr($suffix, -2);
+                    $maskedSuffix = substr($suffix, 0, 2) . '****' . substr($suffix, -2);
                 } elseif ($suffixLength > 0) {
                     $maskedSuffix = '****';
                 } else {
                     $maskedSuffix = '';
                 }
 
-                return $prefix.':'.$maskedSuffix;
+                return $prefix . ':' . $maskedSuffix;
             }
         }
 

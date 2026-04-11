@@ -89,4 +89,63 @@ class TenantDomainTest extends TestCase
         $this->assertNotNull($domain->tenant_id);
         $this->assertNotNull($domain->domain);
     }
+
+    #[Test]
+    public function it_can_generate_verification_token(): void
+    {
+        $tenant = Tenant::factory()->create();
+        $domain = TenantDomain::factory()->create([
+            'tenant_id' => $tenant->id,
+            'is_verified' => false,
+            'verification_token' => null,
+        ]);
+
+        $token = $domain->generateVerificationToken();
+
+        $this->assertNotNull($token);
+        $this->assertEquals($token, $domain->verification_token);
+        $this->assertFalse($domain->is_verified);
+        $this->assertNull($domain->verified_at);
+    }
+
+    #[Test]
+    public function it_can_be_marked_as_verified(): void
+    {
+        $tenant = Tenant::factory()->create();
+        $domain = TenantDomain::factory()->create([
+            'tenant_id' => $tenant->id,
+            'is_verified' => false,
+            'verification_token' => 'some-token',
+        ]);
+
+        $domain->markAsVerified();
+
+        $this->assertTrue($domain->is_verified);
+        $this->assertNotNull($domain->verified_at);
+        $this->assertNull($domain->verification_token);
+    }
+
+    #[Test]
+    public function it_casts_is_verified_to_boolean(): void
+    {
+        $tenant = Tenant::factory()->create();
+        $domain = TenantDomain::factory()->create([
+            'tenant_id' => $tenant->id,
+            'is_verified' => 1,
+        ]);
+
+        $this->assertIsBool($domain->is_verified);
+    }
+
+    #[Test]
+    public function it_casts_verified_at_to_datetime(): void
+    {
+        $tenant = Tenant::factory()->create();
+        $domain = TenantDomain::factory()->create([
+            'tenant_id' => $tenant->id,
+            'verified_at' => now(),
+        ]);
+
+        $this->assertInstanceOf(\Illuminate\Support\Carbon::class, $domain->verified_at);
+    }
 }

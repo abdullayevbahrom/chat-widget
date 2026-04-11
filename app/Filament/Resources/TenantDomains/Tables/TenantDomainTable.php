@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Filament\Resources\TenantDomains;
+namespace App\Filament\Resources\TenantDomains\Tables;
 
 use App\Models\TenantDomain;
 use Filament\Actions\BulkActionGroup;

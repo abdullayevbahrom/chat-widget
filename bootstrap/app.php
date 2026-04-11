@@ -16,16 +16,16 @@ use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
-        web: __DIR__.'/../routes/web.php',
-        commands: __DIR__.'/../routes/console.php',
+        web: __DIR__ . '/../routes/web.php',
+        commands: __DIR__ . '/../routes/console.php',
         health: '/up',
-        api: __DIR__.'/../routes/api.php',
-        channels: __DIR__.'/../routes/channels.php',
+        api: __DIR__ . '/../routes/api.php',
+        channels: __DIR__ . '/../routes/channels.php',
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $trustedProxies = array_values(array_filter(
             array_map('trim', explode(',', (string) env('TRUSTED_PROXIES', ''))),
-            static fn (string $proxy): bool => $proxy !== '' && $proxy !== '*'
+            static fn(string $proxy): bool => $proxy !== '' && $proxy !== '*'
         ));
 
         // Register tenant middleware aliases
@@ -39,7 +39,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // API rate limiting is configured explicitly in AppServiceProvider
         // using RateLimiter::for('api', ...) with per-user/per-IP limits.
-
+    
         // CSRF protection — only exclude webhook and widget message endpoints
         // that are called by external services (Telegram, widget SDK) and cannot
         // include CSRF tokens. All other API routes (tenant CRUD, project management)
@@ -69,16 +69,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->trustProxies(
             at: $trustedProxies,
             headers: Request::HEADER_X_FORWARDED_FOR |
-                Request::HEADER_X_FORWARDED_HOST |
-                Request::HEADER_X_FORWARDED_PORT |
-                Request::HEADER_X_FORWARDED_PROTO |
-                Request::HEADER_X_FORWARDED_AWS_ELB,
+            Request::HEADER_X_FORWARDED_HOST |
+            Request::HEADER_X_FORWARDED_PORT |
+            Request::HEADER_X_FORWARDED_PROTO |
+            Request::HEADER_X_FORWARDED_AWS_ELB,
         );
-
-        // Visitor tracking middleware — track visitor sessions on web routes
-        $middleware->web(append: [
-            TrackVisitors::class,
-        ]);
 
         // Security headers on all responses (web + API)
         $middleware->web(append: [

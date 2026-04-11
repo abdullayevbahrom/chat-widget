@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Filament\Resources\TenantDomains;
+namespace App\Filament\Resources\TenantDomains\Schemas;
 
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;

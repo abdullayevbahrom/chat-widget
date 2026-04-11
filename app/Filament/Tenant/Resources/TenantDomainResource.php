@@ -2,6 +2,8 @@
 
 namespace App\Filament\Tenant\Resources;
 
+use App\Filament\Tenant\Resources\TenantDomainResource\Pages\CreateTenantDomain;
+use App\Filament\Tenant\Resources\TenantDomainResource\Pages\EditTenantDomain;
 use App\Filament\Tenant\Resources\TenantDomainResource\Pages\ListTenantDomains;
 use App\Filament\Tenant\Resources\TenantDomainResource\Schemas\TenantDomainForm;
 use App\Filament\Tenant\Resources\TenantDomainResource\Tables\TenantDomainTable;
@@ -18,13 +20,25 @@ class TenantDomainResource extends Resource
 {
     protected static ?string $model = TenantDomain::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedGlobeAlt;
+    public static function getNavigationIcon(): string|BackedEnum|null
+    {
+        return Heroicon::OutlinedGlobeAlt;
+    }
 
-    protected static ?string $navigationLabel = 'Domains';
+    public static function getNavigationLabel(): string
+    {
+        return 'Domains';
+    }
 
-    protected static ?string $modelLabel = 'Domain';
+    public static function getModelLabel(): string
+    {
+        return 'Domain';
+    }
 
-    protected static UnitEnum|string|null $navigationGroup = 'Settings';
+    public static function getNavigationGroup(): string|UnitEnum|null
+    {
+        return 'Settings';
+    }
 
     public static function form(Schema $schema): Schema
     {
@@ -40,6 +54,8 @@ class TenantDomainResource extends Resource
     {
         return [
             'index' => ListTenantDomains::route('/'),
+            'create' => CreateTenantDomain::route('/create'),
+            'edit' => EditTenantDomain::route('/{record}/edit'),
         ];
     }
 

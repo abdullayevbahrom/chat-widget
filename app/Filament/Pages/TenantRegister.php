@@ -4,15 +4,26 @@ namespace App\Filament\Pages;
 
 use App\Models\Tenant;
 use App\Models\User;
-use App\Settings\PlatformSettings;
 use Filament\Auth\Pages\Register as BaseRegister;
+use Filament\Auth\Http\Responses\Contracts\RegistrationResponse as RegistrationResponseContract;
+use Filament\Facades\Filament;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Component;
 use Filament\Schemas\Schema;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rules\Password;
-use Illuminate\Validation\ValidationException;
+use Livewire\Features\SupportRedirects\Redirector;
+
+class TenantRegistrationResponse implements RegistrationResponseContract
+{
+    public function toResponse($request): RedirectResponse | Redirector
+    {
+        return redirect('/app');
+    }
+}
 
 class TenantRegister extends BaseRegister
 {
@@ -22,46 +33,10 @@ class TenantRegister extends BaseRegister
     {
         return $schema
             ->components([
-                $this->getTenantNameFormComponent(),
-                $this->getTenantSlugFormComponent(),
-                $this->getNameFormComponent(),
                 $this->getEmailFormComponent(),
                 $this->getPasswordFormComponent(),
                 $this->getPasswordConfirmationFormComponent(),
-                $this->getContactPhoneFormComponent(),
             ]);
-    }
-
-    protected function getTenantNameFormComponent(): Component
-    {
-        return TextInput::make('tenant_name')
-            ->label('Company Name')
-            ->required()
-            ->maxLength(255)
-            ->live(onBlur: true)
-            ->afterStateUpdated(function ($state, callable $set) {
-                $set('tenant_slug', str($state)->slug());
-            });
-    }
-
-    protected function getTenantSlugFormComponent(): Component
-    {
-        return TextInput::make('tenant_slug')
-            ->label('Subdomain / Slug')
-            ->required()
-            ->maxLength(255)
-            ->unique(table: Tenant::class, column: 'slug')
-            ->alphaDash()
-            ->helperText('This will be your unique identifier.');
-    }
-
-    protected function getContactPhoneFormComponent(): Component
-    {
-        return TextInput::make('contact_phone')
-            ->label('Contact Phone')
-            ->tel()
-            ->nullable()
-            ->maxLength(255);
     }
 
     protected function getPasswordFormComponent(): Component
@@ -71,12 +46,13 @@ class TenantRegister extends BaseRegister
             ->password()
             ->required()
             ->minLength(8)
-            ->rule(Password::min(8)
-                ->letters()
-                ->mixedCase()
-                ->numbers()
-                ->symbols()
-                ->uncompromised()
+            ->rule(
+                Password::min(8)
+                    ->letters()
+                    ->mixedCase()
+                    ->numbers()
+                    ->symbols()
+                    ->uncompromised()
             )
             ->revealable()
             ->autocomplete('new-password')
@@ -86,44 +62,85 @@ class TenantRegister extends BaseRegister
     protected function handleRegistration(array $data): Model
     {
         return DB::transaction(function () use ($data) {
-            // Check plan limits
-            $settings = app(PlatformSettings::class);
-            $plan = 'free'; // default plan for self-registration
-            $maxTenants = $settings->max_tenants_per_plan[$plan] ?? 0;
+            // Generate unique tenant slug from email
+            $emailUsername = explode('@', $data['email'])[0];
+            $baseSlug = str($emailUsername)->slug()->toString();
+            $slug = $baseSlug;
+            $counter = 1;
 
-            if ($maxTenants >= 0) { // 0 or positive means limited; -1 means unlimited
-                $currentCount = Tenant::where('plan', $plan)->count();
-                if ($currentCount >= $maxTenants) {
-                    throw ValidationException::withMessages([
-                        'tenant_slug' => 'The '.$plan.' plan has reached its maximum tenant limit.',
-                    ]);
-                }
+            while (Tenant::where('slug', $slug)->exists()) {
+                $slug = $baseSlug . '-' . $counter;
+                $counter++;
             }
 
-            // Create the tenant (pending activation — requires email verification)
+            // Create the tenant
             $tenant = Tenant::create([
-                'name' => $data['tenant_name'],
-                'slug' => $data['tenant_slug'],
-                'is_active' => false, // Pending activation until email is verified
+                'name' => $emailUsername,
+                'slug' => $slug,
+                'is_active' => true,
                 'plan' => 'free',
                 'subscription_expires_at' => null,
             ]);
 
             // Create the user and link to tenant
             $user = User::create([
-                'name' => $data['name'],
+                'name' => $emailUsername,
                 'email' => $data['email'],
                 'password' => $data['password'],
                 'tenant_id' => $tenant->id,
                 'is_super_admin' => false,
             ]);
 
-            // If contact phone was provided, update tenant
-            if (! empty($data['contact_phone'])) {
-                $tenant->update(['contact_phone' => $data['contact_phone']]);
-            }
+            return $user;
+        });
+    }
+
+    public function register(): ?RegistrationResponseContract
+    {
+        try {
+            $this->rateLimit(2);
+        } catch (\DanHarrin\LivewireRateLimiting\Exceptions\TooManyRequestsException $exception) {
+            $this->getRateLimitedNotification($exception)?->send();
+            return null;
+        }
+
+        if ($this->isRegisterRateLimited($this->data['email'] ?? '')) {
+            return null;
+        }
+
+        $user = $this->wrapInDatabaseTransaction(function (): Model {
+            $this->callHook('beforeValidate');
+
+            $data = $this->form->getState();
+
+            $this->callHook('afterValidate');
+
+            $data = $this->mutateFormDataBeforeRegister($data);
+
+            $this->callHook('beforeRegister');
+
+            $user = $this->handleRegistration($data);
+
+            $this->form->model($user)->saveRelationships();
+
+            $this->callHook('afterRegister');
 
             return $user;
         });
+
+        event(new \Filament\Auth\Events\Registered($user));
+
+        $this->sendEmailVerificationNotification($user);
+
+        // tenant_user guard orqali login qilish
+        Auth::guard('tenant_user')->login($user);
+        session()->regenerate();
+
+        return new TenantRegistrationResponse();
+    }
+
+    protected function getRedirectUrl(): string
+    {
+        return '/app';
     }
 }

@@ -28,7 +28,7 @@ class VisitorTrackingService
     public function track(Request $request): ?Visitor
     {
         // Skip if session is not available
-        if (! $request->hasSession() || ! $request->session()->isStarted()) {
+        if (!$request->hasSession() || !$request->session()->isStarted()) {
             return null;
         }
 
@@ -36,7 +36,7 @@ class VisitorTrackingService
         $tenantId = $this->getCurrentTenantId();
 
         // Skip tracking bots if configured
-        if (! $this->shouldTrackBots()) {
+        if (!$this->shouldTrackBots()) {
             $agent = $this->createAgent($request);
             if ($agent->isRobot()) {
                 return null;
@@ -46,37 +46,79 @@ class VisitorTrackingService
         // Build sanitized visitor data
         $data = $this->buildVisitorData($request);
 
-        // Use upsert for atomic create-or-update (Issue #1: prevents race condition)
-        // The unique constraint on session_id ensures only one record per session
+        // Use firstOrCreate with a try-catch for race condition safety
+        // PostgreSQL unique constraint on (COALESCE(tenant_id, 0), session_id)
+        // means we must handle the case where another request creates the record
+        // between our check and insert.
         $now = now();
-        $updates = array_merge($data, [
-            'last_visit_at' => $now,
-            'updated_at' => $now,
-            // Increment visit_count atomically using raw expression (Issue #3)
-            'visit_count' => DB::raw('COALESCE(visit_count, 0) + 1'),
-        ]);
 
         // If the visitor becomes authenticated, link the user
         if (Auth::check()) {
-            $updates['user_id'] = Auth::id();
-            $updates['is_authenticated'] = true;
+            $data['user_id'] = Auth::id();
+            $data['is_authenticated'] = true;
         }
 
-        Visitor::updateOrCreate(
-            [
-                'tenant_id' => $tenantId,
-                'session_id' => $sessionId,
-            ],
-            $updates
-        );
+        try {
+            $visitor = Visitor::firstOrCreate(
+                [
+                    'tenant_id' => $tenantId,
+                    'session_id' => $sessionId,
+                ],
+                [
+                    ...$data,
+                    'first_visit_at' => $now,
+                    'last_visit_at' => $now,
+                    'updated_at' => $now,
+                    'visit_count' => 1,
+                ]
+            );
+
+            // If the record already existed (firstOrCreate found it), increment visit_count
+            if (!$visitor->wasRecentlyCreated) {
+                $visitor->update([
+                    'last_visit_at' => $now,
+                    'updated_at' => $now,
+                    'visit_count' => DB::raw('visit_count + 1'),
+                    ...$data,
+                ]);
+            }
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Handle race condition: if unique constraint violation,
+            // the record was created by another request — just update it
+            if ($e->getCode() === '23505') {
+                // Find the existing visitor and update
+                $visitor = Visitor::query()
+                    ->where('session_id', $sessionId)
+                    ->when(
+                        $tenantId === null,
+                        fn($query) => $query->whereNull('tenant_id'),
+                        fn($query) => $query->where('tenant_id', $tenantId),
+                    )
+                    ->first();
+
+                if ($visitor) {
+                    $visitor->update([
+                        'last_visit_at' => $now,
+                        'updated_at' => $now,
+                        'visit_count' => DB::raw('visit_count + 1'),
+                        ...$data,
+                    ]);
+                } else {
+                    // If still not found, re-throw
+                    throw $e;
+                }
+            } else {
+                throw $e;
+            }
+        }
 
         // Return the visitor record
         return Visitor::query()
             ->where('session_id', $sessionId)
             ->when(
                 $tenantId === null,
-                fn ($query) => $query->whereNull('tenant_id'),
-                fn ($query) => $query->where('tenant_id', $tenantId),
+                fn($query) => $query->whereNull('tenant_id'),
+                fn($query) => $query->where('tenant_id', $tenantId),
             )
             ->first();
     }
@@ -180,8 +222,8 @@ class VisitorTrackingService
             ->where('session_id', $sessionId)
             ->when(
                 $tenantId === null,
-                fn ($query) => $query->whereNull('tenant_id'),
-                fn ($query) => $query->where('tenant_id', $tenantId),
+                fn($query) => $query->whereNull('tenant_id'),
+                fn($query) => $query->where('tenant_id', $tenantId),
             )
             ->first();
     }
@@ -230,7 +272,7 @@ class VisitorTrackingService
         }
 
         // Skip bots if configured
-        if (! $this->shouldTrackBots()) {
+        if (!$this->shouldTrackBots()) {
             $agent = $this->createAgent($request);
             if ($agent->isRobot()) {
                 return false;
@@ -377,8 +419,19 @@ class VisitorTrackingService
     protected function shouldIgnoreExtension(Request $request): bool
     {
         $ignoreExtensions = config('visitor-tracking.ignore_extensions', [
-            'js', 'css', 'png', 'jpg', 'jpeg', 'gif', 'ico', 'svg',
-            'woff', 'woff2', 'ttf', 'eot', 'map',
+            'js',
+            'css',
+            'png',
+            'jpg',
+            'jpeg',
+            'gif',
+            'ico',
+            'svg',
+            'woff',
+            'woff2',
+            'ttf',
+            'eot',
+            'map',
         ]);
 
         $path = $request->path();

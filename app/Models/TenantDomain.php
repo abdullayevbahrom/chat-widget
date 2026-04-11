@@ -33,6 +33,9 @@ class TenantDomain extends Model
         'tenant_id',
         'domain',
         'is_active',
+        'is_verified',
+        'verification_token',
+        'verified_at',
         'notes',
     ];
 
@@ -45,6 +48,8 @@ class TenantDomain extends Model
     {
         return [
             'is_active' => 'boolean',
+            'is_verified' => 'boolean',
+            'verified_at' => 'datetime',
         ];
     }
 
@@ -62,5 +67,29 @@ class TenantDomain extends Model
     public function isValid(): bool
     {
         return $this->is_active === true;
+    }
+
+    /**
+     * Generate a new verification token.
+     */
+    public function generateVerificationToken(): string
+    {
+        $this->verification_token = bin2hex(random_bytes(32));
+        $this->is_verified = false;
+        $this->verified_at = null;
+        $this->save();
+
+        return $this->verification_token;
+    }
+
+    /**
+     * Mark the domain as verified.
+     */
+    public function markAsVerified(): void
+    {
+        $this->is_verified = true;
+        $this->verified_at = now();
+        $this->verification_token = null;
+        $this->save();
     }
 }
