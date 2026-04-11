@@ -1276,8 +1276,4 @@ if (typeof window !== 'undefined') {
   };
 
   global.ChatWidget = WidgetAPI;
-
-  if (typeof module !== 'undefined' && module.exports) {
-    module.exports = WidgetAPI;
-  }
 })(window);
