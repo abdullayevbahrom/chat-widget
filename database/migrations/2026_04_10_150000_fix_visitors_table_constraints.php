@@ -247,6 +247,13 @@ return new class extends Migration
 
     protected function sqliteHasIndex(string $table, string $indexName): bool
     {
+        // Whitelist of known table names to prevent SQL injection via PRAGMA
+        $allowedTables = ['visitors', 'projects', 'conversations', 'messages', 'project_domains'];
+
+        if (! in_array($table, $allowedTables, true)) {
+            return false;
+        }
+
         $indexes = DB::select("PRAGMA index_list('{$table}')");
 
         foreach ($indexes as $index) {

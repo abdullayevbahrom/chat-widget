@@ -1,10 +1,13 @@
 <?php
 
+use App\Http\Controllers\Api\AdminConversationController;
 use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\ProjectDomainController;
 use App\Http\Controllers\Api\TelegramWebhookController;
 use App\Http\Controllers\Api\TenantDomainController;
 use App\Http\Controllers\Api\TenantProfileController;
+use App\Http\Controllers\Api\WidgetAttachmentController;
+use App\Http\Controllers\Api\WidgetConversationController;
 use App\Http\Controllers\Api\WidgetMessageController;
 use App\Http\Middleware\EnsureVerifiedWidgetDomain;
 use App\Http\Middleware\ValidateWidgetKey;
@@ -37,4 +40,18 @@ Route::middleware(['throttle:widget-message', ValidateWidgetKey::class, EnsureVe
     ->group(function () {
         Route::post('messages', [WidgetMessageController::class, 'store'])->name('widget.messages.store');
         Route::get('messages', [WidgetMessageController::class, 'index'])->name('widget.messages.index');
+        Route::get('conversation', [WidgetConversationController::class, 'show'])->name('widget.conversation.show');
+        Route::post('conversation/close', [WidgetConversationController::class, 'close'])->name('widget.conversation.close');
+        Route::get('attachments/{projectId}/{conversationId}/{fileName}', [WidgetAttachmentController::class, 'download'])
+            ->name('widget.attachments.download');
     });
+
+// Admin Conversation API — authenticated, tenant-scoped
+Route::middleware(['auth:sanctum'])->prefix('tenant')->group(function () {
+    Route::apiResource('conversations', AdminConversationController::class)->only(['index', 'show']);
+    Route::post('conversations/{conversation}/close', [AdminConversationController::class, 'close'])->name('tenant.conversations.close');
+    Route::post('conversations/{conversation}/reopen', [AdminConversationController::class, 'reopen'])->name('tenant.conversations.reopen');
+    Route::post('conversations/{conversation}/archive', [AdminConversationController::class, 'archive'])->name('tenant.conversations.archive');
+    Route::post('conversations/{conversation}/assign', [AdminConversationController::class, 'assign'])->name('tenant.conversations.assign');
+    Route::get('conversations/unread-count', [AdminConversationController::class, 'unreadCount'])->name('tenant.conversations.unread-count');
+});

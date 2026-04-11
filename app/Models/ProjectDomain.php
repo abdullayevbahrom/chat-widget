@@ -18,6 +18,12 @@ class ProjectDomain extends Model
     /** @use HasFactory<ProjectDomainFactory> */
     use HasFactory;
 
+    public const STATUS_PENDING = 'pending';
+
+    public const STATUS_VERIFIED = 'verified';
+
+    public const STATUS_FAILED = 'failed';
+
     /**
      * The "booted" method of the model.
      */
@@ -75,7 +81,7 @@ class ProjectDomain extends Model
      */
     public function isVerified(): bool
     {
-        return $this->verification_status === 'verified' && $this->is_active;
+        return $this->verification_status === self::STATUS_VERIFIED && $this->is_active;
     }
 
     /**
@@ -84,7 +90,7 @@ class ProjectDomain extends Model
     public function markAsVerified(): void
     {
         $this->update([
-            'verification_status' => 'verified',
+            'verification_status' => self::STATUS_VERIFIED,
             'verified_at' => now(),
             'verification_error' => null,
         ]);
@@ -96,7 +102,7 @@ class ProjectDomain extends Model
     public function markAsFailed(string $error): void
     {
         $this->update([
-            'verification_status' => 'failed',
+            'verification_status' => self::STATUS_FAILED,
             'verification_error' => $error,
         ]);
     }
@@ -110,7 +116,7 @@ class ProjectDomain extends Model
 
         $this->update([
             'verification_token' => $token,
-            'verification_status' => 'pending',
+            'verification_status' => self::STATUS_PENDING,
             'verified_at' => null,
             'verification_error' => null,
         ]);

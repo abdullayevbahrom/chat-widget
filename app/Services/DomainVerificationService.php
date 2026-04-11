@@ -73,8 +73,39 @@ class DomainVerificationService
             return false;
         }
 
+        // SSRF protection: resolve the domain and verify all IPs are public
+        $dnsValidationError = $this->validateDnsVerificationTarget($parsedHost);
+
+        if ($dnsValidationError !== null) {
+            Log::warning('Rejected unsafe DNS verification target.', [
+                'project_domain_id' => $domain->id,
+                'domain' => $domain->domain,
+                'reason' => $dnsValidationError,
+            ]);
+
+            $domain->markAsFailed($dnsValidationError);
+
+            return false;
+        }
+
         $hostname = "_widget-verify.{$domainHost}";
         $expectedValue = "widget-verify={$domain->verification_token}";
+
+        // Also validate the TXT record target hostname to prevent DNS rebinding
+        $txtTargetHost = parse_url($hostname, PHP_URL_HOST) ?: $hostname;
+        $txtTargetValidationError = $this->validateDnsVerificationTarget($txtTargetHost);
+
+        if ($txtTargetValidationError !== null) {
+            Log::warning('Rejected unsafe DNS TXT verification target.', [
+                'project_domain_id' => $domain->id,
+                'hostname' => $hostname,
+                'reason' => $txtTargetValidationError,
+            ]);
+
+            $domain->markAsFailed($txtTargetValidationError);
+
+            return false;
+        }
 
         $records = @dns_get_record($hostname, DNS_TXT);
 
@@ -231,6 +262,37 @@ class DomainVerificationService
             '.example',
             '.invalid',
         ]);
+    }
+
+    /**
+     * Validate that a DNS verification target resolves only to public IP addresses.
+     *
+     * Returns an error message if the target is unsafe, null if safe.
+     */
+    protected function validateDnsVerificationTarget(string $host): ?string
+    {
+        // If it's already an IP address, validate it directly
+        if (filter_var($host, FILTER_VALIDATE_IP) !== false) {
+            return $this->isPublicIpAddress($host)
+                ? null
+                : 'DNS verification target is not allowed for private, reserved, or loopback IP addresses.';
+        }
+
+        // Resolve the hostname to IP addresses and validate each one
+        $resolvedAddresses = $this->resolveHostIpAddresses($host);
+
+        // If we couldn't resolve any addresses, allow it (will fail at DNS lookup anyway)
+        if (empty($resolvedAddresses)) {
+            return null;
+        }
+
+        foreach ($resolvedAddresses as $resolvedAddress) {
+            if (! $this->isPublicIpAddress($resolvedAddress)) {
+                return 'DNS verification target resolves to a private, reserved, or internal IP address.';
+            }
+        }
+
+        return null;
     }
 
     /**

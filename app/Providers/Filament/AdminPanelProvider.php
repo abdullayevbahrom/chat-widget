@@ -2,6 +2,10 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Widgets\QueueOverview;
+use App\Filament\Widgets\RecentTenants;
+use App\Filament\Widgets\StatsOverview;
+use App\Filament\Widgets\TenantStatsChart;
 use App\Http\Middleware\EnsureIsSuperAdmin;
 use App\Http\Middleware\ResetTenantContext;
 use Filament\Http\Middleware\Authenticate;
@@ -33,7 +37,11 @@ class AdminPanelProvider extends PanelProvider
             ->login()
             ->colors([
                 'primary' => Color::Amber,
+                'danger' => Color::Rose,
+                'gray' => Color::Slate,
             ])
+            ->font('Inter')
+            ->viteTheme('resources/css/filament/admin/theme.css')
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
             ->pages([
@@ -43,6 +51,10 @@ class AdminPanelProvider extends PanelProvider
             ->widgets([
                 AccountWidget::class,
                 FilamentInfoWidget::class,
+                StatsOverview::class,
+                TenantStatsChart::class,
+                RecentTenants::class,
+                QueueOverview::class,
             ])
             ->authGuard('web')
             ->middleware([

@@ -119,7 +119,7 @@ class MessageAttachmentService
         $extension = strtolower($attachment->getClientOriginalExtension() ?: $attachment->extension() ?: 'bin');
         $storedName = sprintf('%s.%s', Str::uuid()->toString(), $extension);
         $directory = $this->buildAttachmentDirectory($project, $conversation);
-        $storedPath = $attachment->storeAs($directory, $storedName, 'public');
+        $storedPath = $attachment->storeAs($directory, $storedName, 'private');
 
         Log::info('Stored widget attachment file.', [
             'project_id' => $project->id,
@@ -132,11 +132,11 @@ class MessageAttachmentService
         return [
             'id' => Str::uuid()->toString(),
             'name' => $storedName,
-            'original_name' => $attachment->getClientOriginalName(),
+            'original_name' => $this->sanitizeFileName($attachment->getClientOriginalName()),
             'mime_type' => $attachment->getMimeType(),
             'size' => $attachment->getSize(),
             'path' => $storedPath,
-            'url' => Storage::disk('public')->url($storedPath),
+            'url' => route('widget.attachments.download', [$project->id, $conversation->id, $storedName]),
             'source' => 'widget',
         ];
     }
@@ -197,16 +197,16 @@ class MessageAttachmentService
         $directory = $this->buildAttachmentDirectory($project, $conversation);
         $storedPath = $directory.'/'.$storedName;
 
-        Storage::disk('public')->put($storedPath, $contents);
+        Storage::disk('private')->put($storedPath, $contents);
 
         return [
             'id' => Str::uuid()->toString(),
             'name' => $storedName,
-            'original_name' => $originalName,
+            'original_name' => $this->sanitizeFileName($originalName),
             'mime_type' => $telegramFile['mime_type'] ?? ($defaultType === 'image' ? 'image/jpeg' : 'application/octet-stream'),
             'size' => $telegramFile['file_size'] ?? strlen($contents),
             'path' => $storedPath,
-            'url' => Storage::disk('public')->url($storedPath),
+            'url' => route('widget.attachments.download', [$project->id, $conversation->id, $storedName]),
             'source' => 'telegram',
         ];
     }
@@ -218,5 +218,20 @@ class MessageAttachmentService
             $project->id,
             $conversation->id
         );
+    }
+
+    /**
+     * Sanitize file name to prevent XSS and path traversal attacks.
+     */
+    protected function sanitizeFileName(string $name): string
+    {
+        // Remove any directory traversal attempts
+        $name = basename($name);
+        // Strip HTML tags
+        $name = strip_tags($name);
+        // Convert HTML entities to prevent stored XSS
+        $name = htmlspecialchars($name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        // Limit length
+        return mb_substr($name, 0, 255);
     }
 }

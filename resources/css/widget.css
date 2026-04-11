@@ -357,6 +357,20 @@
   text-align: left;
 }
 
+/* Agent name display */
+.widget-message-agent-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--w-text-secondary);
+  margin-bottom: 4px;
+  opacity: 0.85;
+}
+
+.widget-message-agent .widget-message-agent-name {
+  color: var(--w-text-message-agent);
+  opacity: 0.7;
+}
+
 .widget-message-pending {
   opacity: 0.75;
 }

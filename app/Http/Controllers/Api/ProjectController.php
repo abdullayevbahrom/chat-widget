@@ -48,7 +48,7 @@ class ProjectController extends Controller
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'slug' => ['required', 'string', 'alpha_dash', 'max:255'],
+            'slug' => ['nullable', 'string', 'alpha_dash', 'max:255'],
             'description' => ['nullable', 'string'],
             'primary_domain' => ['nullable', 'string', 'max:255'],
             'settings' => ['nullable', 'array'],
@@ -61,6 +61,21 @@ class ProjectController extends Controller
 
         if ($tenantId === null) {
             return response()->json(['message' => 'No tenant associated with this user.'], 403);
+        }
+
+        // Auto-generate slug from name if not provided
+        if (empty($validated['slug'])) {
+            $baseSlug = \Illuminate\Support\Str::slug($validated['name']);
+            $slug = $baseSlug;
+            $counter = 1;
+
+            // Ensure slug is unique per tenant
+            while (Project::where('tenant_id', $tenantId)->where('slug', $slug)->exists()) {
+                $slug = $baseSlug . '-' . $counter;
+                $counter++;
+            }
+
+            $validated['slug'] = $slug;
         }
 
         Tenant::findOrFail($tenantId);
@@ -105,6 +120,7 @@ class ProjectController extends Controller
         }
 
         $project->loadCount('domains');
+        $project->load('domains');
 
         return response()->json(['data' => $project]);
     }
@@ -164,11 +180,20 @@ class ProjectController extends Controller
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
+        $hasActiveConversations = $project->hasActiveConversations();
+        $activeConversationsCount = $project->activeConversationsCount();
+
         $this->logAudit('project_deleted', $project, $user);
 
         $project->delete();
 
-        return response()->json(['message' => 'Project deleted successfully.']);
+        $response = ['message' => 'Project deleted successfully.'];
+
+        if ($hasActiveConversations) {
+            $response['warning'] = "This project had {$activeConversationsCount} active conversation(s) that were also deleted.";
+        }
+
+        return response()->json($response);
     }
 
     /**

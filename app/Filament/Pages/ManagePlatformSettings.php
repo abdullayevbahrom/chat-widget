@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Settings\PlatformSettings;
 use BackedEnum;
 use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Pages\SettingsPage;
@@ -57,6 +58,24 @@ class ManagePlatformSettings extends SettingsPage
                     ->keyLabel('Plan')
                     ->valueLabel('Max Tenants')
                     ->columnSpanFull(),
+                Select::make('default_plan')
+                    ->options([
+                        'free' => 'Free',
+                        'basic' => 'Basic',
+                        'pro' => 'Pro',
+                        'enterprise' => 'Enterprise',
+                    ])
+                    ->default('free')
+                    ->required(),
+                Toggle::make('email_verification_required')
+                    ->default(true),
+                TextInput::make('max_projects_per_tenant')
+                    ->numeric()
+                    ->minValue(1)
+                    ->default(10)
+                    ->nullable()
+                    ->suffixIcon(Heroicon::OutlinedQuestionMarkCircle)
+                    ->helperText('Bo\'sh qoldirilsa — cheklov yo\'q'),
             ]);
     }
 }

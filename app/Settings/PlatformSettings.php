@@ -12,6 +12,9 @@ class PlatformSettings extends Settings
     public bool $maintenance_mode;
     public bool $registration_enabled;
     public array $max_tenants_per_plan;
+    public string $default_plan;
+    public bool $email_verification_required;
+    public ?int $max_projects_per_tenant;
 
     public static function group(): string
     {
@@ -32,6 +35,9 @@ class PlatformSettings extends Settings
                 'pro' => 100,
                 'enterprise' => -1, // unlimited
             ],
+            'default_plan' => 'free',
+            'email_verification_required' => true,
+            'max_projects_per_tenant' => 10,
         ];
     }
 }

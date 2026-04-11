@@ -30,8 +30,31 @@ class ConversationFactory extends Factory
             'telegram_chat_id' => null,
             'assigned_to' => null,
             'last_message_at' => null,
+            'closed_at' => null,
+            'closed_by' => null,
             'metadata' => null,
         ];
+    }
+
+    /**
+     * Mark the conversation as closed.
+     */
+    public function closed(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'status' => Conversation::STATUS_CLOSED,
+            'closed_at' => now(),
+        ]);
+    }
+
+    /**
+     * Mark the conversation as archived.
+     */
+    public function archived(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'status' => Conversation::STATUS_ARCHIVED,
+        ]);
     }
 
     /**

@@ -7,6 +7,43 @@
 <a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
 </p>
 
+## Widget
+
+Widget - bu ko'p ijirali (multi-tenant) veb-ilova bo'lib, mijozlar bilan muloqot qilish uchun veb-jivat elementlarini taqdim etadi. Har bir tenant o'z Telegram botini ulash orqali mijozlardan kelgan xabarlarni Telegram orqali qabul qilishi va javob berishi mumkin.
+
+## Telegram Bot Konfiguratsiyasi
+
+### Bot Token Olish
+
+1. Telegram'da [@BotFather](https://t.me/BotFather) ga murojaat qiling
+2. `/newbot` buyrug'ini yuboring
+3. Bot uchun nom ko'rsating (masalan, "My Widget Bot")
+4. Bot uchun username kiriting (unik bo'lishi kerak, `bot` bilan tugashi kerak)
+5. BotFather sizga API token beradi (masalan: `123456789:ABCdef-GHIjkl_MNOpqrSTUvwxYZ`)
+
+### Sozlash
+
+1. Filament admin panelga kiring (`/admin`)
+2. Chap menyuda **Telegram Bot** ni tanlang
+3. Bot token maydoniga @BotFather dan olgan tokeningizni kiriting
+4. **Validate Token** tugmasini bosing - bot ma'lumotlari avtomatik to'ldiriladi
+5. **Save Settings** tugmasini bosing
+6. **Setup Webhook** tugmasini bosing - webhook orqa fonda o'rnatiladi
+
+### Xavfsizlik
+
+- Bot tokenlari Laravel `Crypt` yordamida AES-256-CBC algoritmi bilan shifrlanadi
+- Webhook `secret_token` bilan himoyalangan
+- Har bir tenant uchun noyob webhook secret generatsiya qilinadi
+- Rate limiting webhook endpoint uchun sozlangan (120 req/min IP, 60 req/min tenant)
+
+### Muhim Eslatmalar
+
+- **APP_KEY** ni hech qachon `.env` faylidan commit qilmang - bu shifrlash kalitidir
+- Queue worker ishlab turishi kerak (`php artisan queue:work` yoki Docker orqali)
+- Webhook URL HTTPS bo'lishi shart (Telegram talabi)
+- Bot faqat bound qilingan chat'dan kelgan xabarlarni qabul qiladi
+
 ## About Laravel
 
 Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:

@@ -18,14 +18,23 @@ class TelegramBotSetting extends Model
      */
     protected $fillable = [
         'tenant_id',
-        'bot_token_encrypted',
         'bot_username',
         'bot_name',
         'chat_id',
+        'telegram_admin_ids',
         'webhook_url',
-        'webhook_secret',
         'is_active',
         'last_webhook_status',
+    ];
+
+    /**
+     * The attributes that should be hidden from arrays/JSON.
+     *
+     * @var array<int, string>
+     */
+    protected $hidden = [
+        'bot_token_encrypted',
+        'webhook_secret_encrypted',
     ];
 
     /**
@@ -37,6 +46,7 @@ class TelegramBotSetting extends Model
     {
         return [
             'is_active' => 'boolean',
+            'telegram_admin_ids' => 'array',
         ];
     }
 
@@ -50,8 +60,6 @@ class TelegramBotSetting extends Model
 
     /**
      * Get the decrypted bot token.
-     *
-     * @return string|null
      */
     public function getBotTokenAttribute(): ?string
     {
@@ -68,5 +76,31 @@ class TelegramBotSetting extends Model
     public function setBotTokenAttribute(string $value): void
     {
         $this->bot_token_encrypted = Crypt::encryptString($value);
+    }
+
+    /**
+     * Get the decrypted webhook secret.
+     */
+    public function getWebhookSecretAttribute(): ?string
+    {
+        if ($this->webhook_secret_encrypted === null || $this->webhook_secret_encrypted === '') {
+            return null;
+        }
+
+        return Crypt::decryptString($this->webhook_secret_encrypted);
+    }
+
+    /**
+     * Set the webhook secret (automatically encrypts before storage).
+     */
+    public function setWebhookSecretAttribute(?string $value): void
+    {
+        if ($value === null || $value === '') {
+            $this->webhook_secret_encrypted = null;
+
+            return;
+        }
+
+        $this->webhook_secret_encrypted = Crypt::encryptString($value);
     }
 }

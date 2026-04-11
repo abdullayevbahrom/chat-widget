@@ -45,6 +45,18 @@ class TenantsTable
                 TextColumn::make('subscription_expires_at')
                     ->dateTime()
                     ->sortable(),
+                TextColumn::make('users_count')
+                    ->label('Users')
+                    ->counts('users')
+                    ->sortable(),
+                TextColumn::make('domains_count')
+                    ->label('Domains')
+                    ->counts('domains')
+                    ->sortable(),
+                TextColumn::make('projects_count')
+                    ->label('Projects')
+                    ->counts('projects')
+                    ->sortable(),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
@@ -87,6 +99,8 @@ class TenantsTable
                     DeleteBulkAction::make(),
                 ]),
             ])
-            ->modifyQueryUsing(fn ($query) => $query->orderBy('created_at', 'desc'));
+            ->modifyQueryUsing(fn ($query) => $query
+                ->withCount(['users', 'domains', 'projects'])
+                ->orderBy('created_at', 'desc'));
     }
 }

@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\TenantDomains;
 
+use App\Filament\Resources\TenantDomains\Pages\CreateTenantDomain;
+use App\Filament\Resources\TenantDomains\Pages\EditTenantDomain;
 use App\Filament\Resources\TenantDomains\Pages\ListTenantDomains;
 use App\Filament\Resources\TenantDomains\Schemas\TenantDomainForm;
 use App\Filament\Resources\TenantDomains\Tables\TenantDomainTable;
@@ -46,16 +48,23 @@ class TenantDomainResource extends Resource
     {
         return [
             'index' => ListTenantDomains::route('/'),
+            'create' => CreateTenantDomain::route('/create'),
+            'edit' => EditTenantDomain::route('/{record}/edit'),
         ];
     }
 
     public static function canCreate(): bool
     {
-        return false;
+        return auth()->check() && auth()->user()->isSuperAdmin();
     }
 
     public static function canEdit($record): bool
     {
-        return false;
+        return auth()->check() && auth()->user()->isSuperAdmin();
+    }
+
+    public static function canDelete($record): bool
+    {
+        return auth()->check() && auth()->user()->isSuperAdmin();
     }
 }

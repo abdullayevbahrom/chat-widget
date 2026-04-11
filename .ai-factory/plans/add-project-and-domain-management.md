@@ -165,3 +165,53 @@ Review Gate (`request_changes`) dan kelgan 3 ta kritik muammo hal qilindi:
 | 3 | `app/Filament/Tenant/Resources/ProjectResource.php` | Embed Code section `ViewField` ga o'zgartirildi |
 | 4 | `app/Http/Controllers/Api/ProjectController.php` | `show()` metodida `domains` relation eager load qilinadi |
 | 5 | `app/Http/Controllers/Api/ProjectController.php` | `store()` metodida slug avtomatik generatsiya qilinadi (agar berilmasa) |
+
+---
+
+## Auto Review Fix #2 — 2026-04-10 (Rework — Review Iteration 2/3)
+
+Review Gate (`request_changes`) dan kelgan 3 ta kritik muammo hal qilindi:
+
+### Review Fix #1: CSRF Himoyasi — Faqat Webhook Endpointlarni Istisno Qilish
+**Muammo:** `bootstrap/app.php` da `'api/*'` — barcha API endpointlari CSRF himoyasidan istisno qilingan. Bu `api/tenant/projects`, `api/tenant/project-domains` kabi CRUD endpointlarni CSRF hujumlariga ochiq qoldirardi.
+
+**Yechim:** CSRF istisnosini faqat tashqi servislar chaqiradigan endpointlar bilan cheklash:
+1. `api/telegram/webhook/*` — Telegram webhook (CSRF token qo'sha olmaydi)
+2. `api/widget/messages` — Widget SDK (iframe ichidan CSRF token yuborilmaydi)
+3. Boshqa barcha API route'lar (`/api/tenant/*`) CSRF himoyasida qoladi — SPA cookie-based auth uchun
+
+**O'zgartirilgan fayl:**
+- `bootstrap/app.php` — `validateCsrfTokens(except: [...])` ni toraytirish
+
+### Review Fix #2: Widget Embed View — XSS / CSS Sanitizatsiya (Defense-in-Depth)
+**Muammo:** `embed.blade.php` da `{!! file_get_contents() !!}` orqali widget.css va `custom_css` setting to'g'ridan-to'g'ri chiqarilardi. Model darajasidagi sanitizatsiya yetarli bo'lmasa, XSS xavfi bo'lardi.
+
+**Yechim:** Yangi `CssSanitizer` service yaratildi va view darajasida qo'shimcha sanitizatsiya qatlami qo'shildi:
+1. **`app/Services/CssSanitizer.php`** — Yangi service:
+   - `strip_tags()` — barcha HTML teglarini olib tashlash
+   - Null byte removal
+   - CSS hex escape decoding va filtering (`\65\78...` → "ex...")
+   - Comment removal
+   - Dangerous pattern blocking: `expression()`, `javascript:`, `vbscript:`, `url(data:)`, `@import`, `behavior:`, `-moz-binding:`, `-webkit-binding:`
+   - File size limit (500KB)
+2. **`resources/views/widget/embed.blade.php`** — `{!! file_get_contents() !!}` o'rniga `CssSanitizer::sanitizeFile()` va `CssSanitizer::sanitize()` ishlatish
+
+**Yangi fayllar:**
+- `app/Services/CssSanitizer.php`
+
+**O'zgartirilgan fayllar:**
+- `resources/views/widget/embed.blade.php` — CSS render sanitizatsiya bilan
+
+### Review Fix #3: DNS Verification — IP Address Validation (SSRF Xavfi)
+**Muammo:** `verifyViaDns()` da hostname internal IP ga resolve bo'lsa, DNS so'rov internal serverga yuborilardi (SSRF). Faqat hostname tekshirildi, lekin resolved IP addresslar tekshirilmadi.
+
+**Yechim:** DNS verifikatsiyasidan oldin domain ni resolve qilib, barcha IP addresslar public ekanligini tekshirish:
+1. **`validateDnsVerificationTarget()`** — Yangi metod:
+   - IP address bo'lsa — to'g'ridan-to'g'ri `isPublicIpAddress()` bilan tekshirish
+   - Hostname bo'lsa — `resolveHostIpAddresses()` orqali resolve qilish va har bir IP ni validate qilish
+   - Private/reserved IP (10.x, 172.16.x, 192.168.x, 127.x) aniqlansa — verification rad etiladi
+2. DNS TXT record target (`_widget-verify.{domain}`) uchun ham alohida tekshiruv
+3. DNS rebinding hujumlariga qarshi himoya
+
+**O'zgartirilgan fayl:**
+- `app/Services/DomainVerificationService.php` — `verifyViaDns()` ga IP validation va `validateDnsVerificationTarget()` metodi qo'shildi

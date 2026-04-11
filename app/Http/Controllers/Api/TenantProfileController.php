@@ -69,22 +69,39 @@ class TenantProfileController extends Controller
 
         // Handle logo path: validate, prevent path traversal, delete old on replacement
         if (! empty($validated['logo_path'])) {
-            // Prevent path traversal: only allow files in tenant-logos directory
+            // Prevent path traversal: only allow filenames in tenant-logos directory
             $basePath = 'tenant-logos/';
             $logoPath = $validated['logo_path'];
 
-            // Normalize and validate the path
-            $realPath = realpath(storage_path('app/public/'.$logoPath));
-            $allowedPath = realpath(storage_path('app/public/'.$basePath));
+            // Extract only the filename to prevent directory traversal
+            $filename = basename($logoPath);
 
-            if ($realPath === false || $allowedPath === false || ! str_starts_with($realPath, $allowedPath)) {
+            // Validate that the filename looks like a legitimate image
+            if (! preg_match('/^[a-zA-Z0-9_\-]+\.(jpg|jpeg|png|gif|webp|svg)$/i', $filename)) {
                 return response()->json([
-                    'message' => 'Invalid logo path. Only paths within tenant-logos/ are allowed.',
+                    'message' => 'Invalid logo path. Only image filenames (jpg, png, gif, webp, svg) are allowed.',
                 ], 422);
             }
 
+            // Reconstruct the safe path
+            $safePath = $basePath.$filename;
+
+            // Verify the file exists within the allowed directory
+            $fullPath = storage_path('app/public/'.$safePath);
+            $realPath = realpath($fullPath);
+            $allowedDir = realpath(storage_path('app/public/'.$basePath));
+
+            if ($realPath === false || $allowedDir === false || ! str_starts_with($realPath, $allowedDir)) {
+                return response()->json([
+                    'message' => 'Logo file not found in the allowed directory.',
+                ], 422);
+            }
+
+            // Use the validated path
+            $validated['logo_path'] = $safePath;
+
             // Delete old logo if it exists and is different
-            if ($tenant->logo_path && $tenant->logo_path !== $logoPath) {
+            if ($tenant->logo_path && $tenant->logo_path !== $safePath) {
                 Storage::disk('public')->delete($tenant->logo_path);
             }
         }

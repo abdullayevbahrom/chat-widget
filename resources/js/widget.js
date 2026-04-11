@@ -7,9 +7,20 @@
  * - Visitor/admin message history
  * - Attachment uploads and previews
  * - Polling-based message updates
+ * - WebSocket support via Laravel Echo + Pusher
  *
- * @version 1.1.0
+ * @version 1.2.0
  */
+
+// Import Echo and Pusher for WebSocket support (bundled by Vite IIFE build)
+import Echo from 'laravel-echo';
+import Pusher from 'pusher-js';
+
+// Expose on global/window for runtime access
+if (typeof window !== 'undefined') {
+    window.Pusher = Pusher;
+    window.Echo = Echo;
+}
 
 (function(global) {
   'use strict';
@@ -864,6 +875,13 @@
       const bodyMarkup = message.body
         ? `<div class="widget-message-content">${utils.escapeHtml(message.body)}</div>`
         : '';
+      
+      // Agent name display for admin messages
+      const agentName = message.agent_name || null;
+      const agentNameMarkup = (!isVisitor && agentName)
+        ? `<div class="widget-message-agent-name">${utils.escapeHtml(agentName)}</div>`
+        : '';
+      
       const attachments = Array.isArray(message.attachments) ? message.attachments : [];
       const attachmentsMarkup = attachments.length > 0
         ? `<div class="widget-message-attachments">${attachments.map(attachment => {
@@ -889,6 +907,7 @@
         : '';
 
       messageEl.innerHTML = `
+        ${agentNameMarkup}
         ${bodyMarkup}
         ${attachmentsMarkup}
         <div class="widget-message-time">${time}</div>

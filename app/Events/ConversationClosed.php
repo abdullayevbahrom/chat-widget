@@ -1,38 +1,34 @@
 <?php
 
-namespace App\Broadcasting;
+namespace App\Events;
 
+use App\Models\Conversation;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class WidgetTypingIndicator implements ShouldBroadcastNow
+class ConversationClosed implements ShouldBroadcastNow
 {
     use Dispatchable, SerializesModels;
 
     /**
      * Create a new event instance.
-     *
-     * @param  int  $conversationId  The conversation the typing event belongs to.
-     * @param  bool  $typing  Whether the agent is currently typing.
-     * @param  string|null  $agentName  The agent's display name.
      */
     public function __construct(
-        public int $conversationId,
-        public bool $typing = true,
-        public ?string $agentName = null,
+        public Conversation $conversation,
     ) {}
 
     /**
      * Get the channels the event should broadcast on.
      *
-     * @return array<int, \Illuminate\Broadcasting\PrivateChannel>
+     * @return array<int, \Illuminate\Broadcasting\Channel>
      */
     public function broadcastOn(): array
     {
         return [
-            new PrivateChannel('widget.conversation.' . $this->conversationId),
+            new PrivateChannel('tenant.' . $this->conversation->tenant_id . '.conversations'),
+            new PrivateChannel('widget.conversation.' . $this->conversation->id),
         ];
     }
 
@@ -41,7 +37,7 @@ class WidgetTypingIndicator implements ShouldBroadcastNow
      */
     public function broadcastAs(): string
     {
-        return 'widget.typing';
+        return 'conversation.closed';
     }
 
     /**
@@ -52,9 +48,11 @@ class WidgetTypingIndicator implements ShouldBroadcastNow
     public function broadcastWith(): array
     {
         return [
-            'typing' => $this->typing,
-            'agent_name' => $this->agentName,
-            'conversation_id' => $this->conversationId,
+            'conversation' => [
+                'id' => $this->conversation->id,
+                'status' => $this->conversation->status,
+                'closed_at' => $this->conversation->closed_at?->toISOString(),
+            ],
         ];
     }
 }

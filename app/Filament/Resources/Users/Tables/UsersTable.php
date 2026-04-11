@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Users\Tables;
 
+use App\Models\Tenant;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -24,6 +25,20 @@ class UsersTable
                 TextColumn::make('email')
                     ->searchable()
                     ->sortable(),
+                TextColumn::make('tenant.name')
+                    ->label('Tenant')
+                    ->formatStateUsing(fn ($state, $record) => $record->tenant?->name ?? '—')
+                    ->sortable()
+                    ->toggleable(),
+                BadgeColumn::make('tenant.plan')
+                    ->label('Plan')
+                    ->colors([
+                        'gray' => 'free',
+                        'info' => 'basic',
+                        'warning' => 'pro',
+                        'success' => 'enterprise',
+                    ])
+                    ->toggleable(),
                 IconColumn::make('is_super_admin')
                     ->boolean()
                     ->label('Super Admin')
@@ -40,6 +55,11 @@ class UsersTable
             ->filters([
                 TernaryFilter::make('is_super_admin')
                     ->label('Super Admin'),
+                SelectFilter::make('tenant_id')
+                    ->label('Tenant')
+                    ->searchable()
+                    ->getSearchResultsUsing(fn (string $search) => \App\Models\Tenant::where('name', 'like', "%{$search}%")->pluck('name', 'id')->toArray())
+                    ->getOptionLabelUsing(fn ($value): ?string => \App\Models\Tenant::find($value)?->name),
                 SelectFilter::make('email_verified')
                     ->label('Email Verified')
                     ->options([

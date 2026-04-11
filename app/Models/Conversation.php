@@ -2,6 +2,9 @@
 
 namespace App\Models;
 
+use App\Events\ConversationArchived;
+use App\Events\ConversationClosed;
+use App\Events\ConversationOpened;
 use App\Scopes\TenantScope;
 use Database\Factories\ConversationFactory;
 use Illuminate\Database\Eloquent\Builder;
@@ -97,6 +100,11 @@ class Conversation extends Model
         'telegram_chat_id',
         'assigned_to',
         'last_message_at',
+        'closed_at',
+        'closed_by',
+        // open_token — marker for open conversations (value: 'open'). Set to null when closed/archived.
+        // Used to efficiently query open conversations without scanning the status column.
+        // Named 'token' for historical reasons; it is NOT a security token.
         'open_token',
         'metadata',
     ];
@@ -111,6 +119,7 @@ class Conversation extends Model
         return [
             'metadata' => 'array',
             'last_message_at' => 'datetime',
+            'closed_at' => 'datetime',
             'status' => 'string',
             'source' => 'string',
         ];
@@ -146,6 +155,14 @@ class Conversation extends Model
     public function assignedUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_to');
+    }
+
+    /**
+     * Get the user who closed this conversation.
+     */
+    public function closedUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'closed_by');
     }
 
     /**
@@ -213,16 +230,78 @@ class Conversation extends Model
     }
 
     /**
-     * Mark the conversation as closed.
+     * Check if the conversation is archived.
      */
-    public function close(): void
+    public function isArchived(): bool
     {
+        return $this->status === self::STATUS_ARCHIVED;
+    }
+
+    /**
+     * Determine if the conversation can transition to the given status.
+     *
+     * Status transition matrix:
+     * | Current  | → open | → closed | → archived |
+     * |----------|--------|----------|------------|
+     * | open     | ❌     | ✅       | ✅         |
+     * | closed   | ✅     | ❌       | ✅         |
+     * | archived | ❌     | ❌       | ❌         |
+     */
+    public function canTransitionTo(string $newStatus): bool
+    {
+        if ($this->trashed()) {
+            return false;
+        }
+
+        return match ([$this->status, $newStatus]) {
+            [self::STATUS_OPEN, self::STATUS_CLOSED],
+            [self::STATUS_OPEN, self::STATUS_ARCHIVED],
+            [self::STATUS_CLOSED, self::STATUS_OPEN],
+            [self::STATUS_CLOSED, self::STATUS_ARCHIVED] => true,
+            default => false,
+        };
+    }
+
+    /**
+     * Assert that the conversation can transition to the given status.
+     *
+     * @throws LogicException
+     */
+    protected function assertCanTransitionTo(string $newStatus): void
+    {
+        if ($this->trashed()) {
+            throw new LogicException('Cannot change status of a soft-deleted conversation.');
+        }
+
+        if (! $this->canTransitionTo($newStatus)) {
+            throw new LogicException(
+                "Cannot transition conversation from '{$this->status}' to '{$newStatus}'."
+            );
+        }
+    }
+
+    /**
+     * Mark the conversation as closed.
+     *
+     * @param  int|null  $closedBy  The user ID who closed the conversation.
+     */
+    public function close(?int $closedBy = null): void
+    {
+        $this->assertCanTransitionTo(self::STATUS_CLOSED);
+
         Log::info('Closing conversation.', [
             'conversation_id' => $this->id,
             'previous_status' => $this->status,
+            'closed_by' => $closedBy,
         ]);
 
-        $this->update(['status' => self::STATUS_CLOSED]);
+        $this->update([
+            'status' => self::STATUS_CLOSED,
+            'closed_at' => now(),
+            'closed_by' => $closedBy,
+        ]);
+
+        event(new ConversationClosed($this));
     }
 
     /**
@@ -230,12 +309,41 @@ class Conversation extends Model
      */
     public function reopen(): void
     {
+        $this->assertCanTransitionTo(self::STATUS_OPEN);
+
         Log::info('Reopening conversation.', [
             'conversation_id' => $this->id,
             'previous_status' => $this->status,
         ]);
 
-        $this->update(['status' => self::STATUS_OPEN]);
+        $this->update([
+            'status' => self::STATUS_OPEN,
+            'closed_at' => null,
+            'closed_by' => null,
+        ]);
+
+        event(new ConversationOpened($this));
+    }
+
+    /**
+     * Mark the conversation as archived.
+     */
+    public function archive(): void
+    {
+        $this->assertCanTransitionTo(self::STATUS_ARCHIVED);
+
+        Log::info('Archiving conversation.', [
+            'conversation_id' => $this->id,
+            'previous_status' => $this->status,
+        ]);
+
+        $this->update([
+            'status' => self::STATUS_ARCHIVED,
+            'closed_at' => now(),
+            'closed_by' => null,
+        ]);
+
+        event(new ConversationArchived($this));
     }
 
     /**

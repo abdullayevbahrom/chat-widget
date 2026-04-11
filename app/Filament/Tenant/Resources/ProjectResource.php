@@ -165,10 +165,11 @@ class ProjectResource extends Resource
                 \Filament\Forms\Components\Section::make('Embed Code')
                     ->description('Copy this code to your website to embed the widget')
                     ->schema([
-                        \Filament\Forms\Components\Placeholder::make('embed_code')
-                            ->content(function (?Project $record): \Illuminate\Support\HtmlString {
+                        \Filament\Forms\Components\ViewField::make('embed_code')
+                            ->view('widget.embed-code')
+                            ->viewData(function (?Project $record): array {
                                 if ($record === null || $record->widget_key_prefix === null) {
-                                    return new \Illuminate\Support\HtmlString('<p class="text-gray-500">Generate a widget key to get the embed code.</p>');
+                                    return ['project' => null, 'widgetKey' => null];
                                 }
 
                                 // Check if there's a newly generated key in session
@@ -176,29 +177,15 @@ class ProjectResource extends Resource
                                 $widgetKey = session($sessionKey);
 
                                 if ($widgetKey) {
-                                    // Show the key once, then forget it
-                                    session()-\u003eforget($sessionKey);
-
-                                    $embedCode = <<<HTML
-<script
-    src="{{ url('/widget.js') }}"
-    data-widget-key="{$widgetKey}"
-    async
-></script>
-HTML;
-
-                                    return new \Illuminate\Support\HtmlString(
-                                        '<div class="space-y-2">' .
-                                        '<p class="text-green-600 font-semibold">✓ New widget key generated! Copy this code to your site:</p>' .
-                                        '<pre class="bg-gray-100 p-3 rounded text-sm overflow-x-auto"><code>' . htmlspecialchars($embedCode) . '</code></pre>' .
-                                        '<p class="text-amber-600 text-sm">⚠️ This is the only time you will see the full key. Store it securely!</p>' .
-                                        '</div>'
-                                    );
+                                    // Mark that we just generated a key so the view shows it once
+                                    session(['just_generated_' . $record->id => true]);
+                                    session()->forget($sessionKey);
                                 }
 
-                                return new \Illuminate\Support\HtmlString(
-                                    '<p class="text-gray-500">Widget key is active. Generate a new key to view the embed code.</p>'
-                                );
+                                return [
+                                    'project' => $record,
+                                    'widgetKey' => $widgetKey,
+                                ];
                             }),
                     ]),
             ]);
@@ -236,7 +223,20 @@ HTML;
             ])
             ->recordActions([
                 \Filament\Actions\EditAction::make(),
-                \Filament\Actions\DeleteAction::make(),
+                \Filament\Actions\DeleteAction::make()
+                    ->modalDescription(function (?Project $record): ?string {
+                        if ($record === null) {
+                            return null;
+                        }
+
+                        $count = $record->activeConversationsCount();
+
+                        if ($count > 0) {
+                            return "⚠️ Ushbu loyihada {$count} ta faol suhbat mavjud. Loyihani o'chirish barcha suhbatlarni ham o'chiradi.";
+                        }
+
+                        return null;
+                    }),
             ])
             ->toolbarActions([
                 \Filament\Actions\BulkActionGroup::make([

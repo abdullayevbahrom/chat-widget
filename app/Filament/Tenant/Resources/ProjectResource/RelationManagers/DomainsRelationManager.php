@@ -12,6 +12,7 @@ use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Actions\Action;
+use Filament\Tables\Actions\BulkAction;
 use Filament\Tables\Actions\BulkActionGroup;
 use Filament\Tables\Actions\DeleteAction;
 use Filament\Tables\Actions\DeleteBulkAction;
@@ -155,6 +156,47 @@ class DomainsRelationManager extends RelationManager
             ->toolbarActions([
                 BulkActionGroup::make([
                     DeleteBulkAction::make(),
+                    BulkAction::make('bulkVerify')
+                        ->label('Verify Selected')
+                        ->icon(Heroicon::OutlinedShieldCheck)
+                        ->requiresConfirmation()
+                        ->modalHeading('Verify selected domains?')
+                        ->modalDescription('This will check both DNS TXT record and HTTP file verification for each selected domain.')
+                        ->action(function (\Illuminate\Database\Eloquent\Collection $records, DomainVerificationService $service) {
+                            $successCount = 0;
+                            $failedCount = 0;
+                            $errors = [];
+
+                            foreach ($records as $record) {
+                                if ($record->verification_status === 'verified') {
+                                    continue;
+                                }
+
+                                $success = $service->verify($record);
+
+                                if ($success) {
+                                    $successCount++;
+                                } else {
+                                    $failedCount++;
+                                    $errors[] = "{$record->domain}: " . ($record->verification_error ?? 'Unknown error');
+                                }
+                            }
+
+                            $body = "{$successCount} domain(s) verified successfully.";
+
+                            if ($failedCount > 0) {
+                                $body .= " {$failedCount} failed.";
+                                if (count($errors) <= 5) {
+                                    $body .= "\n\n" . implode("\n", $errors);
+                                }
+                            }
+
+                            Notification::make()
+                                ->title('Bulk Verification Complete')
+                                ->body($body)
+                                ->success()
+                                ->send();
+                        }),
                 ]),
             ]);
     }

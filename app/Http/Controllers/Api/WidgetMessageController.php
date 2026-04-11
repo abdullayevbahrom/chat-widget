@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Events\WidgetMessageSent;
 use App\Http\Controllers\Controller;
 use App\Models\Conversation;
 use App\Models\Message;
@@ -9,27 +10,30 @@ use App\Models\Project;
 use App\Models\TelegramBotSetting;
 use App\Models\Tenant;
 use App\Models\Visitor;
+use App\Services\ConversationService;
 use App\Services\MessageAttachmentService;
 use App\Services\TelegramBotService;
 use App\Services\VisitorTrackingService;
-use Illuminate\Database\QueryException;
+use App\Traits\TelegramMessageHelpers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\Crypt;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class WidgetMessageController extends Controller
 {
+    use TelegramMessageHelpers;
+
     protected const VISITOR_COOKIE_PREFIX = 'widget_visitor_';
 
     public function __construct(
         protected TelegramBotService $telegramBotService,
         protected VisitorTrackingService $visitorTrackingService,
         protected MessageAttachmentService $messageAttachmentService,
+        protected ConversationService $conversationService,
     ) {}
 
     /**
@@ -53,7 +57,7 @@ class WidgetMessageController extends Controller
                 'max:2000',
                 Rule::requiredIf(fn (): bool => ! $request->hasFile('attachments')),
             ],
-            'visitor_name' => ['nullable', 'string', 'max:255'],
+            'visitor_name' => ['nullable', 'string', 'max:100'],
             'visitor_email' => ['nullable', 'email', 'max:255'],
             'attachments' => ['sometimes', 'array', 'max:'.MessageAttachmentService::MAX_ATTACHMENTS],
             'attachments.*' => [
@@ -63,6 +67,11 @@ class WidgetMessageController extends Controller
             ],
         ]);
 
+        // Sanitize visitor_name to prevent XSS
+        if (isset($validated['visitor_name'])) {
+            $validated['visitor_name'] = $this->sanitizeVisitorName($validated['visitor_name']);
+        }
+
         Log::info('Handling widget message create request.', [
             'project_id' => $project->id,
             'has_body' => filled($validated['message'] ?? null),
@@ -70,13 +79,29 @@ class WidgetMessageController extends Controller
         ]);
 
         $visitor = $this->resolveVisitor($request, $project);
-        $conversation = $this->resolveOpenConversation($project, $visitor);
+        $conversation = $this->conversationService->openConversation($visitor, $project);
+
+        // Reject messages on closed conversations
+        if ($conversation->isClosed() || $conversation->isArchived()) {
+            Log::info('Widget message rejected: conversation is not open.', [
+                'project_id' => $project->id,
+                'conversation_id' => $conversation->id,
+                'status' => $conversation->status,
+            ]);
+
+            return response()->json([
+                'error' => 'This conversation is no longer open.',
+                'code' => 'CONVERSATION_CLOSED',
+                'conversation_status' => $conversation->status,
+            ], 400);
+        }
+
         $attachments = $this->messageAttachmentService->storeUploadedAttachments(
             $request->file('attachments', []),
             $project,
             $conversation
         );
-        $body = $this->normalizeMessageBody($validated['message'] ?? null);
+        $body = $this->sanitizeBody($validated['message'] ?? null);
 
         $message = $conversation->messages()->create([
             'tenant_id' => $conversation->tenant_id,
@@ -92,6 +117,9 @@ class WidgetMessageController extends Controller
                 'attachment_count' => count($attachments),
             ], static fn (mixed $value): bool => filled($value)),
         ]);
+
+        // Broadcast the message to real-time listeners
+        broadcast(new WidgetMessageSent($conversation, $message))->toOthers();
 
         $this->notifyTelegram($project, $message, $validated);
         $this->issueVisitorBinding($request, $project, $visitor);
@@ -211,79 +239,8 @@ class WidgetMessageController extends Controller
         return $visitor;
     }
 
-    protected function resolveOpenConversation(Project $project, Visitor $visitor): Conversation
-    {
-        Log::info('Resolving open widget conversation.', [
-            'project_id' => $project->id,
-            'visitor_id' => $visitor->id,
-            'tenant_id' => $project->tenant_id,
-        ]);
-
-        return DB::transaction(function () use ($project, $visitor): Conversation {
-            $conversation = Conversation::withoutGlobalScopes()
-                ->where('tenant_id', $project->tenant_id)
-                ->where('project_id', $project->id)
-                ->where('visitor_id', $visitor->id)
-                ->where('open_token', Conversation::OPEN_TOKEN_ACTIVE)
-                ->lockForUpdate()
-                ->latest('last_message_at')
-                ->first();
-
-            if ($conversation !== null) {
-                $conversation->forceFill([
-                    'last_message_at' => now(),
-                ])->saveQuietly();
-
-                Log::info('Reused existing widget conversation for visitor.', [
-                    'project_id' => $project->id,
-                    'visitor_id' => $visitor->id,
-                    'conversation_id' => $conversation->id,
-                ]);
-
-                return $conversation;
-            }
-
-            try {
-                $conversation = Conversation::create([
-                    'tenant_id' => $project->tenant_id,
-                    'project_id' => $project->id,
-                    'visitor_id' => $visitor->id,
-                    'status' => Conversation::STATUS_OPEN,
-                    'source' => Conversation::SOURCE_WIDGET,
-                    'last_message_at' => now(),
-                ]);
-
-                Log::info('Created widget conversation for visitor.', [
-                    'project_id' => $project->id,
-                    'visitor_id' => $visitor->id,
-                    'conversation_id' => $conversation->id,
-                ]);
-
-                return $conversation;
-            } catch (QueryException $exception) {
-                if (! $this->isUniqueConstraintViolation($exception)) {
-                    throw $exception;
-                }
-
-                Log::warning('Detected concurrent open conversation creation, reloading existing row.', [
-                    'project_id' => $project->id,
-                    'visitor_id' => $visitor->id,
-                    'sql_state' => $exception->errorInfo[0] ?? null,
-                ]);
-
-                return Conversation::withoutGlobalScopes()
-                    ->where('tenant_id', $project->tenant_id)
-                    ->where('project_id', $project->id)
-                    ->where('visitor_id', $visitor->id)
-                    ->where('open_token', Conversation::OPEN_TOKEN_ACTIVE)
-                    ->lockForUpdate()
-                    ->firstOrFail();
-            }
-        }, 3);
-    }
-
     /**
-     * Send a notification to the project's Telegram bot.
+     * Send a notification to the project's Telegram bot via queue job.
      *
      * @param  array<string, mixed>  $validated
      */
@@ -302,61 +259,33 @@ class WidgetMessageController extends Controller
             return;
         }
 
-        $visitorName = $validated['visitor_name'] ?? 'Anonymous';
-        $visitorEmail = $validated['visitor_email'] ?? 'Not provided';
-        $attachmentLines = collect($message->attachments ?? [])
-            ->map(fn (array $attachment): string => sprintf(
-                '- %s (%s)',
-                $attachment['original_name'] ?? $attachment['name'] ?? 'attachment',
-                $attachment['url'] ?? 'stored without URL'
-            ))
-            ->implode("\n");
+        $conversation = $message->conversation;
 
-        $text = sprintf(
-            "New widget message\n\n"
-            ."Conversation: #%d\n"
-            ."Project: %s\n"
-            ."Visitor: %s\n"
-            ."Email: %s\n\n"
-            ."Message:\n%s",
-            $message->conversation_id,
-            $project->name,
-            $visitorName,
-            $visitorEmail,
-            $message->body ?? '[Attachment only]'
+        if ($conversation === null) {
+            Log::warning('Skipping Telegram notification because conversation is missing.', [
+                'project_id' => $project->id,
+                'message_id' => $message->id,
+            ]);
+
+            return;
+        }
+
+        \App\Jobs\SendTelegramNotificationJob::dispatch(
+            $project->tenant_id,
+            $project->id,
+            $message->id,
+            $conversation->id,
+            [
+                'visitor_name' => $validated['visitor_name'] ?? null,
+                'visitor_email' => $validated['visitor_email'] ?? null,
+            ]
         );
 
-        if ($attachmentLines !== '') {
-            $text .= "\n\nAttachments:\n".$attachmentLines;
-        }
-
-        $text .= "\n\nReply to this Telegram message to answer in the widget.";
-
-        try {
-            $response = $this->telegramBotService->sendMessage(
-                $telegramSetting->bot_token,
-                $telegramSetting->chat_id,
-                $text
-            );
-
-            if (isset($response['result']['message_id'])) {
-                $message->update([
-                    'telegram_message_id' => $response['result']['message_id'],
-                ]);
-            }
-
-            Log::info('Delivered widget notification to Telegram.', [
-                'project_id' => $project->id,
-                'message_id' => $message->id,
-                'telegram_message_id' => $response['result']['message_id'] ?? null,
-            ]);
-        } catch (\Exception $exception) {
-            Log::warning('Failed to send Telegram notification for widget message.', [
-                'project_id' => $project->id,
-                'message_id' => $message->id,
-                'exception' => $exception::class,
-            ]);
-        }
+        Log::info('Queued Telegram notification with inline keyboard.', [
+            'project_id' => $project->id,
+            'message_id' => $message->id,
+            'conversation_id' => $conversation->id,
+        ]);
     }
 
     protected function initializeTenantContext(Project $project): void
@@ -475,33 +404,6 @@ class WidgetMessageController extends Controller
         return $decoded;
     }
 
-    protected function normalizeMessageBody(mixed $body): ?string
-    {
-        if (! is_string($body)) {
-            return null;
-        }
-
-        $normalized = trim($body);
-
-        return $normalized !== '' ? $normalized : null;
-    }
-
-    /**
-     * @param  array<int, array<string, mixed>>  $attachments
-     */
-    protected function resolveMessageType(array $attachments): string
-    {
-        if ($attachments === []) {
-            return Message::TYPE_TEXT;
-        }
-
-        $hasOnlyImages = collect($attachments)->every(
-            fn (array $attachment): bool => str_starts_with((string) ($attachment['mime_type'] ?? ''), 'image/')
-        );
-
-        return $hasOnlyImages ? Message::TYPE_IMAGE : Message::TYPE_FILE;
-    }
-
     /**
      * @return array<string, mixed>
      */
@@ -522,12 +424,5 @@ class WidgetMessageController extends Controller
             'sender_type' => $message->sender_type,
             'created_at' => $message->created_at->toISOString(),
         ];
-    }
-
-    protected function isUniqueConstraintViolation(QueryException $exception): bool
-    {
-        $sqlState = $exception->errorInfo[0] ?? null;
-
-        return in_array($sqlState, ['23000', '23505'], true);
     }
 }

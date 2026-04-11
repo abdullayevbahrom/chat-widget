@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Scopes\TenantScope;
 use Database\Factories\MessageFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -34,23 +35,7 @@ class Message extends Model
 
     protected static function booted(): void
     {
-        static::addGlobalScope('tenant', function (Builder $builder): void {
-            $currentTenant = Tenant::current();
-
-            if ($currentTenant === null) {
-                $builder->whereRaw('1 = 0');
-
-                return;
-            }
-
-            if (auth()->check() && auth()->user()->isSuperAdmin()) {
-                return;
-            }
-
-            $builder->whereHas('conversation', function (Builder $query) use ($currentTenant): void {
-                $query->where('tenant_id', $currentTenant->id);
-            });
-        });
+        static::addGlobalScope(new TenantScope('conversation'));
 
         static::created(function (Message $message): void {
             if ($message->conversation === null) {
@@ -105,7 +90,33 @@ class Message extends Model
                 throw new LogicException('Message sender_type and sender_id must be both null or both present.');
             }
 
-            $message->assertSenderIntegrity($conversation);
+            // Cache sender model on the message to avoid repeated queries
+            // when assertSenderIntegrity is called multiple times (e.g. retries)
+            $sender = $message->getRawOriginal('_cached_sender');
+
+            if ($sender === null) {
+                $senderClass = Relation::getMorphedModel($message->sender_type) ?? $message->sender_type;
+                $allowedSenderClasses = [
+                    Visitor::class,
+                    User::class,
+                    Tenant::class,
+                ];
+
+                if (! is_string($senderClass) || ! in_array($senderClass, $allowedSenderClasses, true)) {
+                    throw new LogicException('Message sender_type is not supported.');
+                }
+
+                /** @var Model|null $sender */
+                $sender = $senderClass::query()->withoutGlobalScopes()->find($message->sender_id);
+
+                if ($sender === null) {
+                    throw new LogicException('Message sender must exist before saving.');
+                }
+
+                $message->setAttribute('_cached_sender', $sender);
+            }
+
+            $message->assertSenderIntegrity($conversation, $sender);
         });
     }
 
@@ -235,24 +246,21 @@ class Message extends Model
         return $query->where('message_type', $type);
     }
 
-    protected function assertSenderIntegrity(Conversation $conversation): void
+    /**
+     * Assert that the sender belongs to the same tenant as the conversation.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $sender  Pre-loaded sender model (cached to avoid repeated queries)
+     */
+    protected function assertSenderIntegrity(Conversation $conversation, mixed $sender): void
     {
-        $senderClass = Relation::getMorphedModel($this->sender_type) ?? $this->sender_type;
         $allowedSenderClasses = [
             Visitor::class,
             User::class,
             Tenant::class,
         ];
 
-        if (! is_string($senderClass) || ! in_array($senderClass, $allowedSenderClasses, true)) {
+        if (! $sender instanceof \Illuminate\Database\Eloquent\Model || ! in_array($sender::class, $allowedSenderClasses, true)) {
             throw new LogicException('Message sender_type is not supported.');
-        }
-
-        /** @var Model|null $sender */
-        $sender = $senderClass::query()->withoutGlobalScopes()->find($this->sender_id);
-
-        if ($sender === null) {
-            throw new LogicException('Message sender must exist before saving.');
         }
 
         if ($sender instanceof Visitor) {

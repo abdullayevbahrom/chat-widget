@@ -11,6 +11,7 @@
         "filament/spatie-laravel-settings-plugin": "^4.0",
         "jenssegers/agent": "^2.6",
         "laravel/framework": "^13.0",
+        "laravel/reverb": "^1.10",
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^3.0"
     },
