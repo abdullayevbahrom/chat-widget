@@ -54,10 +54,13 @@ class WidgetKeyService
 
         $hash = hash('sha256', $key);
 
+        // Widget keys are global (not tenant-scoped) because they come from
+        // embedded widgets in iframes without tenant context.
+        // The TenantScope on Project model ensures tenant isolation at query level.
         return Cache::remember(
             "project:key:{$hash}",
             $this->cacheTtl,
-            fn () => Project::where('widget_key_hash', $hash)
+            fn () => Project::withoutGlobalScopes()->where('widget_key_hash', $hash)
                 ->where('is_active', true)
                 ->first()
         );

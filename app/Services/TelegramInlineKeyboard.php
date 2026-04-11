@@ -133,6 +133,8 @@ class TelegramInlineKeyboard
      *
      * The signature prevents cross-tenant callback forgery.
      * We use a short prefix (8 chars) to stay within Telegram's 64-byte callback_data limit.
+     *
+     * @throws \RuntimeException if APP_KEY is not configured
      */
     public static function signCallbackData(int $tenantId, int $conversationId): string
     {
@@ -144,7 +146,14 @@ class TelegramInlineKeyboard
             $secret = null;
         }
 
-        $secret ??= $_ENV['APP_KEY'] ?? 'fallback-secret';
+        $secret ??= $_ENV['APP_KEY'] ?? null;
+
+        if ($secret === null || $secret === '') {
+            throw new \RuntimeException(
+                'APP_KEY is not configured. Cannot sign Telegram callback data.'
+            );
+        }
+
         $hmac = hash_hmac('sha256', $payload, $secret);
 
         // Use first 8 characters to stay within 64-byte limit

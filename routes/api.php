@@ -11,23 +11,27 @@ use App\Http\Controllers\Api\WidgetAttachmentController;
 use App\Http\Controllers\Api\WidgetConversationController;
 use App\Http\Controllers\Api\WidgetMessageController;
 use App\Http\Middleware\EnsureVerifiedWidgetDomain;
+use App\Http\Middleware\ValidateSanctumTenantScope;
 use App\Http\Middleware\ValidateWidgetKey;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth:sanctum'])->prefix('tenant')->group(function () {
-    Route::get('/profile', [TenantProfileController::class, 'show']);
-    Route::put('/profile', [TenantProfileController::class, 'update']);
-    Route::apiResource('domains', TenantDomainController::class);
+// Tenant-scoped API routes — require authentication + tenant context
+Route::middleware(['auth:sanctum', 'set.tenant', 'enforce.tenant', ValidateSanctumTenantScope::class])
+    ->prefix('tenant')
+    ->group(function () {
+        Route::get('/profile', [TenantProfileController::class, 'show']);
+        Route::put('/profile', [TenantProfileController::class, 'update']);
+        Route::apiResource('domains', TenantDomainController::class);
 
-    // Project management
-    Route::apiResource('projects', ProjectController::class);
-    Route::post('projects/{project}/regenerate-key', [ProjectController::class, 'regenerateKey']);
-    Route::post('projects/{project}/revoke-key', [ProjectController::class, 'revokeKey']);
+        // Project management
+        Route::apiResource('projects', ProjectController::class);
+        Route::post('projects/{project}/regenerate-key', [ProjectController::class, 'regenerateKey']);
+        Route::post('projects/{project}/revoke-key', [ProjectController::class, 'revokeKey']);
 
-    // Project domain management
-    Route::apiResource('project-domains', ProjectDomainController::class);
-    Route::post('project-domains/{domain}/verify', [ProjectDomainController::class, 'verify']);
-});
+        // Project domain management
+        Route::apiResource('project-domains', ProjectDomainController::class);
+        Route::post('project-domains/{domain}/verify', [ProjectDomainController::class, 'verify']);
+    });
 
 // Telegram Webhook — rate limited, no auth required (Telegram calls this)
 // Uses dedicated 'telegram-webhook' rate limiter with IP spoofing protection
@@ -54,14 +58,16 @@ Route::middleware(['throttle:widget-attachment', 'throttle:widget-message', Vali
     });
 
 // Admin Conversation API — authenticated, tenant-scoped
-Route::middleware(['auth:sanctum', 'throttle:admin-conversation'])->prefix('tenant')->group(function () {
-    Route::apiResource('conversations', AdminConversationController::class)->only(['index', 'show']);
-    Route::post('conversations/{conversation}/close', [AdminConversationController::class, 'close'])->name('tenant.conversations.close');
-    Route::post('conversations/{conversation}/reopen', [AdminConversationController::class, 'reopen'])->name('tenant.conversations.reopen');
-    Route::post('conversations/{conversation}/archive', [AdminConversationController::class, 'archive'])->name('tenant.conversations.archive');
-    Route::post('conversations/{conversation}/assign', [AdminConversationController::class, 'assign'])->name('tenant.conversations.assign');
-    Route::get('conversations/unread-count', [AdminConversationController::class, 'unreadCount'])->name('tenant.conversations.unread-count');
-});
+Route::middleware(['auth:sanctum', 'set.tenant', 'enforce.tenant', ValidateSanctumTenantScope::class, 'throttle:admin-conversation'])
+    ->prefix('tenant')
+    ->group(function () {
+        Route::apiResource('conversations', AdminConversationController::class)->only(['index', 'show']);
+        Route::post('conversations/{conversation}/close', [AdminConversationController::class, 'close'])->name('tenant.conversations.close');
+        Route::post('conversations/{conversation}/reopen', [AdminConversationController::class, 'reopen'])->name('tenant.conversations.reopen');
+        Route::post('conversations/{conversation}/archive', [AdminConversationController::class, 'archive'])->name('tenant.conversations.archive');
+        Route::post('conversations/{conversation}/assign', [AdminConversationController::class, 'assign'])->name('tenant.conversations.assign');
+        Route::get('conversations/unread-count', [AdminConversationController::class, 'unreadCount'])->name('tenant.conversations.unread-count');
+    });
 
 // CSP Violation Report endpoint — accepts reports from browsers when CSP policies are violated
 // Rate limited to prevent abuse; no authentication needed (reports come from browsers)

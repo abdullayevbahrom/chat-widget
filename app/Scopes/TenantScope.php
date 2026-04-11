@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Scope;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Global scope that automatically scopes queries to the current tenant.
@@ -43,6 +44,11 @@ class TenantScope implements Scope
             $user = Auth::user();
 
             if ($user !== null && $user->isSuperAdmin()) {
+                Log::debug('TenantScope bypassed for super admin.', [
+                    'model' => get_class($model),
+                    'user_id' => $user->id,
+                ]);
+
                 return;
             }
         }
@@ -53,19 +59,19 @@ class TenantScope implements Scope
         if ($currentTenant === null) {
             // No tenant context — return empty results for tenant-scoped models
             // to prevent data leakage across tenants.
-            //
-            // Why `whereRaw('1 = 0')` instead of throwing an exception?
-            // - Some code paths intentionally query tenant-scoped models outside a
-            //   tenant context (e.g. admin dashboards, cross-tenant reports).
-            // - Throwing would break those flows; returning an empty result set
-            //   is a safe default that prevents accidental data leakage while
-            //   still allowing explicit bypass via withoutGlobalScopes().
-            // - This expression is database-agnostic and produces zero rows
-            //   regardless of the underlying table contents.
+            Log::debug('TenantScope applied: no tenant context, returning empty result.', [
+                'model' => get_class($model),
+            ]);
+
             $builder->whereRaw('1 = 0');
 
             return;
         }
+
+        Log::debug('TenantScope applied.', [
+            'model' => get_class($model),
+            'tenant_id' => $currentTenant->id,
+        ]);
 
         // If a relation column is specified, scope via the relationship
         if ($this->relationColumn !== null) {

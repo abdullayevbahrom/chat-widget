@@ -47,6 +47,15 @@ class SetupTelegramWebhookJob implements ShouldQueue
      */
     public function handle(TelegramBotService $telegramService): void
     {
+        // Restore tenant context for this job
+        if ($this->setting->tenant_id !== null) {
+            $tenant = \App\Models\Tenant::find($this->setting->tenant_id);
+
+            if ($tenant !== null) {
+                \App\Models\Tenant::setCurrent($tenant);
+            }
+        }
+
         $token = $this->setting->bot_token;
 
         if ($token === null) {

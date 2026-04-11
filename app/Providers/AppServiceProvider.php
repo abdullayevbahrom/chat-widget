@@ -143,5 +143,15 @@ class AppServiceProvider extends ServiceProvider
                 Limit::perMinute(60)->by("telegram-{$tenantKey}"),
             ];
         });
+
+        // Tenant-scoped API rate limiter
+        // Each tenant gets an independent rate limit bucket
+        RateLimiter::for('tenant-api', function (Request $request) {
+            $tenantId = Tenant::current()?->id ?? 'global';
+
+            return $request->user()
+                ? Limit::perMinute(60)->by("tenant-api:{$tenantId}")
+                : Limit::perMinute(20)->by("tenant-api-ip:{$request->ip()}:{$tenantId}");
+        });
     }
 }

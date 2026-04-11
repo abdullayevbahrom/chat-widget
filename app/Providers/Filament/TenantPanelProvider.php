@@ -3,6 +3,7 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Pages\TenantRegister;
+use App\Http\Middleware\EnforceTenantContext;
 use App\Http\Middleware\SetTenantContext;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
@@ -59,6 +60,7 @@ class TenantPanelProvider extends PanelProvider
             ->authMiddleware([
                 Authenticate::class,
                 SetTenantContext::class,
+                EnforceTenantContext::class,
             ])
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->registration(TenantRegister::class)

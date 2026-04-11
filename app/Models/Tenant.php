@@ -224,4 +224,70 @@ class Tenant extends Model
         // For file/array drivers, we rely on TTL expiration.
         // The prefix-based forget calls in observers handle explicit clears.
     }
+
+    /**
+     * Invalidate all sessions for this tenant's users.
+     *
+     * Call this when a tenant is deactivated to force all users to log out.
+     */
+    public function invalidateSessions(): void
+    {
+        // Get all users belonging to this tenant
+        $userIds = $this->users()->pluck('id')->toArray();
+
+        if (empty($userIds)) {
+            return;
+        }
+
+        // For database session driver, delete sessions for these users
+        $sessionTable = config('session.table', 'sessions');
+
+        try {
+            \Illuminate\Support\Facades\DB::table($sessionTable)
+                ->whereIn('user_id', $userIds)
+                ->delete();
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::warning(
+                'Failed to invalidate tenant sessions (session table may not exist).',
+                [
+                    'tenant_id' => $this->id,
+                    'error' => $e->getMessage(),
+                ]
+            );
+        }
+
+        // For Redis session driver, scan and delete session keys
+        $cacheDriver = \Illuminate\Support\Facades\Cache::driver();
+
+        if ($cacheDriver instanceof RedisStore) {
+            $redis = $cacheDriver->connection();
+            $prefix = config('session.cookie', 'laravel_session');
+
+            // Scan for session cookies matching the prefix pattern
+            $cursor = null;
+            $pattern = "{$prefix}:*";
+            do {
+                $result = $redis->scan($cursor, ['match' => $pattern, 'count' => 100]);
+                $cursor = $result[0];
+                $keys = $result[1];
+
+                foreach ($keys as $key) {
+                    $sessionData = $redis->get($key);
+
+                    if ($sessionData !== false) {
+                        $session = @unserialize(base64_decode($sessionData));
+
+                        if (is_array($session) && isset($session['user_id']) && in_array($session['user_id'], $userIds, true)) {
+                            $redis->del($key);
+                        }
+                    }
+                }
+            } while ($cursor !== '0' && $cursor !== 0);
+        }
+
+        \Illuminate\Support\Facades\Log::info('Tenant sessions invalidated.', [
+            'tenant_id' => $this->id,
+            'user_count' => count($userIds),
+        ]);
+    }
 }

@@ -91,6 +91,15 @@ class SendTelegramNotificationJob implements ShouldQueue
      */
     public function handle(TelegramBotService $telegramBotService): void
     {
+        // Restore tenant context for this job
+        if ($this->tenantId !== null) {
+            $tenant = \App\Models\Tenant::find($this->tenantId);
+
+            if ($tenant !== null) {
+                \App\Models\Tenant::setCurrent($tenant);
+            }
+        }
+
         $telegramSetting = TelegramBotSetting::withoutGlobalScopes()
             ->where('tenant_id', $this->tenantId)
             ->first();

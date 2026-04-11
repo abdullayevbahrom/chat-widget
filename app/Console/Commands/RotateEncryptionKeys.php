@@ -42,8 +42,10 @@ class RotateEncryptionKeys extends Command
         $oldKey = $this->option('old-key');
         $isDryRun = $this->option('dry-run');
 
-        // If old key not provided, try to use current APP_KEY as the "old" key
+        // If old key not provided, use current APP_KEY as the "old" key.
         // This handles the case where APP_KEY hasn't been changed yet
+        // (i.e., first-time setup or testing). The command creates dedicated
+        // Encrypter instances, so global config is never mutated.
         if ($oldKey === null) {
             $this->warn('No --old-key provided. Assuming APP_KEY has NOT been changed yet.');
             $this->warn('If you have already changed APP_KEY, you must provide --old-key=your-old-key');
@@ -52,7 +54,7 @@ class RotateEncryptionKeys extends Command
                 return self::FAILURE;
             }
 
-            $oldKey = config('app.key');
+            $oldKey = (string) config('app.key');
         }
 
         $this->info('Starting encryption key rotation...');
@@ -168,30 +170,31 @@ class RotateEncryptionKeys extends Command
         }
 
         try {
-            // Temporarily set the old key to decrypt
-            $currentKey = config('app.key');
-            config(['app.key' => $oldKey]);
-
-            // We need to create a new Crypt instance with the old key
-            $crypt = new Encrypter(
+            // Create dedicated Encrypter instances for old and current keys
+            // This avoids mutating global config(['app.key']) which could
+            // affect concurrent requests or other parts of the application.
+            $oldEncrypter = new Encrypter(
                 base64_decode(substr($oldKey, 7)), // Remove "base64:" prefix
                 config('app.cipher', 'AES-256-CBC')
             );
 
-            $decrypted = $crypt->decryptString($encryptedValue);
+            $currentKey = config('app.key');
+            $currentEncrypter = new Encrypter(
+                base64_decode(substr($currentKey, 7)),
+                config('app.cipher', 'AES-256-CBC')
+            );
 
-            // Restore current key
-            config(['app.key' => $currentKey]);
+            $decrypted = $oldEncrypter->decryptString($encryptedValue);
 
             if ($isDryRun) {
                 return 'ok';
             }
 
-            // Re-encrypt with the new key (using the model's setter)
+            // Re-encrypt with the current key and save directly
             if ($field === 'bot_token_encrypted') {
-                $setting->bot_token = $decrypted;
+                $setting->bot_token_encrypted = $currentEncrypter->encryptString($decrypted);
             } elseif ($field === 'webhook_secret_encrypted') {
-                $setting->webhook_secret = $decrypted;
+                $setting->webhook_secret_encrypted = $currentEncrypter->encryptString($decrypted);
             }
 
             $setting->saveQuietly();
@@ -205,9 +208,6 @@ class RotateEncryptionKeys extends Command
 
             return 'ok';
         } catch (\Throwable $e) {
-            // Restore current key
-            config(['app.key' => config('app.key')]);
-
             Log::error('Failed to re-encrypt field during key rotation.', [
                 'model' => TelegramBotSetting::class,
                 'record_id' => $setting->id,

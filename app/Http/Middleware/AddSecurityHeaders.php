@@ -15,6 +15,18 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class AddSecurityHeaders
 {
+    /**
+     * Paths that are allowed to be embedded in iframes.
+     *
+     * The widget embed endpoint uses CSP frame-ancestors for
+     * granular iframe control, so X-Frame-Options must not
+     * block it.
+     */
+    protected const IFRAME_ALLOWED_PATHS = [
+        'api/widget/embed',
+        'api/widget/script',
+    ];
+
     public function handle(Request $request, Closure $next): Response
     {
         $response = $next($request);
@@ -24,9 +36,12 @@ class AddSecurityHeaders
         $response->headers->set('X-Content-Type-Options', 'nosniff');
 
         // Clickjacking protection — deny embedding in all frames.
-        // The widget embed endpoint uses CSP frame-ancestors instead,
-        // which provides more granular control.
-        $response->headers->set('X-Frame-Options', 'DENY');
+        // EXCEPTION: Widget embed/script endpoints need to be embedded in iframes
+        // on third-party sites. They use CSP frame-ancestors instead, which
+        // provides more granular, origin-specific control.
+        if (! $this->isIframeAllowedPath($request)) {
+            $response->headers->set('X-Frame-Options', 'DENY');
+        }
 
         // XSS Protection header — legacy but still useful for older browsers.
         // Modern browsers rely on CSP instead, but this provides
@@ -57,5 +72,21 @@ class AddSecurityHeaders
         $response->headers->remove('Server');
 
         return $response;
+    }
+
+    /**
+     * Check if the request path is allowed to be embedded in iframes.
+     */
+    protected function isIframeAllowedPath(Request $request): bool
+    {
+        $path = $request->path();
+
+        foreach (self::IFRAME_ALLOWED_PATHS as $allowedPath) {
+            if (str_starts_with($path, $allowedPath)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

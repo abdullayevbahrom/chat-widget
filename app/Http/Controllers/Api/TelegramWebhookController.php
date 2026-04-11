@@ -49,7 +49,14 @@ class TelegramWebhookController extends Controller
     public function handle(Request $request, string $tenantSlug): JsonResponse
     {
         $secretToken = $request->header('X-Telegram-Bot-Api-Secret-Token');
-        $clientIp = $request->ip();
+
+        // Use the real client IP directly from the server variable
+        // instead of $request->ip() which can be manipulated via proxy headers.
+        // When behind a trusted reverse proxy, TRUSTED_PROXIES middleware
+        // will already have set the correct client IP in $request->ip().
+        // For direct connections (no proxy), $_SERVER['REMOTE_ADDR'] is authoritative.
+        $clientIp = $this->resolveClientIp($request);
+
         $forwardedFor = $request->header('X-Forwarded-For');
         $realIp = $request->header('X-Real-IP');
 
@@ -76,7 +83,7 @@ class TelegramWebhookController extends Controller
         if ($setting === null) {
             Log::warning('Telegram webhook received for unknown tenant or unconfigured bot.', [
                 'tenant_slug' => $tenantSlug,
-                'ip' => $request->ip(),
+                'ip' => $clientIp,
             ]);
 
             return response()->json(['ok' => false, 'error' => 'Tenant or bot not found'], 404);
@@ -86,7 +93,7 @@ class TelegramWebhookController extends Controller
             Log::warning('Telegram webhook received for setting without webhook_secret.', [
                 'tenant_id' => $setting->tenant_id,
                 'setting_id' => $setting->id,
-                'ip' => $request->ip(),
+                'ip' => $clientIp,
             ]);
 
             return response()->json(['ok' => false, 'error' => 'Webhook not configured'], 400);
@@ -96,7 +103,7 @@ class TelegramWebhookController extends Controller
             Log::warning('Telegram webhook received without secret token header.', [
                 'tenant_id' => $setting->tenant_id,
                 'setting_id' => $setting->id,
-                'ip' => $request->ip(),
+                'ip' => $clientIp,
             ]);
 
             return response()->json(['ok' => false, 'error' => 'Unauthorized'], 401);
@@ -106,7 +113,7 @@ class TelegramWebhookController extends Controller
             Log::warning('Telegram webhook received with invalid secret token.', [
                 'tenant_id' => $setting->tenant_id,
                 'setting_id' => $setting->id,
-                'ip' => $request->ip(),
+                'ip' => $clientIp,
             ]);
 
             return response()->json(['ok' => false, 'error' => 'Unauthorized'], 401);
@@ -880,6 +887,46 @@ class TelegramWebhookController extends Controller
                 'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Resolve the real client IP address.
+     *
+     * Uses $_SERVER['REMOTE_ADDR'] directly to avoid relying on
+     * potentially untrusted proxy headers. When the request comes
+     * through a trusted reverse proxy (configured via TRUSTED_PROXIES),
+     * Laravel's middleware will have already set the correct client IP.
+     * For direct connections, REMOTE_ADDR is the authoritative source.
+     */
+    protected function resolveClientIp(Request $request): string
+    {
+        // If trusted proxies are configured, Laravel's middleware has
+        // already resolved the real IP from X-Forwarded-For headers.
+        // In that case, $request->ip() is safe to use.
+        $trustedProxies = array_values(array_filter(
+            array_map('trim', explode(',', (string) env('TRUSTED_PROXIES', ''))),
+            static fn (string $proxy): bool => $proxy !== ''
+        ));
+
+        if ($trustedProxies !== []) {
+            // Trusted proxy is configured — Laravel middleware already
+            // resolved the real client IP from forwarded headers
+            return $request->ip() ?? $this->getServerRemoteAddr();
+        }
+
+        // No trusted proxy configured — use REMOTE_ADDR directly
+        // This is the safest option for direct connections
+        return $this->getServerRemoteAddr();
+    }
+
+    /**
+     * Get the remote address from the server variable.
+     *
+     * Fallback to '0.0.0.0' if not available (should never happen).
+     */
+    protected function getServerRemoteAddr(): string
+    {
+        return $_SERVER['REMOTE_ADDR'] ?? $_SERVER['HTTP_X_REAL_IP'] ?? '0.0.0.0';
     }
 
     /**

@@ -39,6 +39,14 @@ class ResolveTenantFromDomain
         $tenant = $this->resolver->resolve($host);
 
         if ($tenant !== null) {
+            // Check if tenant is active
+            if (! $tenant->isActive()) {
+                return response()->json([
+                    'error' => 'Forbidden',
+                    'message' => 'Tenant account is not active.',
+                ], Response::HTTP_FORBIDDEN);
+            }
+
             Tenant::setCurrent($tenant);
             $request->attributes->set('tenant', $tenant);
         }

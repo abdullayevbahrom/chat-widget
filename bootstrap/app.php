@@ -1,6 +1,11 @@
 <?php
 
 use App\Http\Middleware\AddSecurityHeaders;
+use App\Http\Middleware\CheckTenantDomainWhitelist;
+use App\Http\Middleware\EnforceTenantContext;
+use App\Http\Middleware\ResetTenantContext;
+use App\Http\Middleware\ResolveTenantFromDomain;
+use App\Http\Middleware\SetTenantContext;
 use App\Http\Middleware\TrackVisitors;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -21,6 +26,15 @@ return Application::configure(basePath: dirname(__DIR__))
             array_map('trim', explode(',', (string) env('TRUSTED_PROXIES', ''))),
             static fn (string $proxy): bool => $proxy !== ''
         ));
+
+        // Register tenant middleware aliases
+        $middleware->alias([
+            'reset.tenant' => ResetTenantContext::class,
+            'resolve.tenant' => ResolveTenantFromDomain::class,
+            'set.tenant' => SetTenantContext::class,
+            'enforce.tenant' => EnforceTenantContext::class,
+            'check.tenant.domain' => CheckTenantDomainWhitelist::class,
+        ]);
 
         // API rate limiting is configured explicitly in AppServiceProvider
         // using RateLimiter::for('api', ...) with per-user/per-IP limits.
@@ -47,8 +61,12 @@ return Application::configure(basePath: dirname(__DIR__))
         // behind load balancers / reverse proxies (Issue #11).
         // The TRUSTED_PROXIES env variable should be set in production
         // to the IP(s) of your load balancer or reverse proxy.
+        //
+        // SECURITY NOTE: When $trustedProxies is empty ([]), Laravel will
+        // NOT trust any proxy headers. Passing null would cause Laravel to
+        // trust ALL proxies (wildcard), which is a security risk.
         $middleware->trustProxies(
-            at: $trustedProxies === [] ? null : $trustedProxies,
+            at: $trustedProxies,
             headers: Request::HEADER_X_FORWARDED_FOR |
                 Request::HEADER_X_FORWARDED_HOST |
                 Request::HEADER_X_FORWARDED_PORT |

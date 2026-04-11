@@ -285,11 +285,13 @@ class Project extends Model
      */
     protected function clearKeyCache(): void
     {
+        $tenantPrefix = $this->tenant_id !== null ? "tenant:{$this->tenant_id}:" : '';
+
         if (filled($this->widget_key_hash)) {
-            Cache::forget("project:key:{$this->widget_key_hash}");
+            Cache::forget("{$tenantPrefix}project:key:{$this->widget_key_hash}");
         }
 
-        Cache::forget("project:{$this->id}:domains:verified");
+        Cache::forget("{$tenantPrefix}project:{$this->id}:domains:verified");
     }
 
     /**
@@ -299,8 +301,10 @@ class Project extends Model
      */
     public function getVerifiedDomainsCache(): array
     {
+        $tenantPrefix = $this->tenant_id !== null ? "tenant:{$this->tenant_id}:" : '';
+
         return Cache::remember(
-            "project:{$this->id}:domains:verified",
+            "{$tenantPrefix}project:{$this->id}:domains:verified",
             now()->addMinutes(15),
             fn () => $this->verifiedDomains()->pluck('domain')->toArray()
         );

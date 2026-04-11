@@ -59,10 +59,24 @@ Broadcast::channel('tenant.{tenantId}.conversations', function (Request $request
     }
 
     // Must be authenticated as tenant user
-    if (! $request->user() || $request->user()->tenant_id !== $tenantId) {
+    $user = $request->user();
+
+    if ($user === null || $user->tenant_id !== $tenantId) {
         Log::warning('Tenant broadcast auth rejected: user not authorized for tenant.', [
             'tenant_id' => $tenantId,
-            'user_id' => $request->user()?->id,
+            'user_id' => $user?->id,
+        ]);
+
+        return false;
+    }
+
+    // Additional check: ensure the tenant context matches
+    $currentTenant = \App\Models\Tenant::current();
+
+    if ($currentTenant !== null && $currentTenant->id !== $tenantId) {
+        Log::warning('Tenant broadcast auth rejected: tenant context mismatch.', [
+            'requested_tenant_id' => $tenantId,
+            'context_tenant_id' => $currentTenant->id,
         ]);
 
         return false;
