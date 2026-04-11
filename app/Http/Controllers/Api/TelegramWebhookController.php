@@ -163,6 +163,8 @@ class TelegramWebhookController extends Controller
         }
 
         Log::info('Telegram webhook received.', [
+            'channel' => 'telegram',
+            'action' => 'webhook_received',
             'tenant_id' => $setting->tenant_id,
             'setting_id' => $setting->id,
             'update_id' => $payload['update_id'] ?? null,
@@ -390,8 +392,11 @@ class TelegramWebhookController extends Controller
                 );
             } catch (\Exception $e) {
                 Log::warning('Failed to send Telegram close notification.', [
+                    'channel' => 'telegram',
+                    'action' => 'close_command',
                     'conversation_id' => $conversation->id,
-                    'exception' => $e->getMessage(),
+                    'error' => $e->getMessage(),
+                    'error_type' => get_class($e),
                 ]);
             }
         }
@@ -447,7 +452,12 @@ class TelegramWebhookController extends Controller
                     true
                 );
             } catch (\Exception $e) {
-                Log::warning('Failed to answer callback query.', ['error' => $e->getMessage()]);
+                Log::warning('Failed to answer callback query.', [
+                    'channel' => 'telegram',
+                    'action' => 'callback_query',
+                    'error' => $e->getMessage(),
+                    'error_type' => get_class($e),
+                ]);
             }
 
             return response()->json(['ok' => true, 'result' => true]);
@@ -470,7 +480,12 @@ class TelegramWebhookController extends Controller
                     true
                 );
             } catch (\Exception $e) {
-                Log::warning('Failed to answer callback query.', ['error' => $e->getMessage()]);
+                Log::warning('Failed to answer callback query.', [
+                    'channel' => 'telegram',
+                    'action' => 'callback_query',
+                    'error' => $e->getMessage(),
+                    'error_type' => get_class($e),
+                ]);
             }
 
             return response()->json(['ok' => true, 'result' => true]);
@@ -496,7 +511,12 @@ class TelegramWebhookController extends Controller
                     true
                 );
             } catch (\Exception $e) {
-                Log::warning('Failed to answer callback query.', ['error' => $e->getMessage()]);
+                Log::warning('Failed to answer callback query.', [
+                    'channel' => 'telegram',
+                    'action' => 'callback_query',
+                    'error' => $e->getMessage(),
+                    'error_type' => get_class($e),
+                ]);
             }
 
             return response()->json(['ok' => true, 'result' => true]);
@@ -518,7 +538,12 @@ class TelegramWebhookController extends Controller
                     true
                 );
             } catch (\Exception $e) {
-                Log::warning('Failed to answer callback query.', ['error' => $e->getMessage()]);
+                Log::warning('Failed to answer callback query.', [
+                    'channel' => 'telegram',
+                    'action' => 'callback_query',
+                    'error' => $e->getMessage(),
+                    'error_type' => get_class($e),
+                ]);
             }
 
             return response()->json(['ok' => true, 'result' => true]);
@@ -560,7 +585,12 @@ class TelegramWebhookController extends Controller
                 $callbackQueryId
             );
         } catch (\Exception $e) {
-            Log::warning('Failed to answer callback query (reply).', ['error' => $e->getMessage()]);
+            Log::warning('Failed to answer callback query (reply).', [
+                'channel' => 'telegram',
+                'action' => 'callback_reply',
+                'error' => $e->getMessage(),
+                'error_type' => get_class($e),
+            ]);
         }
 
         Log::info('Callback query: reply acknowledged.', [
@@ -764,7 +794,12 @@ class TelegramWebhookController extends Controller
                 "Noma'lum amal: {$action}"
             );
         } catch (\Exception $e) {
-            Log::warning('Failed to answer unknown callback query.', ['error' => $e->getMessage()]);
+            Log::warning('Failed to answer unknown callback query.', [
+                'channel' => 'telegram',
+                'action' => 'unknown_callback',
+                'error' => $e->getMessage(),
+                'error_type' => get_class($e),
+            ]);
         }
 
         Log::warning('Unknown callback action received.', [
@@ -851,7 +886,12 @@ class TelegramWebhookController extends Controller
                 );
             }
         } catch (\Exception $e) {
-            Log::warning('Failed to send callback error response.', ['error' => $e->getMessage()]);
+            Log::warning('Failed to send callback error response.', [
+                'channel' => 'telegram',
+                'action' => 'callback_error',
+                'error' => $e->getMessage(),
+                'error_type' => get_class($e),
+            ]);
         }
     }
 
@@ -882,9 +922,12 @@ class TelegramWebhookController extends Controller
             );
         } catch (\Exception $e) {
             Log::warning('Failed to edit message keyboard.', [
+                'channel' => 'telegram',
+                'action' => 'edit_keyboard',
                 'chat_id' => $chatId,
                 'message_id' => $messageId,
                 'error' => $e->getMessage(),
+                'error_type' => get_class($e),
             ]);
         }
     }

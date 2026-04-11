@@ -51,8 +51,22 @@ class AdminConversationController extends Controller
         }
 
         // Super admins see all; tenant users see only their tenant's conversations
-        if (! $user->isSuperAdmin() && $user->tenant_id !== null) {
-            $query->where('tenant_id', $user->tenant_id);
+        // If a non-super-admin has no tenant_id, return empty results (security fallback)
+        if (! $user->isSuperAdmin()) {
+            if ($user->tenant_id !== null) {
+                $query->where('tenant_id', $user->tenant_id);
+            } else {
+                // User has no tenant — return empty results to prevent data leakage
+                return response()->json([
+                    'data' => [],
+                    'meta' => [
+                        'current_page' => 1,
+                        'last_page' => 1,
+                        'per_page' => $perPage,
+                        'total' => 0,
+                    ],
+                ]);
+            }
         }
 
         $paginator = $query->paginate($perPage);
@@ -78,7 +92,10 @@ class AdminConversationController extends Controller
 
         Gate::authorize('view', $conversation);
 
-        $data = $this->conversationService->getConversationWithMessages($conversation->id, 100);
+        // Enforce tenant isolation: tenant users can only access their own tenant's conversations
+        $tenantId = $user->isSuperAdmin() ? null : $user->tenant_id;
+
+        $data = $this->conversationService->getConversationWithMessages($conversation->id, 100, $tenantId);
 
         // Serialize messages for response
         $messages = $data['messages']->map(function ($message): array {
@@ -319,8 +336,14 @@ class AdminConversationController extends Controller
                 $query->where('is_read', false);
             });
 
-        if (! $user->isSuperAdmin() && $user->tenant_id !== null) {
-            $query->where('tenant_id', $user->tenant_id);
+        // Enforce tenant isolation: non-super-admins can only see their own tenant
+        if (! $user->isSuperAdmin()) {
+            if ($user->tenant_id !== null) {
+                $query->where('tenant_id', $user->tenant_id);
+            } else {
+                // User has no tenant — return 0 to prevent data leakage
+                return response()->json(['unread_count' => 0]);
+            }
         }
 
         $count = $query->distinct()->count();

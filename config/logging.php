@@ -1,5 +1,7 @@
 <?php
 
+use App\Logging\EnrichLogContext;
+use App\Logging\FormatJsonLog;
 use Monolog\Handler\NullHandler;
 use Monolog\Handler\StreamHandler;
 use Monolog\Handler\SyslogUdpHandler;
@@ -125,6 +127,34 @@ return [
 
         'emergency' => [
             'path' => storage_path('logs/laravel.log'),
+        ],
+
+        // Domain-specific channels with JSON formatting
+        'telegram' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/telegram.log'),
+            'level' => env('LOG_LEVEL', 'info'),
+            'days' => env('LOG_DAILY_DAYS', 30),
+            'tap' => [FormatJsonLog::class],
+            'processors' => [EnrichLogContext::class],
+        ],
+
+        'websocket' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/websocket.log'),
+            'level' => env('LOG_LEVEL', 'info'),
+            'days' => env('LOG_DAILY_DAYS', 30),
+            'tap' => [FormatJsonLog::class],
+            'processors' => [EnrichLogContext::class],
+        ],
+
+        'jobs' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/jobs.log'),
+            'level' => env('LOG_LEVEL', 'info'),
+            'days' => 14,
+            'tap' => [FormatJsonLog::class],
+            'processors' => [EnrichLogContext::class],
         ],
 
     ],

@@ -59,6 +59,16 @@ class TenantScope implements Scope
         if ($currentTenant === null) {
             // No tenant context — return empty results for tenant-scoped models
             // to prevent data leakage across tenants.
+            // Uses Tenant::withoutTenantContext() static property as an explicit
+            // bypass signal for intentional context-free queries (e.g. widget key validation).
+            if (Tenant::isBypassingContext()) {
+                Log::debug('TenantScope skipped: tenant context bypass is active.', [
+                    'model' => get_class($model),
+                ]);
+
+                return;
+            }
+
             Log::debug('TenantScope applied: no tenant context, returning empty result.', [
                 'model' => get_class($model),
             ]);

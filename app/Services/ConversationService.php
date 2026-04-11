@@ -175,15 +175,25 @@ class ConversationService
     /**
      * Get a conversation with its recent messages.
      *
+     * @param  int|null  $tenantId  Optional tenant ID for isolation enforcement
      * @return array{conversation: Conversation, messages: \Illuminate\Support\Collection}
+     *
+     * @throws \Illuminate\Database\Eloquent\ModelNotFoundException
      */
-    public function getConversationWithMessages(int $conversationId, int $limit = 50): array
+    public function getConversationWithMessages(int $conversationId, int $limit = 50, ?int $tenantId = null): array
     {
-        $conversation = Conversation::withoutGlobalScopes()
+        $query = Conversation::withoutGlobalScopes()
             ->with(['messages' => function ($query) use ($limit): void {
                 $query->with(['sender'])->latest()->limit($limit);
             }, 'project', 'visitor', 'assignedUser', 'closedUser'])
-            ->findOrFail($conversationId);
+            ->where('id', $conversationId);
+
+        // Enforce tenant isolation when tenantId is provided
+        if ($tenantId !== null) {
+            $query->where('tenant_id', $tenantId);
+        }
+
+        $conversation = $query->firstOrFail();
 
         $messages = $conversation->messages->reverse()->values();
 

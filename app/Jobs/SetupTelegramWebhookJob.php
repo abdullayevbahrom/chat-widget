@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Exceptions\TelegramApiException;
 use App\Models\TelegramBotSetting;
 use App\Services\TelegramBotService;
 use Illuminate\Bus\Queueable;
@@ -67,6 +68,8 @@ class SetupTelegramWebhookJob implements ShouldQueue
         }
 
         Log::info('Setting up Telegram webhook', [
+            'channel' => 'jobs',
+            'job' => self::class,
             'setting_id' => $this->setting->id,
             'tenant_id' => $this->setting->tenant_id,
             'webhook_url' => $this->setting->webhook_url,
@@ -80,9 +83,13 @@ class SetupTelegramWebhookJob implements ShouldQueue
         );
 
         $this->setting->last_webhook_status = 'set';
+        $this->setting->last_webhook_error = null;
+        $this->setting->last_webhook_error_at = null;
         $this->setting->save();
 
         Log::info('Telegram webhook set successfully', [
+            'channel' => 'jobs',
+            'job' => self::class,
             'setting_id' => $this->setting->id,
             'tenant_id' => $this->setting->tenant_id,
             'result' => $result,
@@ -95,12 +102,22 @@ class SetupTelegramWebhookJob implements ShouldQueue
     public function failed(\Throwable $exception): void
     {
         $this->setting->last_webhook_status = 'error';
+        $this->setting->last_webhook_error = [
+            'message' => $exception->getMessage(),
+            'type' => get_class($exception),
+            'code' => $exception instanceof TelegramApiException ? $exception->errorCode : $exception->getCode(),
+            'attempts' => $this->attempts(),
+        ];
+        $this->setting->last_webhook_error_at = now();
         $this->setting->save();
 
         Log::error('Telegram webhook setup failed', [
+            'channel' => 'jobs',
+            'job' => self::class,
             'setting_id' => $this->setting->id,
             'tenant_id' => $this->setting->tenant_id,
             'error' => $exception->getMessage(),
+            'error_type' => get_class($exception),
             'attempts' => $this->attempts(),
         ]);
     }

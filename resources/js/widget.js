@@ -46,7 +46,7 @@ if (typeof window !== 'undefined') {
     isOnline: navigator.onLine ?? true,
     pollingPaused: false,
     wsReconnectAttempts: 0,
-    maxWsReconnectAttempts: 3,
+    maxWsReconnectAttempts: 5,
     useWebSocket: false,
     wsEcho: null,
     typingTimeout: null,
@@ -535,9 +535,9 @@ if (typeof window !== 'undefined') {
         return false;
       }
 
-      const reverbConfig = state.config?.reverb;
-      if (!reverbConfig?.app_key) {
-        console.log('[Widget] Reverb not configured, using polling fallback.');
+      const wsConfig = state.config?.websocket || state.config?.reverb;
+      if (!wsConfig?.enabled && !wsConfig?.app_key) {
+        console.log('[Widget] WebSocket not configured, using polling fallback.');
         return false;
       }
 
@@ -551,13 +551,18 @@ if (typeof window !== 'undefined') {
         const bootstrapToken = utils.getBootstrapToken();
         const widgetKey = utils.getWidgetKey();
 
+        // Support both new websocket config format (without app_key) and legacy reverb format
+        const appKey = wsConfig.app_key || 'widget-proxy-key';
+        const wsHost = wsConfig.host;
+        const wsPort = wsConfig.port || (wsConfig.secure ? 443 : 80);
+
         const echo = new Echo({
           broadcaster: 'pusher',
-          key: reverbConfig.app_key,
-          wsHost: reverbConfig.host,
-          wsPort: reverbConfig.port || (reverbConfig.secure ? 443 : 80),
-          wssPort: reverbConfig.port || 443,
-          forceTLS: reverbConfig.secure !== false,
+          key: appKey,
+          wsHost: wsHost,
+          wsPort: wsPort,
+          wssPort: wsPort,
+          forceTLS: wsConfig.secure !== false,
           disableStats: true,
           enabledTransports: ['ws', 'wss'],
           cluster: 'mt1', // Reverb uses a dummy cluster
@@ -636,7 +641,12 @@ if (typeof window !== 'undefined') {
       }
 
       state.wsReconnectAttempts++;
-      const delay = state.wsReconnectAttempts * 2000;
+      // Exponential backoff + jitter: min(1000 * 2^attempt + random(0-1000ms), 30000ms)
+      const baseDelay = Math.min(
+        1000 * Math.pow(2, state.wsReconnectAttempts) + Math.random() * 1000,
+        30000
+      );
+      const delay = Math.round(baseDelay);
       console.log(`[Widget] Reconnect attempt ${state.wsReconnectAttempts}/${state.maxWsReconnectAttempts} in ${delay}ms`);
 
       setTimeout(() => {
@@ -1183,6 +1193,21 @@ if (typeof window !== 'undefined') {
       state.pollingInterval = null;
     }
   }
+
+  // Online/Offline event handling
+  window.addEventListener('online', () => {
+    state.isOnline = true;
+    console.log('[Widget] Browser is online, attempting reconnect.');
+    if (state.conversationId && !state.useWebSocket) {
+      startPolling();
+    }
+  });
+
+  window.addEventListener('offline', () => {
+    state.isOnline = false;
+    console.log('[Widget] Browser is offline, pausing polling.');
+    stopPolling();
+  });
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);

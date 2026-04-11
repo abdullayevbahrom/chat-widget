@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Exceptions\TelegramApiException;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\Project;
@@ -66,6 +67,11 @@ class SendTelegramNotificationJob implements ShouldQueue
     public array $visitorData;
 
     /**
+     * Retry-After seconds from rate limit (set during execution).
+     */
+    public ?int $rateLimitRetryAfter = null;
+
+    /**
      * Create a new job instance.
      *
      * @param  int  $tenantId  The tenant ID
@@ -81,6 +87,19 @@ class SendTelegramNotificationJob implements ShouldQueue
         $this->messageId = $messageId;
         $this->conversationId = $conversationId;
         $this->visitorData = $visitorData;
+    }
+
+    /**
+     * Get the backoff array, using rate limit retry-after if available.
+     */
+    public function backoff(): array
+    {
+        // If we have a rate limit retry-after, use it instead of default backoff
+        if ($this->rateLimitRetryAfter !== null && $this->rateLimitRetryAfter > 0) {
+            return [$this->rateLimitRetryAfter, $this->rateLimitRetryAfter * 2, $this->rateLimitRetryAfter * 4];
+        }
+
+        return $this->backoff;
     }
 
     /**
@@ -106,6 +125,8 @@ class SendTelegramNotificationJob implements ShouldQueue
 
         if ($telegramSetting === null) {
             Log::warning('Skipping Telegram notification: bot setting not found.', [
+                'channel' => 'jobs',
+                'job' => self::class,
                 'tenant_id' => $this->tenantId,
                 'message_id' => $this->messageId,
             ]);
@@ -118,6 +139,8 @@ class SendTelegramNotificationJob implements ShouldQueue
 
         if (blank($token) || blank($chatId)) {
             Log::info('Skipping Telegram notification: bot token or chat_id is not configured.', [
+                'channel' => 'jobs',
+                'job' => self::class,
                 'tenant_id' => $this->tenantId,
                 'has_token' => filled($token),
                 'has_chat_id' => filled($chatId),
@@ -132,6 +155,8 @@ class SendTelegramNotificationJob implements ShouldQueue
 
         if ($message === null) {
             Log::warning('Skipping Telegram notification: message not found.', [
+                'channel' => 'jobs',
+                'job' => self::class,
                 'message_id' => $this->messageId,
             ]);
 
@@ -142,6 +167,8 @@ class SendTelegramNotificationJob implements ShouldQueue
 
         if ($conversation === null) {
             Log::warning('Skipping Telegram notification: conversation not found.', [
+                'channel' => 'jobs',
+                'job' => self::class,
                 'message_id' => $this->messageId,
                 'conversation_id' => $this->conversationId,
             ]);
@@ -153,6 +180,8 @@ class SendTelegramNotificationJob implements ShouldQueue
 
         if ($project === null) {
             Log::warning('Skipping Telegram notification: project not found.', [
+                'channel' => 'jobs',
+                'job' => self::class,
                 'project_id' => $this->projectId,
             ]);
 
@@ -182,6 +211,8 @@ class SendTelegramNotificationJob implements ShouldQueue
         }
 
         Log::info('Delivered Telegram notification with inline keyboard.', [
+            'channel' => 'jobs',
+            'job' => self::class,
             'tenant_id' => $this->tenantId,
             'message_id' => $this->messageId,
             'conversation_id' => $this->conversationId,
@@ -192,16 +223,61 @@ class SendTelegramNotificationJob implements ShouldQueue
     /**
      * Handle a job failure.
      *
-     * Logs the failure but does not re-throw — widget responses
-     * should not be blocked by Telegram delivery issues.
+     * Logs the failure with structured context based on exception type.
      */
     public function failed(\Throwable $exception): void
     {
+        if ($exception instanceof TelegramApiException) {
+            // Non-retryable Telegram API errors
+            if (! $exception->isRetryable) {
+                Log::error('Telegram notification job failed (non-retryable API error).', [
+                    'channel' => 'jobs',
+                    'job' => self::class,
+                    'tenant_id' => $this->tenantId,
+                    'message_id' => $this->messageId,
+                    'conversation_id' => $this->conversationId,
+                    'error' => $exception->getMessage(),
+                    'error_code' => $exception->errorCode,
+                    'error_description' => $exception->errorDescription,
+                    'error_type' => $exception->errorCode,
+                    'is_retryable' => $exception->isRetryable,
+                    'attempts' => $this->attempts(),
+                ]);
+
+                return;
+            }
+
+            // Retryable errors (rate limit, server error)
+            Log::warning('Telegram notification job failed (retryable API error).', [
+                'channel' => 'jobs',
+                'job' => self::class,
+                'tenant_id' => $this->tenantId,
+                'message_id' => $this->messageId,
+                'conversation_id' => $this->conversationId,
+                'error' => $exception->getMessage(),
+                'error_code' => $exception->errorCode,
+                'retry_after_seconds' => $exception->retryAfterSeconds,
+                'is_retryable' => $exception->isRetryable,
+                'attempts' => $this->attempts(),
+            ]);
+
+            // Store rate limit retry-after for next attempt
+            if ($exception->retryAfterSeconds !== null) {
+                $this->rateLimitRetryAfter = $exception->retryAfterSeconds;
+            }
+
+            return;
+        }
+
+        // Generic errors (network, etc.)
         Log::error('Telegram notification job failed.', [
+            'channel' => 'jobs',
+            'job' => self::class,
             'tenant_id' => $this->tenantId,
             'message_id' => $this->messageId,
             'conversation_id' => $this->conversationId,
             'error' => $exception->getMessage(),
+            'error_type' => get_class($exception),
             'attempts' => $this->attempts(),
         ]);
     }

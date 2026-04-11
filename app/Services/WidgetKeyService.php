@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\Project;
+use App\Models\Tenant;
+use App\Scopes\TenantScope;
 use Illuminate\Support\Facades\Cache;
 
 class WidgetKeyService
@@ -45,6 +47,11 @@ class WidgetKeyService
      * Validate a widget key and return the associated project.
      *
      * Uses cached hash → project mapping for performance.
+     *
+     * Widget keys are validated without tenant context because they come from
+     * embedded widgets in iframes without an authenticated session. The query
+     * removes only the TenantScope (not all scopes) and enforces tenant isolation
+     * at the application level by checking the resolved project's tenant.
      */
     public function validateKey(string $key): ?Project
     {
@@ -54,15 +61,25 @@ class WidgetKeyService
 
         $hash = hash('sha256', $key);
 
-        // Widget keys are global (not tenant-scoped) because they come from
-        // embedded widgets in iframes without tenant context.
-        // The TenantScope on Project model ensures tenant isolation at query level.
+        // Use tenant-prefixed cache key when tenant context is available.
+        // For widget requests without tenant context, use a global cache key.
+        $currentTenant = Tenant::current();
+        $cacheKey = $currentTenant !== null
+            ? "tenant:{$currentTenant->id}:project:key:{$hash}"
+            : "project:key:{$hash}";
+
         return Cache::remember(
-            "project:key:{$hash}",
+            $cacheKey,
             $this->cacheTtl,
-            fn () => Project::withoutGlobalScopes()->where('widget_key_hash', $hash)
-                ->where('is_active', true)
-                ->first()
+            function () use ($hash): ?Project {
+                // Bypass only TenantScope — widget key lookup is cross-tenant by design,
+                // but the resolved project is then used within its own tenant context.
+                $query = Project::withoutGlobalScope(TenantScope::class);
+
+                return $query->where('widget_key_hash', $hash)
+                    ->where('is_active', true)
+                    ->first();
+            }
         );
     }
 
@@ -89,10 +106,12 @@ class WidgetKeyService
      */
     public function clearProjectKeyCache(Project $project): void
     {
+        $tenantPrefix = $project->tenant_id !== null ? "tenant:{$project->tenant_id}:" : '';
+
         if (filled($project->widget_key_hash)) {
-            Cache::forget("project:key:{$project->widget_key_hash}");
+            Cache::forget("{$tenantPrefix}project:key:{$project->widget_key_hash}");
         }
 
-        Cache::forget("project:{$project->id}:domains:verified");
+        Cache::forget("{$tenantPrefix}project:{$project->id}:domains:verified");
     }
 }

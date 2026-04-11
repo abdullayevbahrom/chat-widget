@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AdminConversationController;
 use App\Http\Controllers\Api\CspReportController;
+use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\ProjectDomainController;
 use App\Http\Controllers\Api\TelegramWebhookController;
@@ -16,7 +17,7 @@ use App\Http\Middleware\ValidateWidgetKey;
 use Illuminate\Support\Facades\Route;
 
 // Tenant-scoped API routes — require authentication + tenant context
-Route::middleware(['auth:sanctum', 'set.tenant', 'enforce.tenant', ValidateSanctumTenantScope::class])
+Route::middleware(['auth:sanctum', 'set.tenant', 'enforce.tenant', ValidateSanctumTenantScope::class, 'throttle:tenant-api'])
     ->prefix('tenant')
     ->group(function () {
         Route::get('/profile', [TenantProfileController::class, 'show']);
@@ -58,7 +59,7 @@ Route::middleware(['throttle:widget-attachment', 'throttle:widget-message', Vali
     });
 
 // Admin Conversation API — authenticated, tenant-scoped
-Route::middleware(['auth:sanctum', 'set.tenant', 'enforce.tenant', ValidateSanctumTenantScope::class, 'throttle:admin-conversation'])
+Route::middleware(['auth:sanctum', 'set.tenant', 'enforce.tenant', ValidateSanctumTenantScope::class, 'throttle:tenant-api'])
     ->prefix('tenant')
     ->group(function () {
         Route::apiResource('conversations', AdminConversationController::class)->only(['index', 'show']);
@@ -74,3 +75,15 @@ Route::middleware(['auth:sanctum', 'set.tenant', 'enforce.tenant', ValidateSanct
 Route::middleware(['throttle:60,1'])
     ->post('csp-report', [CspReportController::class, 'store'])
     ->name('csp.report.store');
+
+// Widget WebSocket connection endpoint — authenticates via widget key/bootstrap token
+// and returns Reverb connection config without exposing the app_key directly
+Route::middleware(['throttle:widget-config'])
+    ->get('widget/ws/connect', [WidgetMessageController::class, 'wsConnect'])
+    ->name('widget.ws.connect');
+
+// Health Check endpoint — monitoring tool'lar uchun
+// Juda past rate limit (1 req/min) chunki monitoring tool'lar tez-tez so'rashi mumkin
+Route::middleware(['throttle:1,1'])
+    ->get('health', [HealthController::class, 'index'])
+    ->name('api.health');

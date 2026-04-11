@@ -2,11 +2,13 @@
 
 namespace App\Events;
 
+use App\Exceptions\BroadcastFailedException;
 use App\Models\Conversation;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class WidgetTypingIndicator implements ShouldBroadcastNow
@@ -61,5 +63,19 @@ class WidgetTypingIndicator implements ShouldBroadcastNow
             'typing' => $this->isTyping,
             'agent_name' => $this->agentName ? Str::limit($this->agentName, 100) : null,
         ];
+    }
+
+    /**
+     * Handle a broadcast failure.
+     */
+    public function broadcastFailed(\Throwable $exception): void
+    {
+        Log::error('WebSocket broadcast failed', [
+            'channel' => 'websocket',
+            'event' => self::class,
+            'conversation_id' => $this->conversation->id,
+            'error' => $exception->getMessage(),
+            'error_type' => get_class($exception),
+        ]);
     }
 }

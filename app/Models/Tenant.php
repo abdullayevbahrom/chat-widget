@@ -21,11 +21,21 @@ class Tenant extends Model
     protected static ?Tenant $currentTenant = null;
 
     /**
+     * Flag to temporarily bypass tenant scope enforcement.
+     *
+     * When true, TenantScope will not apply the `whereRaw('1 = 0')` fallback
+     * even when no tenant context is set. Use sparingly for intentional
+     * context-free queries (e.g. widget key validation).
+     */
+    protected static bool $bypassTenantContext = false;
+
+    /**
      * Set the current tenant.
      */
     public static function setCurrent(Tenant $tenant): void
     {
         static::$currentTenant = $tenant;
+        static::$bypassTenantContext = false;
     }
 
     /**
@@ -42,6 +52,36 @@ class Tenant extends Model
     public static function clearCurrent(): void
     {
         static::$currentTenant = null;
+        static::$bypassTenantContext = false;
+    }
+
+    /**
+     * Temporarily bypass tenant context enforcement.
+     *
+     * When called, TenantScope will not apply the empty-result fallback,
+     * allowing queries to proceed without a tenant context.
+     *
+     * Use with caution — this disables tenant isolation for the current request lifecycle.
+     */
+    public static function withoutTenantContext(): void
+    {
+        static::$bypassTenantContext = true;
+    }
+
+    /**
+     * Check if tenant context bypass is currently active.
+     */
+    public static function isBypassingContext(): bool
+    {
+        return static::$bypassTenantContext;
+    }
+
+    /**
+     * Re-enable tenant context enforcement after a bypass.
+     */
+    public static function enableTenantContext(): void
+    {
+        static::$bypassTenantContext = false;
     }
 
     /**

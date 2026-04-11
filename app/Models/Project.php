@@ -315,6 +315,8 @@ class Project extends Model
      */
     public function clearVerifiedDomainsCache(): void
     {
-        Cache::forget("project:{$this->id}:domains:verified");
+        $tenantPrefix = $this->tenant_id !== null ? "tenant:{$this->tenant_id}:" : '';
+
+        Cache::forget("{$tenantPrefix}project:{$this->id}:domains:verified");
     }
 }

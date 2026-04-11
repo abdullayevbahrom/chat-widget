@@ -30,7 +30,11 @@ function isTrustedOrigin(string $origin): bool
     ]);
 
     if (empty($trustedOrigins)) {
-        Log::warning('WebSocket auth: no trusted origins configured.');
+        Log::warning('WebSocket auth: no trusted origins configured.', [
+            'channel' => 'websocket',
+            'action' => 'broadcast_auth',
+            'error_type' => 'no_trusted_origins',
+        ]);
 
         return false;
     }
@@ -51,6 +55,9 @@ Broadcast::channel('tenant.{tenantId}.conversations', function (Request $request
 
     if ($origin && ! isTrustedOrigin($origin)) {
         Log::warning('Tenant broadcast auth rejected: untrusted origin.', [
+            'channel' => 'websocket',
+            'action' => 'broadcast_auth',
+            'error_type' => 'untrusted_origin',
             'tenant_id' => $tenantId,
             'origin' => $origin,
         ]);
@@ -63,6 +70,9 @@ Broadcast::channel('tenant.{tenantId}.conversations', function (Request $request
 
     if ($user === null || $user->tenant_id !== $tenantId) {
         Log::warning('Tenant broadcast auth rejected: user not authorized for tenant.', [
+            'channel' => 'websocket',
+            'action' => 'broadcast_auth',
+            'error_type' => 'unauthorized_user',
             'tenant_id' => $tenantId,
             'user_id' => $user?->id,
         ]);
@@ -75,6 +85,9 @@ Broadcast::channel('tenant.{tenantId}.conversations', function (Request $request
 
     if ($currentTenant !== null && $currentTenant->id !== $tenantId) {
         Log::warning('Tenant broadcast auth rejected: tenant context mismatch.', [
+            'channel' => 'websocket',
+            'action' => 'broadcast_auth',
+            'error_type' => 'tenant_context_mismatch',
             'requested_tenant_id' => $tenantId,
             'context_tenant_id' => $currentTenant->id,
         ]);
@@ -96,6 +109,9 @@ Broadcast::channel('widget.conversation.{conversationId}', function (Request $re
 
     if ($origin && ! isTrustedOrigin($origin)) {
         Log::warning('Widget broadcast auth rejected: untrusted origin.', [
+            'channel' => 'websocket',
+            'action' => 'broadcast_auth',
+            'error_type' => 'untrusted_origin',
             'conversation_id' => $conversationId,
             'origin' => $origin,
         ]);
@@ -109,6 +125,9 @@ Broadcast::channel('widget.conversation.{conversationId}', function (Request $re
 
     if (! $bootstrapToken && ! $widgetKey) {
         Log::warning('Widget broadcast auth rejected: no authentication headers.', [
+            'channel' => 'websocket',
+            'action' => 'broadcast_auth',
+            'error_type' => 'missing_auth_headers',
             'conversation_id' => $conversationId,
         ]);
 
@@ -118,6 +137,9 @@ Broadcast::channel('widget.conversation.{conversationId}', function (Request $re
     // visitor_id is mandatory to prevent BOLA (Broken Object Level Authorization)
     if (! $visitorId) {
         Log::warning('Widget broadcast auth rejected: missing visitor_id.', [
+            'channel' => 'websocket',
+            'action' => 'broadcast_auth',
+            'error_type' => 'missing_visitor_id',
             'conversation_id' => $conversationId,
         ]);
 
@@ -129,6 +151,9 @@ Broadcast::channel('widget.conversation.{conversationId}', function (Request $re
 
     if (! $conversation || ! $conversation->project) {
         Log::warning('Widget broadcast auth rejected: conversation or project not found.', [
+            'channel' => 'websocket',
+            'action' => 'broadcast_auth',
+            'error_type' => 'resource_not_found',
             'conversation_id' => $conversationId,
         ]);
 
@@ -137,6 +162,9 @@ Broadcast::channel('widget.conversation.{conversationId}', function (Request $re
 
     if (! $conversation->project->is_active) {
         Log::warning('Widget broadcast auth rejected: project is inactive.', [
+            'channel' => 'websocket',
+            'action' => 'broadcast_auth',
+            'error_type' => 'inactive_project',
             'conversation_id' => $conversationId,
             'project_id' => $conversation->project->id,
         ]);
@@ -147,6 +175,9 @@ Broadcast::channel('widget.conversation.{conversationId}', function (Request $re
     // Verify visitor ID matches the conversation's visitor to prevent ID enumeration
     if ((int) $visitorId !== $conversation->visitor_id) {
         Log::warning('Widget broadcast auth rejected: visitor ID mismatch.', [
+            'channel' => 'websocket',
+            'action' => 'broadcast_auth',
+            'error_type' => 'visitor_id_mismatch',
             'conversation_id' => $conversationId,
             'provided_visitor_id' => $visitorId,
             'conversation_visitor_id' => $conversation->visitor_id,
@@ -163,6 +194,9 @@ Broadcast::channel('widget.conversation.{conversationId}', function (Request $re
 
         if (! $project || $project->id !== $conversation->project->id) {
             Log::warning('Widget broadcast auth rejected: widget key does not match conversation project.', [
+                'channel' => 'websocket',
+                'action' => 'broadcast_auth',
+                'error_type' => 'widget_key_mismatch',
                 'conversation_id' => $conversationId,
                 'expected_project_id' => $conversation->project->id,
             ]);
@@ -179,6 +213,9 @@ Broadcast::channel('widget.conversation.{conversationId}', function (Request $re
 
         if (! $tokenPayload || $tokenPayload['project_id'] !== $conversation->project->id) {
             Log::warning('Widget broadcast auth rejected: bootstrap token invalid or project mismatch.', [
+                'channel' => 'websocket',
+                'action' => 'broadcast_auth',
+                'error_type' => 'bootstrap_token_invalid',
                 'conversation_id' => $conversationId,
                 'expected_project_id' => $conversation->project->id,
             ]);
@@ -189,6 +226,9 @@ Broadcast::channel('widget.conversation.{conversationId}', function (Request $re
         // Additionally verify visitor ID from token if available
         if ($visitorId && isset($tokenPayload['visitor_id']) && (int) $tokenPayload['visitor_id'] !== $visitorId) {
             Log::warning('Widget broadcast auth rejected: visitor ID mismatch with bootstrap token.', [
+                'channel' => 'websocket',
+                'action' => 'broadcast_auth',
+                'error_type' => 'visitor_id_mismatch_token',
                 'conversation_id' => $conversationId,
                 'token_visitor_id' => $tokenPayload['visitor_id'],
                 'provided_visitor_id' => $visitorId,

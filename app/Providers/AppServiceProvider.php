@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use App\Listeners\ActivateTenantOnEmailVerified;
+use App\Listeners\LogWebSocketConnection;
+use App\Listeners\SendFailedJobNotification;
 use App\Models\Conversation;
 use App\Models\Project;
 use App\Models\ProjectDomain;
@@ -18,6 +20,7 @@ use App\Policies\TenantPolicy;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
@@ -50,6 +53,15 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(
             Verified::class,
             ActivateTenantOnEmailVerified::class,
+        );
+
+        // WebSocket connection logging
+        Event::subscribe(LogWebSocketConnection::class);
+
+        // Failed job notification
+        Event::listen(
+            JobFailed::class,
+            SendFailedJobNotification::class,
         );
 
         // Explicit API rate limit configuration

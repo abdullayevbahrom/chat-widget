@@ -5,6 +5,7 @@ use App\Http\Middleware\CheckTenantDomainWhitelist;
 use App\Http\Middleware\EnforceTenantContext;
 use App\Http\Middleware\ResetTenantContext;
 use App\Http\Middleware\ResolveTenantFromDomain;
+use App\Http\Middleware\SetRequestId;
 use App\Http\Middleware\SetTenantContext;
 use App\Http\Middleware\TrackVisitors;
 use Illuminate\Foundation\Application;
@@ -82,9 +83,11 @@ return Application::configure(basePath: dirname(__DIR__))
         // Security headers on all responses (web + API)
         $middleware->web(append: [
             AddSecurityHeaders::class,
+            SetRequestId::class,
         ]);
         $middleware->api(append: [
             AddSecurityHeaders::class,
+            SetRequestId::class,
         ]);
 
         // CORS middleware for API routes — configured via config/cors.php

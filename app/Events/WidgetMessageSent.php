@@ -2,6 +2,7 @@
 
 namespace App\Events;
 
+use App\Exceptions\BroadcastFailedException;
 use App\Models\Conversation;
 use App\Models\Message;
 use Illuminate\Broadcasting\Channel;
@@ -9,6 +10,7 @@ use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
 
 class WidgetMessageSent implements ShouldBroadcastNow
 {
@@ -107,5 +109,20 @@ class WidgetMessageSent implements ShouldBroadcastNow
         }
 
         return $body;
+    }
+
+    /**
+     * Handle a broadcast failure.
+     */
+    public function broadcastFailed(\Throwable $exception): void
+    {
+        Log::error('WebSocket broadcast failed', [
+            'channel' => 'websocket',
+            'event' => self::class,
+            'conversation_id' => $this->conversation->id,
+            'message_id' => $this->message->id,
+            'error' => $exception->getMessage(),
+            'error_type' => get_class($exception),
+        ]);
     }
 }

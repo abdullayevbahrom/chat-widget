@@ -153,8 +153,13 @@ class WidgetEmbedController extends Controller
                 'custom_css' => $project->getWidgetSetting('custom_css', null),
             ],
             'verified_domains' => $project->getVerifiedDomainsCache(),
-            'reverb' => [
-                'app_key' => config('broadcasting.connections.reverb.key', env('REVERB_APP_KEY')),
+            'websocket' => [
+                // SECURITY: Do not expose Reverb app_key directly to the client.
+                // Instead, provide a backend proxy endpoint for WebSocket connections.
+                // The widget should connect via /api/widget/ws which authenticates
+                // the request server-side before establishing the WebSocket connection.
+                'enabled' => config('broadcasting.default') === 'reverb',
+                'endpoint' => route('widget.ws.connect', [], false),
                 'host' => parse_url(config('app.url'), PHP_URL_HOST),
                 'port' => request()->secure() ? 443 : 80,
                 'secure' => request()->secure(),

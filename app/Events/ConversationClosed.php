@@ -2,11 +2,13 @@
 
 namespace App\Events;
 
+use App\Exceptions\BroadcastFailedException;
 use App\Models\Conversation;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
 
 class ConversationClosed implements ShouldBroadcastNow
 {
@@ -54,5 +56,19 @@ class ConversationClosed implements ShouldBroadcastNow
                 'closed_at' => $this->conversation->closed_at?->toISOString(),
             ],
         ];
+    }
+
+    /**
+     * Handle a broadcast failure.
+     */
+    public function broadcastFailed(\Throwable $exception): void
+    {
+        Log::error('WebSocket broadcast failed', [
+            'channel' => 'websocket',
+            'event' => self::class,
+            'conversation_id' => $this->conversation->id,
+            'error' => $exception->getMessage(),
+            'error_type' => get_class($exception),
+        ]);
     }
 }

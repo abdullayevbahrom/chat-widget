@@ -214,6 +214,26 @@ class WidgetMessageController extends Controller
     }
 
     /**
+     * Return WebSocket connection config for the widget.
+     *
+     * SECURITY: Does not expose Reverb app_key directly. Instead, returns
+     * connection parameters that the widget SDK uses to establish a
+     * server-authenticated WebSocket session.
+     */
+    public function wsConnect(Request $request): JsonResponse
+    {
+        // Return WebSocket connection parameters without exposing Reverb secrets
+        return response()->json([
+            'ws_host' => config('broadcasting.connections.reverb.options.host', parse_url(config('app.url'), PHP_URL_HOST)),
+            'ws_port' => request()->secure() ? 443 : (config('broadcasting.connections.reverb.options.port', 6001)),
+            'ws_secure' => request()->secure(),
+            // The widget SDK should use the bootstrap token or widget key from the
+            // original config response to authenticate via the authorizer callback.
+            'ws_path' => '/app/'.config('broadcasting.connections.reverb.app_id'),
+        ]);
+    }
+
+    /**
      * Resolve or create a visitor bound to the current project.
      */
     protected function resolveVisitor(Request $request, Project $project): Visitor

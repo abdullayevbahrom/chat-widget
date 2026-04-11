@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Tenant;
 use Closure;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use LogicException;
 
 /**
@@ -12,9 +13,20 @@ use LogicException;
  *
  * Prevents cross-tenant cache pollution by automatically
  * prefixing all cache keys with the current tenant ID.
+ *
+ * For non-tag-aware cache drivers, tracks all keys written
+ * so that flush() can clean up only tenant-specific keys
+ * without performing a full cache flush.
  */
 class TenantCacheService
 {
+    /**
+     * In-memory registry of keys written by this service instance.
+     *
+     * @var array<string, array<int, string>>
+     */
+    protected array $trackedKeys = [];
+
     /**
      * Get a tenant-prefixed cache key.
      *
@@ -39,7 +51,10 @@ class TenantCacheService
      */
     public function put(string $baseKey, $value, $ttl = null): bool
     {
-        return Cache::put($this->key($baseKey), $value, $ttl);
+        $key = $this->key($baseKey);
+        $this->trackKey($key);
+
+        return Cache::put($key, $value, $ttl);
     }
 
     /**
@@ -60,7 +75,10 @@ class TenantCacheService
      */
     public function remember(string $baseKey, $ttl, Closure $callback): mixed
     {
-        return Cache::remember($this->key($baseKey), $ttl, $callback);
+        $key = $this->key($baseKey);
+        $this->trackKey($key);
+
+        return Cache::remember($key, $ttl, $callback);
     }
 
     /**
@@ -70,7 +88,10 @@ class TenantCacheService
      */
     public function rememberForever(string $baseKey, Closure $callback): mixed
     {
-        return Cache::rememberForever($this->key($baseKey), $callback);
+        $key = $this->key($baseKey);
+        $this->trackKey($key);
+
+        return Cache::rememberForever($key, $callback);
     }
 
     /**
@@ -84,8 +105,9 @@ class TenantCacheService
     /**
      * Clear all cache items for the current tenant.
      *
-     * Note: This only works with cache drivers that support tags.
-     * For other drivers, you need to track keys manually.
+     * For tag-aware drivers, uses Cache::tags()->flush().
+     * For non-tag-aware drivers, deletes all tracked keys individually.
+     * If no keys were tracked, logs a warning instead of performing a full flush.
      */
     public function flush(): bool
     {
@@ -99,14 +121,37 @@ class TenantCacheService
             return Cache::tags("tenant:{$tenant->id}")->flush();
         }
 
-        // For non-tag-aware drivers, we can only flush the entire cache
-        // or rely on TTL expiration. Log a warning.
-        \Illuminate\Support\Facades\Log::warning(
-            'TenantCacheService::flush() called on non-tag-aware cache driver. Full cache flush performed.',
-            ['tenant_id' => $tenant->id]
-        );
+        // For non-tag-aware drivers, delete tracked keys individually.
+        $tenantPrefix = "tenant:{$tenant->id}:";
+        $keysToDelete = $this->trackedKeys[$tenant->id] ?? [];
 
-        return Cache::flush();
+        if (empty($keysToDelete)) {
+            Log::warning(
+                'TenantCacheService::flush() called on non-tag-aware cache driver with no tracked keys. Tenant keys were not cleaned up.',
+                ['tenant_id' => $tenant->id]
+            );
+
+            return false;
+        }
+
+        $deletedCount = 0;
+
+        foreach ($keysToDelete as $key) {
+            if (str_starts_with($key, $tenantPrefix)) {
+                Cache::forget($key);
+                $deletedCount++;
+            }
+        }
+
+        // Clear tracked keys for this tenant
+        unset($this->trackedKeys[$tenant->id]);
+
+        Log::info('Tenant cache flushed for non-tag-aware driver.', [
+            'tenant_id' => $tenant->id,
+            'keys_deleted' => $deletedCount,
+        ]);
+
+        return true;
     }
 
     /**
@@ -128,5 +173,21 @@ class TenantCacheService
         $allTags = array_merge(["tenant:{$tenant->id}"], $tags);
 
         return Cache::tags($allTags);
+    }
+
+    /**
+     * Track a cache key for later cleanup.
+     */
+    protected function trackKey(string $key): void
+    {
+        $tenant = Tenant::current();
+
+        if ($tenant !== null) {
+            if (! isset($this->trackedKeys[$tenant->id])) {
+                $this->trackedKeys[$tenant->id] = [];
+            }
+
+            $this->trackedKeys[$tenant->id][] = $key;
+        }
     }
 }
