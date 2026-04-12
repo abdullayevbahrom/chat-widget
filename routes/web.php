@@ -8,9 +8,7 @@ use App\Http\Controllers\Auth\TenantAuthController;
 use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProjectController;
-use App\Http\Controllers\TelegramBotController;
 use App\Http\Controllers\TenantDomainController;
-use App\Http\Controllers\TenantProfileController;
 use App\Http\Controllers\WidgetEmbedController;
 use App\Http\Middleware\EnsureVerifiedWidgetDomain;
 use App\Http\Middleware\TrackVisitors;
@@ -30,12 +28,14 @@ Route::get('/', function () {
 // ==========================================
 // Unified Auth Routes (single login page for all roles)
 // ==========================================
-Route::get('/auth/login', [TenantAuthController::class, 'showLoginForm'])->name('login');
-Route::post('/auth/login', [TenantAuthController::class, 'login']);
-
-Route::middleware(['auth:tenant_user'])->group(function () {
+Route::middleware(['web'])->group(function () {
+    Route::get('/auth/login', [TenantAuthController::class, 'showLoginForm'])->name('login');
+    Route::post('/auth/login', [TenantAuthController::class, 'login']);
     Route::get('/auth/register', [TenantAuthController::class, 'showRegistrationForm'])->name('register');
     Route::post('/auth/register', [TenantAuthController::class, 'register']);
+});
+
+Route::middleware(['auth:tenant_user'])->group(function () {
     Route::post('/auth/logout', [TenantAuthController::class, 'logout'])->name('logout');
 });
 
@@ -56,16 +56,6 @@ Route::middleware(['web', 'reset.tenant', 'auth:tenant_user', 'set.tenant'])->pr
         ->names('domains');
     Route::post('/tenant-domains/{domain}/verify', [TenantDomainController::class, 'verify'])->name('domains.verify');
     Route::post('/tenant-domains/{domain}/reverify', [TenantDomainController::class, 'reverify'])->name('domains.reverify');
-
-    // Tenant Profile
-    Route::get('/tenant-profile', [TenantProfileController::class, 'index'])->name('profile');
-    Route::put('/tenant-profile', [TenantProfileController::class, 'update'])->name('profile.update');
-
-    // Telegram Bot Settings
-    Route::get('/telegram-bot-settings', [TelegramBotController::class, 'index'])->name('telegram');
-    Route::put('/telegram-bot-settings', [TelegramBotController::class, 'update'])->name('telegram.update');
-    Route::post('/telegram-bot-settings/test-message', [TelegramBotController::class, 'testMessage'])->name('telegram.test-message');
-    Route::delete('/telegram-bot-settings/delete-webhook', [TelegramBotController::class, 'deleteWebhook'])->name('telegram.delete-webhook');
 
     // Conversations
     Route::get('/conversations', [ConversationController::class, 'index'])->name('conversations.index');
