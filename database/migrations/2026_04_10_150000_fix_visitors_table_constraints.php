@@ -248,7 +248,7 @@ return new class extends Migration
     protected function sqliteHasIndex(string $table, string $indexName): bool
     {
         // Whitelist of known table names to prevent SQL injection via PRAGMA
-        $allowedTables = ['visitors', 'projects', 'conversations', 'messages', 'project_domains'];
+        $allowedTables = ['visitors', 'projects', 'conversations', 'messages'];
 
         if (! in_array($table, $allowedTables, true)) {
             return false;

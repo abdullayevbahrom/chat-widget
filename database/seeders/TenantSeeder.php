@@ -3,7 +3,6 @@
 namespace Database\Seeders;
 
 use App\Models\Tenant;
-use App\Models\TenantDomain;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -23,8 +22,6 @@ class TenantSeeder extends Seeder
             [
                 'name' => 'Acme Corporation',
                 'slug' => 'acme',
-                'domain' => 'acme.example.com',
-                'subdomain' => 'acme',
                 'is_active' => true,
                 'plan' => 'enterprise',
                 'subscription_expires_at' => now()->addYear(),
@@ -44,8 +41,6 @@ class TenantSeeder extends Seeder
             [
                 'name' => 'Startup Labs',
                 'slug' => 'startup-labs',
-                'domain' => null,
-                'subdomain' => 'startup-labs',
                 'is_active' => true,
                 'plan' => 'pro',
                 'subscription_expires_at' => now()->addMonths(6),
@@ -65,8 +60,6 @@ class TenantSeeder extends Seeder
             [
                 'name' => 'Small Biz Co',
                 'slug' => 'small-biz',
-                'domain' => null,
-                'subdomain' => 'small-biz',
                 'is_active' => true,
                 'plan' => 'basic',
                 'subscription_expires_at' => now()->addMonths(3),
@@ -86,8 +79,6 @@ class TenantSeeder extends Seeder
             [
                 'name' => 'Free Trial User',
                 'slug' => 'free-trial',
-                'domain' => null,
-                'subdomain' => 'free-trial',
                 'is_active' => true,
                 'plan' => 'free',
                 'subscription_expires_at' => null,
@@ -107,8 +98,6 @@ class TenantSeeder extends Seeder
             [
                 'name' => 'Expired Tenant',
                 'slug' => 'expired',
-                'domain' => null,
-                'subdomain' => 'expired',
                 'is_active' => false,
                 'plan' => 'basic',
                 'subscription_expires_at' => now()->subMonths(2),
@@ -133,40 +122,6 @@ class TenantSeeder extends Seeder
                 ['slug' => $slug],
                 $tenantData
             );
-
-            // Create domains for this tenant
-            $domains = [];
-
-            if ($tenantData['domain'] !== null) {
-                $domains[] = [
-                    'domain' => $tenantData['domain'],
-                    'is_active' => true,
-                    'notes' => 'Primary custom domain',
-                ];
-            }
-
-            // Add a subdomain-based domain entry
-            $domains[] = [
-                'domain' => "{$slug}.widget.test",
-                'is_active' => $tenant->is_active,
-                'notes' => 'Subdomain routing',
-            ];
-
-            // Add a secondary domain for enterprise
-            if ($tenantData['plan'] === 'enterprise') {
-                $domains[] = [
-                    'domain' => "app.{$slug}.example.com",
-                    'is_active' => true,
-                    'notes' => 'Application subdomain',
-                ];
-            }
-
-            foreach ($domains as $domainData) {
-                TenantDomain::firstOrCreate(
-                    ['domain' => $domainData['domain']],
-                    array_merge($domainData, ['tenant_id' => $tenant->id])
-                );
-            }
 
             // Create users for this tenant
             $tenantAdminEmail = "admin@{$slug}.test";

@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Middleware\CheckTenantDomainWhitelist;
 use App\Http\Middleware\EnforceTenantContext;
 use App\Http\Middleware\ResetTenantContext;
 use App\Http\Middleware\ResolveTenantFromDomain;
@@ -30,7 +29,6 @@ return Application::configure(basePath: dirname(__DIR__))
             'resolve.tenant' => ResolveTenantFromDomain::class,
             'set.tenant' => SetTenantContext::class,
             'enforce.tenant' => EnforceTenantContext::class,
-            'check.tenant.domain' => CheckTenantDomainWhitelist::class,
             'widget.domain' => \App\Http\Middleware\ValidateWidgetDomain::class,
         ]);
 

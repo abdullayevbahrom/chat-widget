@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\ProjectDomain;
 use App\Models\Project;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
@@ -106,7 +105,27 @@ class WidgetBootstrapService
 
     public function normalizeOrigin(?string $candidate): ?string
     {
-        return ProjectDomain::normalizeDomainInput($candidate);
+        if (! is_string($candidate) || trim($candidate) === '') {
+            return null;
+        }
+
+        $candidate = trim($candidate);
+        $parts = parse_url($candidate);
+
+        if ($parts !== false && isset($parts['host'])) {
+            $scheme = isset($parts['scheme']) && in_array(strtolower($parts['scheme']), ['http', 'https'], true)
+                ? strtolower($parts['scheme'])
+                : 'https';
+            $host = strtolower($parts['host']);
+
+            return $scheme.'://'.$host;
+        }
+
+        if (preg_match('/^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/i', $candidate) !== 1) {
+            return null;
+        }
+
+        return 'https://'.strtolower($candidate);
     }
 
     public function requestMatchesTrustedOrigin(Request $request, string $trustedOrigin): bool

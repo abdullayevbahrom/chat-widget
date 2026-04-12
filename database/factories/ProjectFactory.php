@@ -28,7 +28,7 @@ class ProjectFactory extends Factory
             'name' => $name,
             'slug' => Str::slug($name),
             'description' => fake()->optional()->sentence(),
-            'primary_domain' => fake()->optional()->domainName(),
+            'domain' => fake()->optional()->domainName(),
             'settings' => [
                 'widget' => [
                     'theme' => 'dark',

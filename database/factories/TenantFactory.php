@@ -22,8 +22,6 @@ class TenantFactory extends Factory
         return [
             'name' => $name,
             'slug' => fake()->unique()->slug(),
-            'domain' => null,
-            'subdomain' => fake()->unique()->slug(),
             'is_active' => true,
             'plan' => fake()->randomElement(['free', 'basic', 'pro', 'enterprise']),
             'subscription_expires_at' => fake()->optional()->dateTimeBetween('now', '+2 years'),

@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\Api\AdminConversationController;
-use App\Http\Controllers\Api\CspReportController;
 use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\TelegramWebhookController;
@@ -75,12 +74,6 @@ Route::middleware(['auth:sanctum', 'set.tenant', 'enforce.tenant', ValidateSanct
         Route::post('conversations/{conversation}/assign', [AdminConversationController::class, 'assign'])->name('tenant.conversations.assign');
         Route::get('conversations/unread-count', [AdminConversationController::class, 'unreadCount'])->name('tenant.conversations.unread-count');
     });
-
-// CSP Violation Report endpoint — accepts reports from browsers when CSP policies are violated
-// Rate limited to prevent abuse; no authentication needed (reports come from browsers)
-Route::middleware(['throttle:60,1'])
-    ->post('csp-report', [CspReportController::class, 'store'])
-    ->name('csp.report.store');
 
 // Widget WebSocket connection endpoint — domain validated
 Route::middleware(['throttle:widget-config', ValidateWidgetDomain::class, ValidateCorsOrigins::class])

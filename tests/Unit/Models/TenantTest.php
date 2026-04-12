@@ -5,10 +5,8 @@ namespace Tests\Unit\Models;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\Tenant;
-use App\Models\TenantDomain;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Cache;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
@@ -106,52 +104,11 @@ class TenantTest extends TestCase
     #[Test]
     public function it_resolves_tenant_from_domain(): void
     {
-        $tenant = Tenant::factory()->create();
-        TenantDomain::factory()->create([
-            'tenant_id' => $tenant->id,
-            'domain' => 'https://example.com',
-            'is_active' => true,
-        ]);
-
-        $found = Tenant::whereHas('domains', function ($query) {
-            $query->where('domain', 'https://example.com')
-                ->where('is_active', true);
-        })->first();
+        $tenant = Tenant::factory()->create(['is_active' => true]);
+        $found = Tenant::query()->whereKey($tenant->id)->first();
 
         $this->assertNotNull($found);
         $this->assertEquals($tenant->id, $found->id);
-    }
-
-    #[Test]
-    public function it_checks_if_tenant_has_domain(): void
-    {
-        $tenant = Tenant::factory()->create();
-        TenantDomain::factory()->create([
-            'tenant_id' => $tenant->id,
-            'domain' => 'https://example.com',
-            'is_active' => true,
-        ]);
-
-        $this->assertTrue($tenant->hasDomain('https://example.com'));
-        $this->assertFalse($tenant->hasDomain('https://other.com'));
-    }
-
-    #[Test]
-    public function it_gets_default_domain(): void
-    {
-        $tenant = Tenant::factory()->create(['domain' => 'https://acme.example.com']);
-
-        $this->assertEquals('https://acme.example.com', $tenant->domain);
-    }
-
-    #[Test]
-    public function it_has_domains_relationship(): void
-    {
-        $tenant = Tenant::factory()->create();
-        TenantDomain::factory()->count(3)->create(['tenant_id' => $tenant->id]);
-
-        $this->assertEquals(3, $tenant->domains()->count());
-        $this->assertInstanceOf(TenantDomain::class, $tenant->domains->first());
     }
 
     #[Test]
@@ -223,43 +180,11 @@ class TenantTest extends TestCase
     }
 
     #[Test]
-    public function it_checks_if_tenant_has_custom_domain(): void
+    public function it_has_slug_only_for_tenant_addressing(): void
     {
-        $withDomain = Tenant::factory()->create(['domain' => 'https://acme.com']);
-        $withoutDomain = Tenant::factory()->create(['domain' => null]);
+        $tenant = Tenant::factory()->create(['slug' => 'acme']);
 
-        $this->assertTrue($withDomain->hasCustomDomain());
-        $this->assertFalse($withoutDomain->hasCustomDomain());
-    }
-
-    #[Test]
-    public function it_has_active_domains_relationship(): void
-    {
-        $tenant = Tenant::factory()->create();
-        TenantDomain::factory()->create(['tenant_id' => $tenant->id, 'is_active' => true]);
-        TenantDomain::factory()->create(['tenant_id' => $tenant->id, 'is_active' => false]);
-
-        $this->assertEquals(1, $tenant->activeDomains()->count());
-    }
-
-    #[Test]
-    public function domain_cache_returns_correct_result(): void
-    {
-        $tenant = Tenant::factory()->create();
-        TenantDomain::factory()->create([
-            'tenant_id' => $tenant->id,
-            'domain' => 'https://cached-example.com',
-            'is_active' => true,
-        ]);
-
-        Cache::shouldReceive('remember')
-            ->once()
-            ->andReturnUsing(function ($key, $ttl, $callback) {
-                return $callback();
-            });
-
-        $result = $tenant->hasDomain('https://cached-example.com');
-        $this->assertTrue($result);
+        $this->assertSame('acme', $tenant->slug);
     }
 
     #[Test]

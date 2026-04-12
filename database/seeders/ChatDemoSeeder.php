@@ -5,7 +5,6 @@ namespace Database\Seeders;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\Project;
-use App\Models\ProjectDomain;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\Visitor;
@@ -16,7 +15,7 @@ use Illuminate\Database\Seeder;
  *
  * Yaratiladigan ma'lumotlar:
  * - 1 ta Tenant
- * - 2 ta Project (widget key + verified domain bilan)
+ * - 2 ta Project (widget key + domain bilan)
  * - 5 ta Visitor (2 ta authenticated)
  * - 10 ta Conversation (turli status va source lar)
  * - 50 ta Message (turli sender, direction, message_type lar)
@@ -36,7 +35,6 @@ class ChatDemoSeeder extends Seeder
         $tenant = Tenant::create([
             'name' => 'Demo Chat Company',
             'slug' => 'demo-chat',
-            'subdomain' => 'demo-chat',
             'is_active' => true,
             'plan' => 'pro',
             'subscription_expires_at' => now()->addYear(),
@@ -47,15 +45,8 @@ class ChatDemoSeeder extends Seeder
             'tenant_id' => $tenant->id,
             'name' => 'Demo Website Widget',
             'slug' => 'demo-website',
-            'description' => 'Main website support widget',
-            'is_active' => true,
-        ]);
-
-        ProjectDomain::create([
-            'tenant_id' => $tenant->id,
-            'project_id' => $projectA->id,
             'domain' => 'demo-chat.example.com',
-            'verification_status' => ProjectDomain::STATUS_VERIFIED,
+            'description' => 'Main website support widget',
             'is_active' => true,
         ]);
 
@@ -63,15 +54,8 @@ class ChatDemoSeeder extends Seeder
             'tenant_id' => $tenant->id,
             'name' => 'Demo Telegram Bot',
             'slug' => 'demo-telegram',
+            'domain' => 'demo-telegram.example.com',
             'description' => 'Telegram integration project',
-            'is_active' => true,
-        ]);
-
-        ProjectDomain::create([
-            'tenant_id' => $tenant->id,
-            'project_id' => $projectB->id,
-            'domain' => 't.me/demo_chat_bot',
-            'verification_status' => ProjectDomain::STATUS_VERIFIED,
             'is_active' => true,
         ]);
 

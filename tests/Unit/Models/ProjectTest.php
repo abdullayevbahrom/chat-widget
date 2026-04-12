@@ -5,7 +5,6 @@ namespace Tests\Unit\Models;
 use App\Models\Project;
 use App\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Cache;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
@@ -84,13 +83,15 @@ class ProjectTest extends TestCase
     }
 
     #[Test]
-    public function it_has_domains_relationship(): void
+    public function it_stores_project_domain(): void
     {
         $tenant = Tenant::factory()->create();
-        $project = Project::factory()->create(['tenant_id' => $tenant->id]);
-        \App\Models\ProjectDomain::factory()->count(3)->create(['project_id' => $project->id]);
+        $project = Project::factory()->create([
+            'tenant_id' => $tenant->id,
+            'domain' => 'example.com',
+        ]);
 
-        $this->assertEquals(3, $project->domains()->count());
+        $this->assertSame('example.com', $project->domain);
     }
 
     #[Test]
@@ -164,28 +165,6 @@ class ProjectTest extends TestCase
     }
 
     #[Test]
-    public function it_has_verified_domains(): void
-    {
-        $tenant = Tenant::factory()->create();
-        $project = Project::factory()->create(['tenant_id' => $tenant->id]);
-        \App\Models\ProjectDomain::factory()->create([
-            'project_id' => $project->id,
-            'domain' => 'https://verified.com',
-            'verification_status' => 'verified',
-            'is_active' => true,
-        ]);
-        \App\Models\ProjectDomain::factory()->create([
-            'project_id' => $project->id,
-            'domain' => 'https://pending.com',
-            'verification_status' => 'pending',
-            'is_active' => true,
-        ]);
-
-        $this->assertTrue($project->hasVerifiedDomain());
-        $this->assertEquals(1, $project->verifiedDomains()->count());
-    }
-
-    #[Test]
     public function it_has_active_conversations(): void
     {
         $tenant = Tenant::factory()->create();
@@ -200,17 +179,6 @@ class ProjectTest extends TestCase
         ]);
 
         $this->assertTrue($project->hasActiveConversations());
-    }
-
-    #[Test]
-    public function it_clears_verified_domains_cache(): void
-    {
-        $tenant = Tenant::factory()->create();
-        $project = Project::factory()->create(['tenant_id' => $tenant->id]);
-
-        Cache::shouldReceive('forget')->once();
-
-        $project->clearVerifiedDomainsCache();
     }
 
     #[Test]

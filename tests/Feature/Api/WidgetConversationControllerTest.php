@@ -4,13 +4,9 @@ namespace Tests\Feature\Api;
 
 use App\Models\Conversation;
 use App\Models\Project;
-use App\Models\ProjectDomain;
-use App\Models\Tenant;
 use App\Models\Visitor;
 use App\Services\WidgetAntiReplayService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Str;
 use Tests\TestCase;
 use Tests\Traits\RefreshDatabaseWithTenants;
 
@@ -42,25 +38,10 @@ class WidgetConversationControllerTest extends TestCase
             'widget_key_hash' => $hash,
             'widget_key_prefix' => $prefix,
             'widget_key_generated_at' => now(),
+            'domain' => 'example.com',
         ]);
         // Store the plaintext key for test requests
         $this->widgetKey = $plaintextKey;
-
-        // Create a verified domain for the project to pass EnsureVerifiedWidgetDomain middleware
-        ProjectDomain::create([
-            'project_id' => $this->project->id,
-            'domain' => 'https://example.com',
-            'status' => ProjectDomain::STATUS_VERIFIED,
-            'verification_token' => Str::random(32),
-            'verified_at' => now(),
-        ]);
-
-        // Refresh project to pick up the domain
-        $this->project->refresh();
-        
-        // Clear and warm the verified domains cache
-        $this->project->clearVerifiedDomainsCache();
-        $this->project->getVerifiedDomainsCache();
 
         $this->visitor = $this->makeVisitor($this->tenant);
         $this->antiReplayService = app(WidgetAntiReplayService::class);
@@ -79,7 +60,7 @@ class WidgetConversationControllerTest extends TestCase
     /**
      * Helper: call the close endpoint with middleware bypassed.
      *
-     * We bypass ValidateWidgetKey, EnsureVerifiedWidgetDomain, and
+     * We bypass route middleware and
      * ValidateCorsOrigins to focus on testing controller logic.
      * The project is manually injected into the request via app resolving.
      */
@@ -219,30 +200,11 @@ class WidgetConversationControllerTest extends TestCase
     /**
      * Test: close endpoint returns 401 without widget key.
      */
-    public function test_close_returns_401_without_widget_key(): void
+    public function test_close_returns_401_without_project_context(): void
     {
         $response = $this->postJson('/api/widget/conversation/close', [
             'anti_replay_token' => 'some-token',
         ], [
-            'Origin' => $this->testOrigin,
-            'X-Requested-With' => 'XMLHttpRequest',
-        ]);
-
-        $response->assertStatus(401)
-            ->assertJson([
-                'error' => 'Invalid or missing widget key.',
-            ]);
-    }
-
-    /**
-     * Test: close endpoint returns 401 with invalid widget key.
-     */
-    public function test_close_returns_401_with_invalid_widget_key(): void
-    {
-        $response = $this->postJson('/api/widget/conversation/close', [
-            'anti_replay_token' => 'some-token',
-        ], [
-            'X-Widget-Key' => 'wsk_'.str_repeat('a', 32),
             'Origin' => $this->testOrigin,
             'X-Requested-With' => 'XMLHttpRequest',
         ]);

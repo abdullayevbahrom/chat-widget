@@ -23,7 +23,7 @@ class ProjectController extends Controller
     {
         $user = $request->user();
 
-        $query = Project::query()->withCount('domains');
+        $query = Project::query();
 
         if ($user->isSuperAdmin()) {
             // Super admins can see all projects
@@ -118,9 +118,6 @@ class ProjectController extends Controller
         if (! $user->isSuperAdmin() && $user->tenant_id !== $project->tenant_id) {
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
-
-        $project->loadCount('domains');
-        $project->load('domains');
 
         return response()->json(['data' => $project]);
     }

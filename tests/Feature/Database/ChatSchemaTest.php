@@ -23,7 +23,7 @@ class ChatSchemaTest extends TestCase
     /** @test */
     public function test_all_chat_tables_exist(): void
     {
-        $tables = ['projects', 'project_domains', 'visitors', 'conversations', 'messages'];
+        $tables = ['projects', 'visitors', 'conversations', 'messages'];
 
         foreach ($tables as $table) {
             $this->assertTrue(
