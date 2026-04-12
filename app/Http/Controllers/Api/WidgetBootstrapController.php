@@ -141,8 +141,9 @@ class WidgetBootstrapController extends Controller
                     'app_key' => config('broadcasting.connections.reverb.key'),
                     'channel' => 'private-conversation.'.$conversation->id,
                     'endpoint' => route('widget.ws.connect', [], false),
-                    'host' => config('broadcasting.connections.reverb.options.host', parse_url(config('app.url'), PHP_URL_HOST)),
-                    'port' => request()->secure() ? 443 : (config('broadcasting.connections.reverb.options.port', 6001)),
+                    'host' => env('REVERB_PUBLIC_HOST', config('broadcasting.connections.reverb.options.host', parse_url(config('app.url'), PHP_URL_HOST))),
+                    'port' => env('REVERB_PUBLIC_PORT', request()->secure() ? 443 : (config('broadcasting.connections.reverb.options.port', 6001))),
+                    'use_path' => env('REVERB_USE_PROXY', false) ? '/reverb' : null,
                 ],
             ]);
         } finally {

@@ -53,7 +53,7 @@ class ProjectController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $user = Auth::guard('tenant_user')->user();
-        $tenantId = $user?->tenant_id;
+        $tenantId = $user?->tenant->id;
 
         if (!$tenantId) {
             return redirect()->route('login')->withErrors(['auth' => 'You must be logged in.']);

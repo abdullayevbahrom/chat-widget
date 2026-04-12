@@ -640,13 +640,20 @@
 
   function initPusher(config) {
     try {
+      // If using nginx proxy path, set host to current origin
+      const usePath = config.use_path || null;
+      const wsHost = usePath ? window.location.hostname : (config.host || '127.0.0.1');
+      const wsPort = usePath ? (window.location.protocol === 'https:' ? 443 : 80) : (config.port || 6001);
+      const wsPath = usePath || '/app';
+
       const pusher = new Pusher(config.app_key || 'app-key', {
-        wsHost: config.host,
-        wsPort: config.port || 6001,
-        wssPort: config.port || 443,
+        wsHost: wsHost,
+        wsPort: wsPort,
+        wssPort: wsPort,
         forceTLS: window.location.protocol === 'https:',
         disableStats: true,
         enabledTransports: ['ws', 'wss'],
+        path: wsPath,
         authEndpoint: `${API_BASE}/api/widget/ws/auth`,
         auth: {
           headers: {

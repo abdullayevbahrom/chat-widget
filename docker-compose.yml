@@ -73,7 +73,8 @@ services:
     restart: unless-stopped
     working_dir: /var/www/html
     volumes:
-      - .:/var/www/html:ro
+      - .:/var/www/html:rw
+      - ./.env:/var/www/html/.env
     command: php artisan reverb:start --host=0.0.0.0 --port=6001
     ports:
       - "127.0.0.1:6001:6001"
