@@ -12,7 +12,8 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Middleware\HandleCors;
-use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Request;
+
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -79,11 +80,11 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Security headers on all responses (web + API)
         $middleware->web(append: [
-            AddSecurityHeaders::class,
+            // AddSecurityHeaders::class,
             SetRequestId::class,
         ]);
         $middleware->api(append: [
-            AddSecurityHeaders::class,
+            // AddSecurityHeaders::class,
             SetRequestId::class,
         ]);
 
