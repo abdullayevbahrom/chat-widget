@@ -14,7 +14,8 @@ class ProjectController extends Controller
 {
     public function __construct(
         protected WidgetKeyService $widgetKeyService,
-    ) {}
+    ) {
+    }
 
     /**
      * Display a listing of the tenant's projects.
@@ -28,10 +29,10 @@ class ProjectController extends Controller
         if ($user->isSuperAdmin()) {
             // Super admins can see all projects
         } else {
-            if ($user->tenant_id === null) {
+            if ($user->tenant->id === null) {
                 return response()->json(['data' => []]);
             }
-            $query->where('tenant_id', $user->tenant_id);
+            $query->where('tenant_id', $user->tenant->id);
         }
 
         $projects = $query->latest()->paginate();
@@ -57,7 +58,7 @@ class ProjectController extends Controller
 
         $tenantId = $user->isSuperAdmin()
             ? $request->validate(['tenant_id' => ['required', 'exists:tenants,id']])['tenant_id']
-            : $user->tenant_id;
+            : $user->tenant->id;
 
         if ($tenantId === null) {
             return response()->json(['message' => 'No tenant associated with this user.'], 403);
@@ -115,7 +116,7 @@ class ProjectController extends Controller
     {
         $user = $request->user();
 
-        if (! $user->isSuperAdmin() && $user->tenant_id !== $project->tenant_id) {
+        if (!$user->isSuperAdmin() && $user->tenant->id !== $project->tenant_id) {
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
@@ -129,7 +130,7 @@ class ProjectController extends Controller
     {
         $user = $request->user();
 
-        if (! $user->isSuperAdmin() && $user->tenant_id !== $project->tenant_id) {
+        if (!$user->isSuperAdmin() && $user->tenant->id !== $project->tenant_id) {
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
@@ -173,7 +174,7 @@ class ProjectController extends Controller
     {
         $user = $request->user();
 
-        if (! $user->isSuperAdmin() && $user->tenant_id !== $project->tenant_id) {
+        if (!$user->isSuperAdmin() && $user->tenant->id !== $project->tenant_id) {
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
@@ -200,7 +201,7 @@ class ProjectController extends Controller
     {
         $user = $request->user();
 
-        if (! $user->isSuperAdmin() && $user->tenant_id !== $project->tenant_id) {
+        if (!$user->isSuperAdmin() && $user->tenant->id !== $project->tenant_id) {
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
@@ -222,7 +223,7 @@ class ProjectController extends Controller
     {
         $user = $request->user();
 
-        if (! $user->isSuperAdmin() && $user->tenant_id !== $project->tenant_id) {
+        if (!$user->isSuperAdmin() && $user->tenant->id !== $project->tenant_id) {
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
 

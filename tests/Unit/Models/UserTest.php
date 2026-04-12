@@ -150,7 +150,7 @@ class UserTest extends TestCase
 
         $this->assertEquals('Test User', $user->name);
         $this->assertEquals('test@example.com', $user->email);
-        $this->assertEquals(1, $user->tenant_id);
+        $this->assertEquals(1, $user->tenant->id);
         $this->assertEquals('987654', $user->telegram_user_id);
     }
 }

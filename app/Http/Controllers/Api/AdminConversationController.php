@@ -24,7 +24,8 @@ class AdminConversationController extends Controller
     public function __construct(
         protected ConversationService $conversationService,
         protected MessageAttachmentService $messageAttachmentService,
-    ) {}
+    ) {
+    }
 
     /**
      * List conversations with optional filters.
@@ -49,10 +50,10 @@ class AdminConversationController extends Controller
         $perPage = $validated['per_page'] ?? 25;
 
         // Determine current tenant context for non-super-admins
-        $userTenantId = $user->isSuperAdmin() ? null : $user->tenant_id;
+        $userTenantId = $user->isSuperAdmin() ? null : $user->tenant->id;
 
         // If non-super-admin has no tenant, return empty results
-        if (! $user->isSuperAdmin() && $userTenantId === null) {
+        if (!$user->isSuperAdmin() && $userTenantId === null) {
             return response()->json([
                 'data' => [],
                 'meta' => [
@@ -65,12 +66,12 @@ class AdminConversationController extends Controller
         }
 
         // Validate that the requested project_id belongs to the current tenant
-        if ($projectId !== null && ! $user->isSuperAdmin()) {
+        if ($projectId !== null && !$user->isSuperAdmin()) {
             $projectBelongsToTenant = Project::where('id', $projectId)
                 ->where('tenant_id', $userTenantId)
                 ->exists();
 
-            if (! $projectBelongsToTenant) {
+            if (!$projectBelongsToTenant) {
                 return response()->json([
                     'error' => 'Project not found or does not belong to your tenant.',
                     'code' => 'PROJECT_NOT_IN_TENANT',
@@ -79,12 +80,12 @@ class AdminConversationController extends Controller
         }
 
         // Validate that the requested assigned_to user belongs to the current tenant
-        if ($assignedTo !== null && ! $user->isSuperAdmin()) {
+        if ($assignedTo !== null && !$user->isSuperAdmin()) {
             $assigneeBelongsToTenant = User::where('id', $assignedTo)
                 ->where('tenant_id', $userTenantId)
                 ->exists();
 
-            if (! $assigneeBelongsToTenant) {
+            if (!$assigneeBelongsToTenant) {
                 return response()->json([
                     'error' => 'User not found or does not belong to your tenant.',
                     'code' => 'USER_NOT_IN_TENANT',
@@ -109,7 +110,7 @@ class AdminConversationController extends Controller
         }
 
         // Super admins see all; tenant users see only their tenant's conversations
-        if (! $user->isSuperAdmin()) {
+        if (!$user->isSuperAdmin()) {
             $query->where('tenant_id', $userTenantId);
         }
 
@@ -137,7 +138,7 @@ class AdminConversationController extends Controller
         Gate::authorize('view', $conversation);
 
         // Enforce tenant isolation: tenant users can only access their own tenant's conversations
-        $tenantId = $user->isSuperAdmin() ? null : $user->tenant_id;
+        $tenantId = $user->isSuperAdmin() ? null : $user->tenant->id;
 
         $data = $this->conversationService->getConversationWithMessages($conversation->id, 100, $tenantId);
 
@@ -157,7 +158,7 @@ class AdminConversationController extends Controller
                 'direction' => $message->direction,
                 'body' => $message->body,
                 'attachments' => array_values(array_map(
-                    fn (array $attachment): array => $this->messageAttachmentService->serializeForApi($attachment),
+                    fn(array $attachment): array => $this->messageAttachmentService->serializeForApi($attachment),
                     $message->attachments ?? [],
                 )),
                 'is_read' => $message->is_read,
@@ -219,7 +220,7 @@ class AdminConversationController extends Controller
 
         Gate::authorize('update', $conversation);
 
-        if (! $conversation->canTransitionTo(Conversation::STATUS_CLOSED)) {
+        if (!$conversation->canTransitionTo(Conversation::STATUS_CLOSED)) {
             return response()->json([
                 'error' => "Conversation cannot be closed from its current status ({$conversation->status}).",
                 'code' => 'INVALID_TRANSITION',
@@ -253,7 +254,7 @@ class AdminConversationController extends Controller
 
         Gate::authorize('update', $conversation);
 
-        if (! $conversation->canTransitionTo(Conversation::STATUS_OPEN)) {
+        if (!$conversation->canTransitionTo(Conversation::STATUS_OPEN)) {
             return response()->json([
                 'error' => "Conversation cannot be reopened from its current status ({$conversation->status}).",
                 'code' => 'INVALID_TRANSITION',
@@ -286,7 +287,7 @@ class AdminConversationController extends Controller
 
         Gate::authorize('update', $conversation);
 
-        if (! $conversation->canTransitionTo(Conversation::STATUS_ARCHIVED)) {
+        if (!$conversation->canTransitionTo(Conversation::STATUS_ARCHIVED)) {
             return response()->json([
                 'error' => "Conversation cannot be archived from its current status ({$conversation->status}).",
                 'code' => 'INVALID_TRANSITION',
@@ -326,7 +327,7 @@ class AdminConversationController extends Controller
         $assignee = User::findOrFail($validated['user_id']);
 
         // Ensure assignee belongs to the same tenant (unless super admin)
-        if (! $user->isSuperAdmin() && $assignee->tenant_id !== $user->tenant_id) {
+        if (!$user->isSuperAdmin() && $assignee->tenant_id !== $user->tenant->id) {
             return response()->json([
                 'error' => 'Cannot assign to a user from a different tenant.',
                 'code' => 'CROSS_TENANT_ASSIGNMENT',
@@ -382,9 +383,9 @@ class AdminConversationController extends Controller
             });
 
         // Enforce tenant isolation: non-super-admins can only see their own tenant
-        if (! $user->isSuperAdmin()) {
-            if ($user->tenant_id !== null) {
-                $query->where('tenant_id', $user->tenant_id);
+        if (!$user->isSuperAdmin()) {
+            if ($user->tenant->id !== null) {
+                $query->where('tenant_id', $user->tenant->id);
             } else {
                 // User has no tenant — return 0 to prevent data leakage
                 return response()->json(['unread_count' => 0]);

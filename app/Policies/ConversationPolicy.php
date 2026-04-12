@@ -30,7 +30,7 @@ class ConversationPolicy
             return true;
         }
 
-        return $user->tenant_id === $conversation->tenant_id;
+        return $user->tenant->id === $conversation->tenant_id;
     }
 
     /**
@@ -42,7 +42,7 @@ class ConversationPolicy
             return true;
         }
 
-        return $user->tenant_id === $conversation->tenant_id;
+        return $user->tenant->id === $conversation->tenant_id;
     }
 
     /**
@@ -54,7 +54,7 @@ class ConversationPolicy
             return true;
         }
 
-        return $user->tenant_id === $conversation->tenant_id;
+        return $user->tenant->id === $conversation->tenant_id;
     }
 
     /**
@@ -66,6 +66,6 @@ class ConversationPolicy
             return true;
         }
 
-        return $user->tenant_id === $conversation->tenant_id;
+        return $user->tenant->id === $conversation->tenant_id;
     }
 }

@@ -26,7 +26,7 @@ class TelegramBotSettingPolicy
             return true;
         }
 
-        return $user->tenant_id === $setting->tenant_id;
+        return $user->tenant->id === $setting->tenant_id;
     }
 
     /**
@@ -35,7 +35,7 @@ class TelegramBotSettingPolicy
      */
     public function create(User $user): bool
     {
-        return $user->tenant_id !== null;
+        return $user->tenant->id !== null;
     }
 
     /**
@@ -48,7 +48,7 @@ class TelegramBotSettingPolicy
             return true;
         }
 
-        return $user->tenant_id === $setting->tenant_id;
+        return $user->tenant->id === $setting->tenant_id;
     }
 
     /**
@@ -61,7 +61,7 @@ class TelegramBotSettingPolicy
             return true;
         }
 
-        return $user->tenant_id === $setting->tenant_id;
+        return $user->tenant->id === $setting->tenant_id;
     }
 
     /**

@@ -18,13 +18,13 @@ class TenantProfileController extends Controller
     {
         $user = $request->user();
 
-        if ($user->tenant_id === null) {
+        if ($user->tenant->id === null) {
             return response()->json([
                 'message' => 'No tenant associated with this user.',
             ], 404);
         }
 
-        $tenant = Tenant::findOrFail($user->tenant_id);
+        $tenant = Tenant::findOrFail($user->tenant->id);
 
         return response()->json([
             'data' => $tenant,
@@ -38,13 +38,13 @@ class TenantProfileController extends Controller
     {
         $user = $request->user();
 
-        if ($user->tenant_id === null) {
+        if ($user->tenant->id === null) {
             return response()->json([
                 'message' => 'No tenant associated with this user.',
             ], 404);
         }
 
-        $tenant = Tenant::findOrFail($user->tenant_id);
+        $tenant = Tenant::findOrFail($user->tenant->id);
 
         $validated = $request->validate([
             'company_name' => ['sometimes', 'required', 'string', 'max:255'],
@@ -68,7 +68,7 @@ class TenantProfileController extends Controller
         }
 
         // Handle logo path: validate, prevent path traversal, delete old on replacement
-        if (! empty($validated['logo_path'])) {
+        if (!empty($validated['logo_path'])) {
             // Prevent path traversal: only allow filenames in tenant-logos directory
             $basePath = 'tenant-logos/';
             $logoPath = $validated['logo_path'];
@@ -77,21 +77,21 @@ class TenantProfileController extends Controller
             $filename = basename($logoPath);
 
             // Validate that the filename looks like a legitimate image
-            if (! preg_match('/^[a-zA-Z0-9_\-]+\.(jpg|jpeg|png|gif|webp|svg)$/i', $filename)) {
+            if (!preg_match('/^[a-zA-Z0-9_\-]+\.(jpg|jpeg|png|gif|webp|svg)$/i', $filename)) {
                 return response()->json([
                     'message' => 'Invalid logo path. Only image filenames (jpg, png, gif, webp, svg) are allowed.',
                 ], 422);
             }
 
             // Reconstruct the safe path
-            $safePath = $basePath.$filename;
+            $safePath = $basePath . $filename;
 
             // Verify the file exists within the allowed directory
-            $fullPath = storage_path('app/public/'.$safePath);
+            $fullPath = storage_path('app/public/' . $safePath);
             $realPath = realpath($fullPath);
-            $allowedDir = realpath(storage_path('app/public/'.$basePath));
+            $allowedDir = realpath(storage_path('app/public/' . $basePath));
 
-            if ($realPath === false || $allowedDir === false || ! str_starts_with($realPath, $allowedDir)) {
+            if ($realPath === false || $allowedDir === false || !str_starts_with($realPath, $allowedDir)) {
                 return response()->json([
                     'message' => 'Logo file not found in the allowed directory.',
                 ], 422);

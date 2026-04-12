@@ -71,7 +71,7 @@ class ValidateSanctumTenantScope
         }
 
         // Also validate that the user's tenant matches the current tenant
-        if ($user->tenant_id !== null && $user->tenant_id !== $currentTenant->id) {
+        if ($user->tenant->id !== null && $user->tenant->id !== $currentTenant->id) {
             return response()->json([
                 'error' => 'Forbidden',
                 'message' => 'User tenant does not match the current request tenant.',

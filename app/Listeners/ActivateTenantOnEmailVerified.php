@@ -17,7 +17,7 @@ class ActivateTenantOnEmailVerified
     {
         $user = $event->user;
 
-        if ($user->tenant_id === null || $user->is_super_admin) {
+        if ($user->tenant->id === null || $user->is_super_admin) {
             return;
         }
 

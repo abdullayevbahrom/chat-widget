@@ -28,7 +28,7 @@ class ProjectPolicy
             return true;
         }
 
-        return $user->tenant_id === $project->tenant_id;
+        return $user->tenant->id === $project->tenant_id;
     }
 
     /**
@@ -52,7 +52,7 @@ class ProjectPolicy
             return true;
         }
 
-        return $user->tenant_id === $project->tenant_id;
+        return $user->tenant->id === $project->tenant_id;
     }
 
     /**
@@ -64,7 +64,7 @@ class ProjectPolicy
             return true;
         }
 
-        return $user->tenant_id === $project->tenant_id;
+        return $user->tenant->id === $project->tenant_id;
     }
 
     /**
