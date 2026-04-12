@@ -3,13 +3,6 @@
 namespace Tests\Unit;
 
 use App\Jobs\SendTelegramNotificationJob;
-use App\Models\Conversation;
-use App\Models\Message;
-use App\Models\Project;
-use App\Models\TelegramBotSetting;
-use App\Models\Tenant;
-use App\Models\Visitor;
-use App\Services\TelegramBotService;
 use PHPUnit\Framework\TestCase;
 
 class SendTelegramNotificationJobTest extends TestCase

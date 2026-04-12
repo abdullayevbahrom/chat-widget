@@ -12,18 +12,10 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Log;
-use LogicException;
 
 class Message extends Model
 {
-    /** @use HasFactory<MessageFactory> */
     use HasFactory, SoftDeletes;
-
-    /**
-     * Cached sender model to avoid repeated queries during validation.
-     * This property is not persisted to the database.
-     */
-    public mixed $_cached_sender = null;
 
     public const TYPE_TEXT = 'text';
 
@@ -41,8 +33,6 @@ class Message extends Model
 
     protected static function booted(): void
     {
-        static::addGlobalScope(new TenantScope('conversation'));
-
         static::created(function (Message $message): void {
             if ($message->conversation === null) {
                 Log::warning('Skipping conversation last_message_at sync because conversation is missing.', [
@@ -82,7 +72,7 @@ class Message extends Model
             $conversation = $message->conversation()->withoutGlobalScopes()->first();
 
             if ($conversation === null) {
-                throw new LogicException('Message conversation must exist before saving.');
+                throw new \LogicException('Message conversation must exist before saving.');
             }
 
             $message->tenant_id = $conversation->tenant_id;
@@ -96,11 +86,11 @@ class Message extends Model
             }
 
             if ($message->sender_type === null && $message->sender_id === null) {
-                throw new LogicException('Only system or event messages may omit the sender.');
+                throw new \LogicException('Only system or event messages may omit the sender.');
             }
 
             if (($message->sender_type === null) !== ($message->sender_id === null)) {
-                throw new LogicException('Message sender_type and sender_id must be both null or both present.');
+                throw new \LogicException('Message sender_type and sender_id must be both null or both present.');
             }
 
             // Cache sender model on the message to avoid repeated queries
@@ -116,14 +106,14 @@ class Message extends Model
                 ];
 
                 if (! is_string($senderClass) || ! in_array($senderClass, $allowedSenderClasses, true)) {
-                    throw new LogicException('Message sender_type is not supported.');
+                    throw new \LogicException('Message sender_type is not supported.');
                 }
 
                 /** @var Model|null $sender */
                 $sender = $senderClass::query()->withoutGlobalScopes()->find($message->sender_id);
 
                 if ($sender === null) {
-                    throw new LogicException('Message sender must exist before saving.');
+                    throw new \LogicException('Message sender must exist before saving.');
                 }
 
                 $message->_cached_sender = $sender;
@@ -133,13 +123,7 @@ class Message extends Model
         });
     }
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var array<int, string>
-     */
     protected $fillable = [
-        'tenant_id',
         'conversation_id',
         'sender_type',
         'sender_id',
@@ -272,17 +256,17 @@ class Message extends Model
             Tenant::class,
         ];
 
-        if (! $sender instanceof \Illuminate\Database\Eloquent\Model || ! in_array($sender::class, $allowedSenderClasses, true)) {
-            throw new LogicException('Message sender_type is not supported.');
+        if (! $sender instanceof Model || ! in_array($sender::class, $allowedSenderClasses, true)) {
+            throw new \LogicException('Message sender_type is not supported.');
         }
 
         if ($sender instanceof Visitor) {
             if ($sender->tenant_id !== $conversation->tenant_id) {
-                throw new LogicException('Message visitor sender must belong to the same tenant.');
+                throw new \LogicException('Message visitor sender must belong to the same tenant.');
             }
 
             if ($conversation->visitor_id !== $sender->id) {
-                throw new LogicException('Message visitor sender must match the conversation visitor.');
+                throw new \LogicException('Message visitor sender must match the conversation visitor.');
             }
 
             return;
@@ -290,14 +274,14 @@ class Message extends Model
 
         if ($sender instanceof User) {
             if ($sender->tenant_id !== $conversation->tenant_id) {
-                throw new LogicException('Message user sender must belong to the conversation tenant.');
+                throw new \LogicException('Message user sender must belong to the conversation tenant.');
             }
 
             return;
         }
 
         if ($sender instanceof Tenant && $sender->id !== $conversation->tenant_id) {
-            throw new LogicException('Message tenant sender must match the conversation tenant.');
+            throw new \LogicException('Message tenant sender must match the conversation tenant.');
         }
     }
 }

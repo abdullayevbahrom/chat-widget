@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Models\Conversation;
 use App\Models\Project;
-use App\Models\TelegramBotSetting;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Services\ConversationService;
@@ -20,7 +19,6 @@ class TelegramWebhookCallbackAuthTest extends TestCase
 {
     use RefreshDatabase;
 
-    protected TelegramBotSetting $setting;
     protected Tenant $tenant;
     protected Project $project;
     protected Conversation $conversation;
@@ -38,14 +36,6 @@ class TelegramWebhookCallbackAuthTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'project_id' => $this->project->id,
             'status' => Conversation::STATUS_OPEN,
-        ]);
-
-        $this->setting = TelegramBotSetting::create([
-            'tenant_id' => $this->tenant->id,
-            'bot_token' => '123456:ABCdef',
-            'webhook_secret' => bin2hex(random_bytes(32)),
-            'telegram_admin_ids' => ['111222333'],
-            'is_active' => true,
         ]);
 
         // Set tenant context for global scope

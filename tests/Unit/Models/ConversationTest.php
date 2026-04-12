@@ -8,7 +8,6 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Models\Visitor;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use LogicException;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 

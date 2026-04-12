@@ -2,44 +2,24 @@
 
 namespace App\Models;
 
-use App\Scopes\TenantScope;
 use App\Services\CssSanitizer;
-use Database\Factories\ProjectFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cache;
 
 class Project extends Model
 {
-    /** @use HasFactory<ProjectFactory> */
     use HasFactory;
 
-    /**
-     * The "booted" method of the model.
-     */
-    protected static function booted(): void
-    {
-        static::addGlobalScope(new TenantScope);
-    }
-
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var array<int, string>
-     */
     protected $fillable = [
         'tenant_id',
         'name',
         'slug',
         'domain',
-        'widget_key_hash',
-        'widget_key_prefix',
         'description',
         'settings',
-        'widget_key_generated_at',
         'is_active',
         'telegram_bot_token',
         'telegram_bot_username',
@@ -48,11 +28,6 @@ class Project extends Model
         'telegram_is_active',
     ];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
     protected function casts(): array
     {
         return [
@@ -63,9 +38,6 @@ class Project extends Model
         ];
     }
 
-    /**
-     * Sanitize settings before saving to database.
-     */
     public function setSettingsAttribute(mixed $value): void
     {
         if (is_array($value)) {
@@ -76,15 +48,6 @@ class Project extends Model
         $this->attributes['settings'] = json_encode($value);
     }
 
-    /**
-     * Sanitize widget settings to prevent XSS and injection attacks.
-     *
-     * Delegates CSS sanitization to the dedicated CssSanitizer service
-     * to ensure consistent protection and follow the DRY principle.
-     *
-     * @param  array<string, mixed>  $settings
-     * @return array<string, mixed>
-     */
     protected function sanitizeSettings(array $settings): array
     {
         if (isset($settings['widget']['custom_css']) && is_string($settings['widget']['custom_css'])) {
@@ -95,13 +58,6 @@ class Project extends Model
         return $settings;
     }
 
-    /**
-     * Validate the structure and types of project settings.
-     *
-     * @param  array<string, mixed>  $settings
-     *
-     * @throws \InvalidArgumentException
-     */
     protected function validateSettingsStructure(array $settings): void
     {
         $allowedTopLevelKeys = ['widget'];
@@ -157,17 +113,11 @@ class Project extends Model
         }
     }
 
-    /**
-     * Get the tenant that owns this project.
-     */
     public function tenant(): BelongsTo
     {
         return $this->belongsTo(Tenant::class);
     }
 
-    /**
-     * Resolve route binding for tenant dashboard routes without relying on request tenant context.
-     */
     public function resolveRouteBinding($value, $field = null): ?Model
     {
         $routeKeyName = $field ?? $this->getRouteKeyName();
@@ -182,103 +132,24 @@ class Project extends Model
         return $query->firstOrFail();
     }
 
-    /**
-     * Get the conversations for this project.
-     */
     public function conversations(): HasMany
     {
         return $this->hasMany(Conversation::class);
     }
 
-    /**
-     * Check if the project has any active (open) conversations.
-     */
+    public function visitors(): HasMany
+    {
+        return $this->hasMany(Visitor::class);
+    }
+
     public function hasActiveConversations(): bool
     {
         return $this->conversations()->open()->exists();
     }
 
-    /**
-     * Get the count of active (open) conversations.
-     */
     public function activeConversationsCount(): int
     {
         return $this->conversations()->open()->count();
     }
 
-    /**
-     * Check if the project has a widget key.
-     */
-    public function hasWidgetKey(): bool
-    {
-        return filled($this->widget_key_hash);
-    }
-
-    /**
-     * Generate a new widget key for this project.
-     *
-     * Returns the plaintext key (shown only once to the user).
-     */
-    public function generateWidgetKey(): string
-    {
-        $plaintextKey = 'wsk_'.bin2hex(random_bytes(16));
-        $hash = hash('sha256', $plaintextKey);
-        $prefix = substr($plaintextKey, 0, 8);
-
-        $this->update([
-            'widget_key_hash' => $hash,
-            'widget_key_prefix' => $prefix,
-            'widget_key_generated_at' => now(),
-        ]);
-
-        $this->clearKeyCache();
-
-        return $plaintextKey;
-    }
-
-    /**
-     * Revoke the current widget key.
-     */
-    public function revokeWidgetKey(): void
-    {
-        $this->update([
-            'widget_key_hash' => null,
-            'widget_key_prefix' => null,
-            'widget_key_generated_at' => null,
-        ]);
-
-        $this->clearKeyCache();
-    }
-
-    /**
-     * Regenerate the widget key (revoke old + generate new).
-     *
-     * Returns the new plaintext key (shown only once to the user).
-     */
-    public function regenerateWidgetKey(): string
-    {
-        $this->revokeWidgetKey();
-
-        return $this->generateWidgetKey();
-    }
-
-    /**
-     * Get the widget settings from the settings JSON.
-     */
-    public function getWidgetSetting(string $key, mixed $default = null): mixed
-    {
-        return data_get($this->settings, "widget.{$key}", $default);
-    }
-
-    /**
-     * Clear the widget key cache for this project.
-     */
-    protected function clearKeyCache(): void
-    {
-        $tenantPrefix = $this->tenant_id !== null ? "tenant:{$this->tenant_id}:" : '';
-
-        if (filled($this->widget_key_hash)) {
-            Cache::forget("{$tenantPrefix}project:key:{$this->widget_key_hash}");
-        }
-    }
 }
