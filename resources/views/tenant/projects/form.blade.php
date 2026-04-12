@@ -82,7 +82,7 @@
                 <pre class="bg-gray-900 text-green-400 p-4 rounded-xl text-xs font-mono overflow-x-auto whitespace-pre-wrap break-all"><code>{{ $embedScript }}</code></pre>
             </div>
             <div class="mt-3 flex items-center gap-2">
-                <p class="text-xs text-gray-500">This script is secured with HMAC signature for domain: <code class="bg-gray-100 px-2 py-0.5 rounded font-mono">{{ $project->domain }}</code></p>
+                <p class="text-xs text-gray-500">Simple script tag - domain validation happens automatically via Origin header.</p>
             </div>
         </div>
     @endif

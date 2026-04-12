@@ -49,17 +49,15 @@ return Application::configure(basePath: dirname(__DIR__))
         // include CSRF tokens. All other API routes (tenant CRUD, project management)
         // remain CSRF-protected for SPA cookie-based auth with Sanctum.
         //
-        // SECURITY NOTE: `api/widget/messages` is excluded from CSRF because the
+        // SECURITY NOTE: `api/widget/*` is excluded from CSRF because the
         // widget runs in a cross-origin iframe and cannot read/forward CSRF tokens.
         // Protection is provided by:
-        //  1. ValidateWidgetKey middleware (widget key authentication)
-        //  2. EnsureVerifiedWidgetDomain middleware (domain origin verification)
-        //  3. Rate limiting (widget-message limiter, 30 req/min per key)
-        //  4. Encrypted visitor binding tokens (cookie-based, HttpOnly, Secure)
+        //  1. ValidateWidgetDomain middleware (domain origin verification via Origin/Referer)
+        //  2. Rate limiting (widget-message limiter, 30 req/min per domain)
+        //  3. Encrypted visitor binding tokens (cookie-based, HttpOnly, Secure)
         $middleware->validateCsrfTokens(except: [
             'api/telegram/webhook/*',
-            'api/widget/messages',
-            'api/widget/conversation/close',
+            'api/widget/*',
         ]);
 
         // TrustProxies: Configure trusted proxies for correct IP detection

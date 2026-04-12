@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Embed Script', () => {
-  test('embed script section exists on edit page', async ({ page }) => {
+  test('embed script is simple script tag', async ({ page }) => {
     // Login with verified credentials
     await page.goto('/auth/login');
     await page.fill('input[name="email"]', 'verified@example.com');
@@ -17,7 +17,7 @@ test.describe('Embed Script', () => {
     const hasProjects = await page.locator('table tbody tr').count();
 
     if (hasProjects === 0) {
-      // No projects - test passes (embed script shown only after creation)
+      // No projects - test passes
       console.log('No projects found, skipping embed script check');
       return;
     }
@@ -26,17 +26,17 @@ test.describe('Embed Script', () => {
     await page.click('a[title="Edit"]');
     await page.waitForURL(/\/dashboard\/projects\/\d+\/edit/);
 
-    // Check that domain field exists and has a value
-    const domainInput = await page.inputValue('input#domain');
-    expect(domainInput.length).toBeGreaterThan(0);
-    expect(domainInput).toContain('.');
+    // Check embed script is shown
+    const embedScript = await page.locator('pre code').textContent();
 
-    // Check color picker has a valid hex color
-    const colorValue = await page.inputValue('input#primary_color');
-    expect(colorValue).toMatch(/^#[0-9a-fA-F]{6}$/);
+    // Should be a simple script tag with no query parameters
+    expect(embedScript).toContain('<script src=');
+    expect(embedScript).toContain('/widget.js"');
+    expect(embedScript).toContain('async defer');
 
-    // Check Telegram Bot section exists
-    const telegramSection = await page.locator('text="Telegram Bot Integration"').isVisible();
-    expect(telegramSection).toBe(true);
+    // Should NOT contain query parameters like widget_key, signature, etc.
+    expect(embedScript).not.toContain('widget_key=');
+    expect(embedScript).not.toContain('signature=');
+    expect(embedScript).not.toContain('project_id=');
   });
 });
