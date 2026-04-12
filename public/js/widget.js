@@ -33,6 +33,10 @@
     sessionId: localStorage.getItem('widget_session_id') || crypto.randomUUID(),
     messages: [],
     chatStarted: false,
+    pusher: null,
+    wsChannel: null,
+    currentView: 'chat', // 'chat' or 'conversations'
+    conversations: [],
   };
 
   localStorage.setItem('widget_session_id', state.sessionId);
@@ -401,6 +405,9 @@
           <div class="widget-header-status">Online</div>
         </div>
         <div class="widget-header-actions">
+          <button id="widget-view-toggle" title="Conversations">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block; pointer-events:none;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+          </button>
           <button id="widget-minimize" title="Minimize">
             ${ICONS.minimize}
           </button>
@@ -421,6 +428,15 @@
     `;
 
     setTimeout(() => {
+      document.getElementById('widget-view-toggle')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (state.currentView === 'chat') {
+          showConversationsView();
+        } else {
+          showChatView();
+        }
+      });
+
       document.getElementById('widget-minimize')?.addEventListener('click', (e) => {
         e.stopPropagation();
         closeChat();
@@ -587,6 +603,258 @@
     messagesDiv.appendChild(div);
   }
 
+  // ===== WebSocket =====
+  function connectWebSocket(config) {
+    if (typeof Pusher === 'undefined') {
+      loadScript('https://cdn.jsdelivr.net/npm/pusher-js@8.4.0-rc2/dist/web/pusher.min.js')
+        .then(() => initPusher(config))
+        .catch((err) => console.error('[Widget] Failed to load Pusher:', err));
+    } else {
+      initPusher(config);
+    }
+  }
+
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = src;
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+
+  function initPusher(config) {
+    try {
+      const pusher = new Pusher(config.app_key || 'app-key', {
+        wsHost: config.host,
+        wsPort: config.port || 6001,
+        wssPort: config.port || 443,
+        forceTLS: window.location.protocol === 'https:',
+        disableStats: true,
+        enabledTransports: ['ws', 'wss'],
+        authEndpoint: `${API_BASE}/api/widget/ws/auth`,
+        auth: {
+          headers: {
+            'X-Session-Id': state.sessionId,
+            'X-Widget-Key': WIDGET_SCRIPT?.dataset.widgetKey || '',
+          },
+        },
+      });
+
+      const channelName = config.channel || `private-conversation.${state.conversationId}`;
+      const channel = pusher.subscribe(channelName);
+
+      channel.bind('pusher:subscription_succeeded', () => {
+        console.log('[Widget] WebSocket subscribed to', channelName);
+      });
+
+      channel.bind('.MessageCreated', (data) => {
+        // Only add if not already in the messages list
+        const exists = state.messages.some((m) => m.id === data.id);
+        if (!exists) {
+          state.messages.push(data);
+          addMessage(data);
+        }
+      });
+
+      state.pusher = pusher;
+      state.wsChannel = channelName;
+    } catch (err) {
+      console.error('[Widget] WebSocket init error:', err);
+    }
+  }
+
+  function disconnectWebSocket() {
+    if (state.pusher) {
+      if (state.wsChannel) {
+        state.pusher.unsubscribe(state.wsChannel);
+      }
+      state.pusher.disconnect();
+      state.pusher = null;
+      state.wsChannel = null;
+    }
+  }
+
+  // ===== Conversation List =====
+  async function fetchConversations() {
+    try {
+      const url = `${API_BASE}/api/widget/conversations`;
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Origin': window.location.origin,
+        },
+        credentials: 'include',
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || data.message || 'Failed to fetch conversations');
+      }
+
+      state.conversations = data.conversations || [];
+      renderConversationsView();
+    } catch (err) {
+      console.error('[Widget] Conversations fetch error:', err);
+      showError('Failed to load conversations');
+    }
+  }
+
+  function renderConversationsView() {
+    const messagesDiv = document.getElementById('widget-messages');
+    if (!messagesDiv) return;
+
+    messagesDiv.innerHTML = '';
+
+    if (!state.conversations.length) {
+      const emptyDiv = document.createElement('div');
+      emptyDiv.className = 'widget-loading';
+      emptyDiv.textContent = 'No conversations yet';
+      messagesDiv.appendChild(emptyDiv);
+      return;
+    }
+
+    state.conversations.forEach((group) => {
+      // Date header
+      const headerDiv = document.createElement('div');
+      headerDiv.className = 'widget-date-header';
+      headerDiv.textContent = group.date_label;
+      messagesDiv.appendChild(headerDiv);
+
+      // Conversation items
+      group.items.forEach((item) => {
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'widget-conversation-item';
+        itemDiv.dataset.conversationId = item.id;
+        itemDiv.innerHTML = `
+          <div class="widget-conv-content">
+            <div class="widget-conv-status">
+              <span class="widget-conv-status-badge status-${item.status}">${item.status}</span>
+              ${item.unread_count > 0 ? `<span class="widget-conv-unread">${item.unread_count}</span>` : ''}
+            </div>
+            <div class="widget-conv-message">${item.last_message || 'No messages'}</div>
+            <div class="widget-conv-time">${item.last_message_at ? formatTime(item.last_message_at) : ''}</div>
+          </div>
+        `;
+        itemDiv.onclick = () => openConversation(item.id);
+        messagesDiv.appendChild(itemDiv);
+      });
+    });
+  }
+
+  function showConversationsView() {
+    state.currentView = 'conversations';
+    fetchConversations();
+  }
+
+  function showChatView() {
+    state.currentView = 'chat';
+    const messagesDiv = document.getElementById('widget-messages');
+    if (!messagesDiv) return;
+
+    messagesDiv.innerHTML = '';
+    state.messages.forEach(addMessage);
+
+    const inputArea = document.getElementById('widget-input-area');
+    if (inputArea) inputArea.style.display = 'flex';
+  }
+
+  async function openConversation(conversationId) {
+    // For now, just switch to chat view
+    // In a full implementation, this would load the specific conversation
+    state.currentView = 'chat';
+    showChatView();
+  }
+
+  // ===== Styles for conversation list =====
+  function injectConversationStyles() {
+    if (document.getElementById('widget-conversation-styles')) return;
+
+    const style = document.createElement('style');
+    style.id = 'widget-conversation-styles';
+    style.textContent = `
+      .widget-date-header {
+        text-align: center;
+        color: ${COLORS.textMuted};
+        font-size: 12px;
+        font-weight: 600;
+        padding: 8px 0;
+        margin-top: 8px;
+      }
+
+      .widget-conversation-item {
+        padding: 12px 16px;
+        background: ${COLORS.bgSecondary};
+        border-radius: 12px;
+        cursor: pointer;
+        transition: background 0.15s ease;
+        margin-bottom: 8px;
+      }
+
+      .widget-conversation-item:hover {
+        background: ${COLORS.bgTertiary};
+      }
+
+      .widget-conv-content {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .widget-conv-status {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .widget-conv-status-badge {
+        font-size: 10px;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+      }
+
+      .status-open {
+        background: rgba(34, 197, 94, 0.2);
+        color: ${COLORS.success};
+      }
+
+      .status-closed {
+        background: rgba(100, 116, 139, 0.2);
+        color: ${COLORS.textMuted};
+      }
+
+      .widget-conv-unread {
+        background: ${COLORS.primary};
+        color: white;
+        font-size: 10px;
+        font-weight: 700;
+        padding: 2px 6px;
+        border-radius: 10px;
+        min-width: 18px;
+        text-align: center;
+      }
+
+      .widget-conv-message {
+        color: ${COLORS.text};
+        font-size: 14px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .widget-conv-time {
+        color: ${COLORS.textMuted};
+        font-size: 11px;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
   async function startChat() {
     try {
       const data = await bootstrap();
@@ -616,6 +884,11 @@
 
       const messageInput = document.getElementById('widget-message-input');
       if (messageInput) messageInput.focus();
+
+      // Connect WebSocket if enabled
+      if (data.websocket?.enabled) {
+        connectWebSocket(data.websocket);
+      }
 
     } catch (err) {
       console.error('[Widget] Bootstrap error:', err);
@@ -653,6 +926,8 @@
 
     const bubble = document.getElementById('widget-bubble');
     if (bubble) bubble.innerHTML = ICONS.chat;
+
+    disconnectWebSocket();
   }
 
   function toggleChat() {
@@ -666,6 +941,7 @@
     state.isInitialized = true;
 
     injectStyles();
+    injectConversationStyles();
 
     elements.backdrop = createBackdrop();
     elements.bubble = createBubble();

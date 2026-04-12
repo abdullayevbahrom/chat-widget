@@ -20,6 +20,105 @@ class WidgetConversationController extends Controller
     ) {}
 
     /**
+     * List all conversations for the current visitor, grouped by day.
+     */
+    public function index(Request $request): JsonResponse
+    {
+        /** @var Project|null $project */
+        $project = $request->get('project');
+
+        if ($project === null) {
+            return response()->json(['conversations' => []]);
+        }
+
+        $this->initializeTenantContext($project);
+
+        try {
+            $visitor = $this->resolveBoundVisitor($request, $project);
+
+            if ($visitor === null) {
+                return response()->json(['conversations' => []]);
+            }
+
+            $conversations = Conversation::withoutGlobalScopes()
+                ->where('project_id', $project->id)
+                ->where('visitor_id', $visitor->id)
+                ->orderBy('last_message_at', 'desc')
+                ->get();
+
+            if ($conversations->isEmpty()) {
+                return response()->json(['conversations' => []]);
+            }
+
+            // Eager load last message per conversation
+            $conversationIds = $conversations->pluck('id');
+            $lastMessages = \App\Models\Message::withoutGlobalScopes()
+                ->whereIn('conversation_id', $conversationIds)
+                ->latest()
+                ->get()
+                ->groupBy('conversation_id')
+                ->map(fn ($messages) => $messages->first());
+
+            // Group by date
+            $grouped = [];
+            foreach ($conversations as $conv) {
+                $date = $conv->last_message_at?->format('Y-m-d') ?? $conv->created_at->format('Y-m-d');
+                $label = $this->getDateLabel($date);
+
+                if (! isset($grouped[$date])) {
+                    $grouped[$date] = ['date' => $date, 'date_label' => $label, 'items' => []];
+                }
+
+                $lastMsg = $lastMessages->get($conv->id);
+
+                $grouped[$date]['items'][] = [
+                    'id' => $conv->id,
+                    'status' => $conv->status,
+                    'subject' => $conv->subject,
+                    'last_message' => $lastMsg?->body ?? 'No messages',
+                    'last_message_type' => $lastMsg?->message_type ?? 'text',
+                    'last_message_at' => $conv->last_message_at?->toISOString(),
+                    'unread_count' => $conv->getUnreadCount(),
+                    'created_at' => $conv->created_at->toISOString(),
+                ];
+            }
+
+            return response()->json(['conversations' => array_values($grouped)]);
+        } finally {
+            \App\Models\Tenant::clearCurrent();
+        }
+    }
+
+    /**
+     * Generate a human-readable date label for grouping.
+     */
+    protected function getDateLabel(string $date): string
+    {
+        $today = now()->format('Y-m-d');
+        $yesterday = now()->copy()->subDay()->format('Y-m-d');
+
+        if ($date === $today) {
+            return 'Today';
+        }
+
+        if ($date === $yesterday) {
+            return 'Yesterday';
+        }
+
+        return now()->createFromFormat('Y-m-d', $date)?->format('M d') ?? $date;
+    }
+
+    /**
+     * Initialize tenant context for the given project.
+     */
+    protected function initializeTenantContext(\App\Models\Project $project): void
+    {
+        if ($project->tenant !== null) {
+            \App\Models\Tenant::setCurrent($project->tenant);
+        }
+    }
+
+    /**
      * Get the current conversation status for the visitor.
      */
     public function show(Request $request): JsonResponse

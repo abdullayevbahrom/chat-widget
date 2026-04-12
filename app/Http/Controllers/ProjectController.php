@@ -8,6 +8,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
@@ -91,12 +92,8 @@ class ProjectController extends Controller
         if (! empty($validated['telegram_bot_token'])) {
             $project->telegram_bot_token = $validated['telegram_bot_token'];
 
-            // Fetch bot info from Telegram API
-            $botInfo = $this->fetchBotInfo($validated['telegram_bot_token']);
-            if ($botInfo) {
-                $project->telegram_bot_username = '@'.$botInfo['username'];
-                $project->telegram_bot_name = $botInfo['first_name'];
-            }
+            // Set webhook and fetch bot info from Telegram API
+            $this->configureTelegramWebhook($project, $validated['telegram_bot_token']);
         }
         $project->telegram_chat_id = $validated['telegram_chat_id'] ?? null;
         $project->telegram_is_active = filled($validated['telegram_bot_token']) && filled($validated['telegram_chat_id']);
@@ -166,12 +163,8 @@ class ProjectController extends Controller
         if (! empty($validated['telegram_bot_token']) && $validated['telegram_bot_token'] !== str_repeat('*', strlen($validated['telegram_bot_token']))) {
             $project->telegram_bot_token = $validated['telegram_bot_token'];
 
-            // Fetch bot info from Telegram API
-            $botInfo = $this->fetchBotInfo($validated['telegram_bot_token']);
-            if ($botInfo) {
-                $project->telegram_bot_username = '@'.$botInfo['username'];
-                $project->telegram_bot_name = $botInfo['first_name'];
-            }
+            // Set webhook and fetch bot info from Telegram API
+            $this->configureTelegramWebhook($project, $validated['telegram_bot_token']);
         }
         $project->telegram_chat_id = $validated['telegram_chat_id'] ?? $project->telegram_chat_id;
         $project->telegram_is_active = filled($project->telegram_bot_token) && filled($project->telegram_chat_id);
@@ -281,6 +274,45 @@ class ProjectController extends Controller
         }
 
         return $slug;
+    }
+
+    /**
+     * Configure Telegram webhook and fetch bot info.
+     *
+     * Sets the webhook URL via Telegram API and fetches bot metadata
+     * (username, first_name) for display purposes.
+     */
+    protected function configureTelegramWebhook(Project $project, string $token): void
+    {
+        $tenantSlug = $project->tenant->slug;
+        $appUrl = rtrim(config('app.url'), '/');
+        $webhookUrl = "{$appUrl}/api/telegram/webhook/{$tenantSlug}";
+
+        // Set webhook
+        $webhookResponse = Http::timeout(10)->post("https://api.telegram.org/bot{$token}/setWebhook", [
+            'url' => $webhookUrl,
+            'allowed_updates' => ['message', 'callback_query'],
+        ]);
+
+        if ($webhookResponse->successful()) {
+            Log::info('Telegram webhook set successfully.', [
+                'project_id' => $project->id,
+                'webhook_url' => $webhookUrl,
+            ]);
+        } else {
+            Log::warning('Failed to set Telegram webhook.', [
+                'project_id' => $project->id,
+                'status' => $webhookResponse->status(),
+                'body' => $webhookResponse->body(),
+            ]);
+        }
+
+        // Fetch bot info
+        $botInfo = $this->fetchBotInfo($token);
+        if ($botInfo) {
+            $project->telegram_bot_username = '@'.$botInfo['username'];
+            $project->telegram_bot_name = $botInfo['first_name'];
+        }
     }
 
     /**

@@ -44,6 +44,7 @@ Route::middleware(['throttle:widget-config', ValidateWidgetDomain::class, Valida
 Route::middleware(['throttle:widget-message', ValidateWidgetDomain::class, ValidateCorsOrigins::class])
     ->prefix('widget')
     ->group(function () {
+        Route::get('conversations', [WidgetConversationController::class, 'index'])->name('widget.conversations.index');
         Route::post('messages', [WidgetMessageController::class, 'store'])->name('widget.messages.store');
         Route::get('messages', [WidgetMessageController::class, 'index'])->name('widget.messages.index');
         Route::get('conversation', [WidgetConversationController::class, 'show'])->name('widget.conversation.show');
