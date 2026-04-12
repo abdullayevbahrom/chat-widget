@@ -1,16 +1,27 @@
 /**
- * Widget Chat SDK - Pure Vanilla JS (No Build Step) v2.1.0
- * Features: Dark Theme, File Attachments UI, Real-time Ready, Click-Outside-to-Close
+ * Widget Chat SDK - Pure Vanilla JS (No Build Step) v2.1.1
+ * Fixed:
+ * - send icon visibility
+ * - disabled button contrast
+ * - API_BASE support
+ * - safer API helper
+ * - send button state updater
  */
 
-(function(global) {
+(function (global) {
   'use strict';
 
-  const SDK_VERSION = '2.1.0';
-  const WIDGET_SCRIPT = document.currentScript ||
+  const SDK_VERSION = '2.1.1';
+
+  const WIDGET_SCRIPT =
+    document.currentScript ||
     document.querySelector('script[data-widget-key]') ||
     document.querySelector('script[src*="widget.js"]');
-  const WIDGET_HOST = new URL(WIDGET_SCRIPT?.src || window.location.href, window.location.href).origin;
+
+  const API_BASE =
+    WIDGET_SCRIPT?.dataset.apiBase ||
+    global.WIDGET_API_BASE ||
+    'https://widget.marca.uz';
 
   // ===== State =====
   let state = {
@@ -51,6 +62,7 @@
     chat: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block; pointer-events:none;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>`,
     close: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block; pointer-events:none;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`,
     minimize: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block; pointer-events:none;"><line x1="5" y1="12" x2="19" y2="12"></line></svg>`,
+    send: `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block; pointer-events:none;"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>`,
   };
 
   // ===== Inject Styles =====
@@ -60,26 +72,23 @@
     const style = document.createElement('style');
     style.id = 'widget-styles';
     style.textContent = `
-      /* Reset */
-      .widget-* { margin: 0; padding: 0; box-sizing: border-box; }
       .widget-hidden { display: none !important; }
 
-      /* Backdrop for click-outside-to-close */
       #widget-backdrop {
         position: fixed;
-        top: 0; left: 0; right: 0; bottom: 0;
+        inset: 0;
         background: rgba(0, 0, 0, 0.5);
         z-index: 999998;
         opacity: 0;
         pointer-events: none;
         transition: opacity 0.2s ease;
       }
+
       #widget-backdrop.active {
         opacity: 1;
         pointer-events: auto;
       }
 
-      /* Chat Bubble Button */
       #widget-bubble {
         position: fixed;
         bottom: 24px;
@@ -96,15 +105,20 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        transition: transform 0.2s, box-shadow 0.2s;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
       }
+
       #widget-bubble:hover {
         transform: scale(1.05);
         box-shadow: 0 12px 32px rgba(99, 102, 241, 0.5);
       }
-      #widget-bubble svg { width: 28px; height: 28px; display: block; }
 
-      /* Chat Window */
+      #widget-bubble svg {
+        width: 28px;
+        height: 28px;
+        display: block;
+      }
+
       #widget-window {
         position: fixed;
         bottom: 90px;
@@ -126,13 +140,13 @@
         transition: opacity 0.2s ease, transform 0.2s ease;
         pointer-events: none;
       }
+
       #widget-window.widget-open {
         opacity: 1;
         transform: translateY(0) scale(1);
         pointer-events: auto;
       }
 
-      /* Header */
       .widget-header {
         background: ${COLORS.bgSecondary};
         padding: 16px;
@@ -141,6 +155,7 @@
         gap: 12px;
         border-bottom: 1px solid ${COLORS.border};
       }
+
       .widget-header-avatar {
         width: 40px;
         height: 40px;
@@ -152,7 +167,12 @@
         flex-shrink: 0;
         color: white;
       }
-      .widget-header-info { flex: 1; min-width: 0; }
+
+      .widget-header-info {
+        flex: 1;
+        min-width: 0;
+      }
+
       .widget-header-title {
         color: ${COLORS.text};
         font-size: 15px;
@@ -162,6 +182,7 @@
         overflow: hidden;
         text-overflow: ellipsis;
       }
+
       .widget-header-status {
         color: ${COLORS.success};
         font-size: 12px;
@@ -170,6 +191,7 @@
         gap: 6px;
         margin-top: 2px;
       }
+
       .widget-header-status::before {
         content: '';
         width: 8px;
@@ -178,7 +200,12 @@
         background: ${COLORS.success};
         box-shadow: 0 0 8px ${COLORS.success};
       }
-      .widget-header-actions { display: flex; gap: 4px; }
+
+      .widget-header-actions {
+        display: flex;
+        gap: 4px;
+      }
+
       .widget-header-actions button {
         width: 32px;
         height: 32px;
@@ -191,10 +218,18 @@
         align-items: center;
         justify-content: center;
       }
-      .widget-header-actions button:hover { background: ${COLORS.bgTertiary}; color: ${COLORS.text}; }
-      .widget-header-actions button svg { width: 18px; height: 18px; display: block; }
 
-      /* Messages Area */
+      .widget-header-actions button:hover {
+        background: ${COLORS.bgTertiary};
+        color: ${COLORS.text};
+      }
+
+      .widget-header-actions button svg {
+        width: 18px;
+        height: 18px;
+        display: block;
+      }
+
       .widget-messages {
         flex: 1;
         overflow-y: auto;
@@ -205,11 +240,20 @@
         scrollbar-width: thin;
         scrollbar-color: ${COLORS.bgTertiary} transparent;
       }
-      .widget-messages::-webkit-scrollbar { width: 6px; }
-      .widget-messages::-webkit-scrollbar-track { background: transparent; }
-      .widget-messages::-webkit-scrollbar-thumb { background: ${COLORS.bgTertiary}; border-radius: 3px; }
 
-      /* Message Bubbles */
+      .widget-messages::-webkit-scrollbar {
+        width: 6px;
+      }
+
+      .widget-messages::-webkit-scrollbar-track {
+        background: transparent;
+      }
+
+      .widget-messages::-webkit-scrollbar-thumb {
+        background: ${COLORS.bgTertiary};
+        border-radius: 3px;
+      }
+
       .widget-message {
         max-width: 80%;
         padding: 10px 14px;
@@ -219,31 +263,37 @@
         word-wrap: break-word;
         animation: slideIn 0.2s ease-out;
       }
+
       @keyframes slideIn {
         from { opacity: 0; transform: translateY(10px); }
         to { opacity: 1; transform: translateY(0); }
       }
+
       .widget-message.inbound {
         align-self: flex-start;
         background: ${COLORS.inboundBubble};
         color: ${COLORS.text};
         border-bottom-left-radius: 4px;
       }
+
       .widget-message.outbound {
         align-self: flex-end;
         background: ${COLORS.outboundBubble};
         color: white;
         border-bottom-right-radius: 4px;
       }
+
       .widget-message-time {
         font-size: 10px;
         color: ${COLORS.textMuted};
         margin-top: 4px;
         text-align: right;
       }
-      .widget-message.outbound .widget-message-time { color: rgba(255,255,255,0.7); }
 
-      /* Input Area */
+      .widget-message.outbound .widget-message-time {
+        color: rgba(255,255,255,0.7);
+      }
+
       .widget-input-area {
         padding: 12px 16px;
         border-top: 1px solid ${COLORS.border};
@@ -252,6 +302,7 @@
         background: ${COLORS.bgSecondary};
         align-items: center;
       }
+
       .widget-input-area input {
         flex: 1;
         padding: 10px 14px;
@@ -262,39 +313,60 @@
         font-size: 14px;
         outline: none;
       }
-      .widget-input-area input::placeholder { color: ${COLORS.textMuted}; }
-      .widget-input-area input:focus { border-color: ${COLORS.primary}; }
-      
+
+      .widget-input-area input::placeholder {
+        color: ${COLORS.textMuted};
+      }
+
+      .widget-input-area input:focus {
+        border-color: ${COLORS.primary};
+      }
+
       .widget-input-area button {
         width: 40px;
         height: 40px;
         border-radius: 50%;
-        background: ${COLORS.primary};
-        color: white;
+        background: linear-gradient(135deg, ${COLORS.primary}, #06b6d4);
+        color: #ffffff;
         border: none;
         cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
         flex-shrink: 0;
-        transition: opacity 0.2s;
+        transition: transform 0.2s ease, opacity 0.2s ease, background 0.2s ease;
       }
-      .widget-input-area button:hover { opacity: 0.9; }
-      .widget-input-area button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+      .widget-input-area button:hover:not(:disabled) {
+        opacity: 0.95;
+        transform: scale(1.04);
+      }
+
+      .widget-input-area button:disabled {
+        opacity: 1;
+        cursor: not-allowed;
+        background: ${COLORS.bgTertiary};
+        color: ${COLORS.textSecondary};
+      }
+
       .widget-input-area button svg {
         width: 20px !important;
         height: 20px !important;
         display: block !important;
+        flex-shrink: 0;
       }
 
-      /* Loading/Error */
-      .widget-loading, .widget-error {
+      .widget-loading,
+      .widget-error {
         padding: 20px;
         text-align: center;
         color: ${COLORS.textSecondary};
         font-size: 14px;
       }
-      .widget-error { color: ${COLORS.error}; }
+
+      .widget-error {
+        color: ${COLORS.error};
+      }
     `;
     document.head.appendChild(style);
   }
@@ -320,7 +392,6 @@
     const win = document.createElement('div');
     win.id = 'widget-window';
     win.innerHTML = `
-      <!-- Header -->
       <div class="widget-header">
         <div class="widget-header-avatar">
           ${ICONS.robot}
@@ -339,23 +410,32 @@
         </div>
       </div>
 
-      <!-- Content Area -->
       <div class="widget-messages" id="widget-messages"></div>
 
-      <!-- Input Area -->
       <div class="widget-input-area" id="widget-input-area">
         <input type="text" id="widget-message-input" placeholder="Type a message..." />
         <button id="widget-send-btn" disabled>
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+          ${ICONS.send}
         </button>
       </div>
     `;
 
-    // Event listeners
     setTimeout(() => {
-      document.getElementById('widget-minimize')?.addEventListener('click', (e) => { e.stopPropagation(); closeChat(); });
-      document.getElementById('widget-close')?.addEventListener('click', (e) => { e.stopPropagation(); closeChat(); });
-      document.getElementById('widget-send-btn')?.addEventListener('click', (e) => { e.stopPropagation(); sendMessage(); });
+      document.getElementById('widget-minimize')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeChat();
+      });
+
+      document.getElementById('widget-close')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeChat();
+      });
+
+      document.getElementById('widget-send-btn')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        sendMessage();
+      });
+
       document.getElementById('widget-message-input')?.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault();
@@ -363,9 +443,9 @@
           sendMessage();
         }
       });
-      document.getElementById('widget-message-input')?.addEventListener('input', (e) => {
-        const btn = document.getElementById('widget-send-btn');
-        if (btn) btn.disabled = !e.target.value.trim();
+
+      document.getElementById('widget-message-input')?.addEventListener('input', () => {
+        updateSendButtonState();
       });
     }, 0);
 
@@ -374,50 +454,69 @@
 
   // ===== API Calls =====
   async function api(endpoint, options = {}) {
-    const url = `${WIDGET_HOST}${endpoint}`;
+    const url = `${API_BASE}${endpoint}`;
+
     const headers = {
-      'Content-Type': 'application/json',
       'Accept': 'application/json',
       'Origin': window.location.origin,
       ...options.headers,
     };
 
+    if (!(options.body instanceof FormData)) {
+      headers['Content-Type'] = 'application/json';
+    }
+
     const response = await fetch(url, {
-      method: 'POST',
+      method: options.method || 'POST',
       headers,
       credentials: 'include',
       ...options,
     });
 
-    return response.json();
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(data.error || data.message || `HTTP ${response.status}`);
+    }
+
+    return data;
   }
 
   async function bootstrap() {
-    const url = `${WIDGET_HOST}/api/widget/bootstrap?session_id=${encodeURIComponent(state.sessionId)}`;
+    const url = `${API_BASE}/api/widget/bootstrap?session_id=${encodeURIComponent(state.sessionId)}`;
+
     const response = await fetch(url, {
       method: 'GET',
-      headers: { 'Accept': 'application/json', 'Origin': window.location.origin },
+      headers: {
+        'Accept': 'application/json',
+        'Origin': window.location.origin,
+      },
       credentials: 'include',
     });
 
+    const data = await response.json().catch(() => ({}));
+
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Bootstrap failed');
+      throw new Error(data.error || data.message || 'Bootstrap failed');
     }
 
-    return response.json();
+    return data;
   }
 
   async function sendMessage() {
     const input = document.getElementById('widget-message-input');
     const body = input?.value.trim();
+
     if (!body) return;
 
-    // Add message to UI immediately
-    addMessage({ body, direction: 'outbound', created_at: new Date().toISOString() });
+    addMessage({
+      body,
+      direction: 'outbound',
+      created_at: new Date().toISOString(),
+    });
+
     if (input) input.value = '';
-    const sendBtn = document.getElementById('widget-send-btn');
-    if (sendBtn) sendBtn.disabled = true;
+    updateSendButtonState();
 
     try {
       const result = await api('/api/widget/messages', {
@@ -443,9 +542,12 @@
     if (!messagesDiv) return;
 
     const div = document.createElement('div');
-    const isInbound = msg.direction === 'inbound' || msg.sender_type !== 'App\\Models\\Visitor';
+    const isInbound =
+      msg.direction === 'inbound' ||
+      msg.sender_type !== 'App\\Models\\Visitor';
+
     div.className = `widget-message ${isInbound ? 'inbound' : 'outbound'}`;
-    
+
     const textSpan = document.createElement('span');
     textSpan.textContent = msg.body;
     div.appendChild(textSpan);
@@ -459,16 +561,26 @@
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
   }
 
+  function updateSendButtonState() {
+    const btn = document.getElementById('widget-send-btn');
+    const input = document.getElementById('widget-message-input');
+    if (!btn || !input) return;
+    btn.disabled = !input.value.trim();
+  }
+
   function formatTime(dateStr) {
     if (!dateStr) return '';
     const d = new Date(dateStr);
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   }
 
   function showError(msg) {
     const messagesDiv = document.getElementById('widget-messages');
     if (!messagesDiv) return;
-    
+
     const div = document.createElement('div');
     div.className = 'widget-error';
     div.textContent = msg;
@@ -485,25 +597,23 @@
       state.visitorId = data.visitor_id;
       state.chatStarted = true;
 
-      // Update UI with project name from API
       const projectName = document.getElementById('widget-project-name');
-      if (projectName) projectName.textContent = data.project_name || 'Support';
+      if (projectName) {
+        projectName.textContent = data.project_name || 'Support';
+      }
 
-      // Load existing messages
       if (data.messages?.length) {
         data.messages.forEach(addMessage);
       }
 
-      // Add welcome message if no messages
       if (!data.messages?.length) {
         addMessage({
-          body: `Salom! 👋 Sizga qanday yordam bera olaman?`,
+          body: 'Salom! 👋 Sizga qanday yordam bera olaman?',
           direction: 'inbound',
           created_at: new Date().toISOString(),
         });
       }
 
-      // Focus input
       const messageInput = document.getElementById('widget-message-input');
       if (messageInput) messageInput.focus();
 
@@ -515,22 +625,19 @@
 
   function openChat() {
     state.isOpen = true;
+
     const win = document.getElementById('widget-window');
     if (win) win.classList.add('widget-open');
 
-    // Show backdrop
     if (elements.backdrop) elements.backdrop.classList.add('active');
 
-    // Change bubble icon to close
     const bubble = document.getElementById('widget-bubble');
     if (bubble) bubble.innerHTML = ICONS.close;
 
-    // Initialize if needed
     if (!state.isInitialized) {
       init();
     }
 
-    // Start chat (bootstrap + welcome message) if not already started
     if (!state.chatStarted) {
       startChat();
     }
@@ -538,23 +645,19 @@
 
   function closeChat() {
     state.isOpen = false;
+
     const win = document.getElementById('widget-window');
     if (win) win.classList.remove('widget-open');
 
-    // Hide backdrop
     if (elements.backdrop) elements.backdrop.classList.remove('active');
 
-    // Change bubble icon back to chat
     const bubble = document.getElementById('widget-bubble');
     if (bubble) bubble.innerHTML = ICONS.chat;
   }
 
   function toggleChat() {
-    if (state.isOpen) {
-      closeChat();
-    } else {
-      openChat();
-    }
+    if (state.isOpen) closeChat();
+    else openChat();
   }
 
   // ===== Initialization =====
@@ -564,11 +667,10 @@
 
     injectStyles();
 
-    // Create and append elements
     elements.backdrop = createBackdrop();
     elements.bubble = createBubble();
     elements.window = createWindow();
-    
+
     document.body.appendChild(elements.backdrop);
     document.body.appendChild(elements.bubble);
     document.body.appendChild(elements.window);
@@ -576,7 +678,6 @@
     console.log(`[Widget] v${SDK_VERSION} initialized`);
   }
 
-  // Auto-init when DOM ready
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else {

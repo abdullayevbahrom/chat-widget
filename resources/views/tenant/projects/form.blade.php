@@ -452,7 +452,227 @@
             </div>
         </form>
     </div>
+
+    {{-- Widget Preview Section --}}
+    @if($isEdit)
+    <div class="mt-8">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Widget Preview</h3>
+        <div class="glass rounded-2xl p-6 overflow-hidden">
+            <div class="flex flex-col lg:flex-row gap-6">
+                <!-- Widget Mockup -->
+                <div class="widget-preview-container flex-shrink-0" style="--widget-primary: {{ old('primary_color', $primaryColor) }}">
+                    <div class="widget-preview-window">
+                        <!-- Header -->
+                        <div class="widget-preview-header">
+                            <div class="widget-preview-avatar">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+                                </svg>
+                            </div>
+                            <div class="widget-preview-info">
+                                <div class="widget-preview-title">{{ $project->name ?? 'Project Name' }}</div>
+                                <div class="widget-preview-status">Online</div>
+                            </div>
+                        </div>
+                        <!-- Messages -->
+                        <div class="widget-preview-messages">
+                            <div class="widget-preview-message inbound">
+                                <span>Salom! 👋 Sizga qanday yordam bera olaman?</span>
+                                <div class="widget-preview-time">12:00</div>
+                            </div>
+                            <div class="widget-preview-message outbound">
+                                <span>Menga ma'lumot kerak</span>
+                                <div class="widget-preview-time">12:01</div>
+                            </div>
+                        </div>
+                        <!-- Input -->
+                        <div class="widget-preview-input">
+                            <input type="text" placeholder="Type a message..." readonly />
+                            <button>
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Color Controls -->
+                <div class="flex-1">
+                    <h4 class="font-medium text-gray-700 mb-4">Customize Colors</h4>
+                    <div class="space-y-4">
+                        <!-- Primary Color -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Primary Color</label>
+                            <div class="flex items-center gap-3">
+                                <input type="color"
+                                       id="primary_color_picker_preview"
+                                       value="{{ old('primary_color', $primaryColor) }}"
+                                       class="w-12 h-12 rounded-xl cursor-pointer border-2 border-gray-200 p-0.5" />
+                                <input type="text"
+                                       id="primary_color_text_preview"
+                                       value="{{ old('primary_color', $primaryColor) }}"
+                                       class="flex-1 px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all font-mono uppercase"
+                                       placeholder="#6366f1"
+                                       maxlength="7" />
+                            </div>
+                            <p class="mt-2 text-xs text-gray-500">This color affects the header, outbound bubbles, and buttons.</p>
+                        </div>
+
+                        <!-- Color Presets -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Quick Presets</label>
+                            <div class="flex flex-wrap gap-2">
+                                <button type="button" data-color="#6366f1" class="preset-color-btn w-8 h-8 rounded-lg border-2 border-gray-200 hover:scale-110 transition-transform" style="background: #6366f1;"></button>
+                                <button type="button" data-color="#8b5cf6" class="preset-color-btn w-8 h-8 rounded-lg border-2 border-gray-200 hover:scale-110 transition-transform" style="background: #8b5cf6;"></button>
+                                <button type="button" data-color="#ec4899" class="preset-color-btn w-8 h-8 rounded-lg border-2 border-gray-200 hover:scale-110 transition-transform" style="background: #ec4899;"></button>
+                                <button type="button" data-color="#f43f5e" class="preset-color-btn w-8 h-8 rounded-lg border-2 border-gray-200 hover:scale-110 transition-transform" style="background: #f43f5e;"></button>
+                                <button type="button" data-color="#f97316" class="preset-color-btn w-8 h-8 rounded-lg border-2 border-gray-200 hover:scale-110 transition-transform" style="background: #f97316;"></button>
+                                <button type="button" data-color="#22c55e" class="preset-color-btn w-8 h-8 rounded-lg border-2 border-gray-200 hover:scale-110 transition-transform" style="background: #22c55e;"></button>
+                                <button type="button" data-color="#06b6d4" class="preset-color-btn w-8 h-8 rounded-lg border-2 border-gray-200 hover:scale-110 transition-transform" style="background: #06b6d4;"></button>
+                                <button type="button" data-color="#3b82f6" class="preset-color-btn w-8 h-8 rounded-lg border-2 border-gray-200 hover:scale-110 transition-transform" style="background: #3b82f6;"></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
 </div>
+
+@push('styles')
+<style>
+    .widget-preview-container {
+        --widget-primary: #6366f1;
+        width: 280px;
+    }
+    .widget-preview-window {
+        background: #0f172a;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    }
+    .widget-preview-header {
+        background: var(--widget-primary);
+        padding: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .widget-preview-avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .widget-preview-avatar svg {
+        width: 16px;
+        height: 16px;
+        color: white;
+    }
+    .widget-preview-info {
+        flex: 1;
+    }
+    .widget-preview-title {
+        color: white;
+        font-size: 13px;
+        font-weight: 600;
+    }
+    .widget-preview-status {
+        color: #22c55e;
+        font-size: 10px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+    .widget-preview-status::before {
+        content: '';
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #22c55e;
+    }
+    .widget-preview-messages {
+        padding: 12px;
+        min-height: 120px;
+    }
+    .widget-preview-message {
+        max-width: 80%;
+        padding: 8px 12px;
+        border-radius: 12px;
+        font-size: 12px;
+        line-height: 1.4;
+        margin-bottom: 8px;
+    }
+    .widget-preview-message.inbound {
+        background: #1e293b;
+        color: #f1f5f9;
+        border-bottom-left-radius: 4px;
+    }
+    .widget-preview-message.outbound {
+        background: var(--widget-primary);
+        color: white;
+        border-bottom-right-radius: 4px;
+        margin-left: auto;
+    }
+    .widget-preview-time {
+        font-size: 9px;
+        color: #64748b;
+        margin-top: 2px;
+        text-align: right;
+    }
+    .widget-preview-message.outbound .widget-preview-time {
+        color: rgba(255, 255, 255, 0.7);
+    }
+    .widget-preview-input {
+        padding: 10px 12px;
+        border-top: 1px solid #334155;
+        display: flex;
+        gap: 6px;
+    }
+    .widget-preview-input input {
+        flex: 1;
+        padding: 8px 12px;
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 20px;
+        color: #f1f5f9;
+        font-size: 12px;
+        outline: none;
+    }
+    .widget-preview-input button {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: var(--widget-primary);
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: opacity 0.2s;
+    }
+    .widget-preview-input button:hover {
+        opacity: 0.9;
+    }
+    .widget-preview-input button svg {
+        width: 14px;
+        height: 14px;
+        color: white;
+    }
+    .preset-color-btn {
+        cursor: pointer;
+    }
+    .preset-color-btn.active {
+        border-color: white !important;
+        box-shadow: 0 0 0 2px #6366f1;
+    }
+</style>
+@endpush
 
 @push('scripts')
 <script>
@@ -632,6 +852,93 @@
             });
         }
     })();
+
+    // Widget preview color sync - only on edit pages
+    @if($isEdit)
+    (function() {
+        const previewPicker = document.getElementById('primary_color_picker_preview');
+        const previewText = document.getElementById('primary_color_text_preview');
+        const mainPicker = document.getElementById('primary_color_picker');
+        const mainText = document.getElementById('primary_color');
+        const presetButtons = document.querySelectorAll('.preset-color-btn');
+
+        function updatePreviewColor(color) {
+            // Update CSS custom property on preview container
+            const containers = document.querySelectorAll('.widget-preview-container');
+            containers.forEach(el => {
+                el.style.setProperty('--widget-primary', color);
+            });
+
+            // Sync all color inputs
+            if (previewPicker && previewPicker.value !== color) {
+                previewPicker.value = color;
+            }
+            if (previewText && previewText.value !== color.toUpperCase()) {
+                previewText.value = color.toUpperCase();
+            }
+            if (mainPicker && mainPicker.value !== color) {
+                mainPicker.value = color;
+            }
+            if (mainText && mainText.value !== color.toUpperCase()) {
+                mainText.value = color.toUpperCase();
+            }
+
+            // Update active preset button
+            presetButtons.forEach(btn => {
+                if (btn.dataset.color.toLowerCase() === color.toLowerCase()) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+        }
+
+        // Listen to preview picker
+        if (previewPicker) {
+            previewPicker.addEventListener('input', function() {
+                updatePreviewColor(this.value);
+            });
+        }
+
+        // Listen to preview text input
+        if (previewText) {
+            previewText.addEventListener('input', function() {
+                const value = this.value;
+                if (/^#[0-9a-fA-F]{6}$/.test(value)) {
+                    updatePreviewColor(value);
+                }
+            });
+        }
+
+        // Listen to main form picker (sync to preview)
+        if (mainPicker) {
+            mainPicker.addEventListener('input', function() {
+                updatePreviewColor(this.value);
+            });
+        }
+
+        // Listen to main form text input (sync to preview)
+        if (mainText) {
+            mainText.addEventListener('input', function() {
+                const value = this.value;
+                if (/^#[0-9a-fA-F]{6}$/.test(value)) {
+                    updatePreviewColor(value);
+                }
+            });
+        }
+
+        // Preset color buttons
+        presetButtons.forEach(btn => {
+            btn.addEventListener('click', function() {
+                updatePreviewColor(this.dataset.color);
+            });
+        });
+
+        // Initial update on page load
+        const initialColor = previewText?.value || mainText?.value || '#6366f1';
+        updatePreviewColor(initialColor);
+    })();
+    @endif
 </script>
 @endpush
 @endsection
