@@ -1,10 +1,6 @@
 <?php
 
-use App\Http\Middleware\EnforceTenantContext;
-use App\Http\Middleware\ResetTenantContext;
-use App\Http\Middleware\ResolveTenantFromDomain;
 use App\Http\Middleware\SetRequestId;
-use App\Http\Middleware\SetTenantContext;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -25,10 +21,6 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Register tenant middleware aliases
         $middleware->alias([
-            'reset.tenant' => ResetTenantContext::class,
-            'resolve.tenant' => ResolveTenantFromDomain::class,
-            'set.tenant' => SetTenantContext::class,
-            'enforce.tenant' => EnforceTenantContext::class,
             'widget.domain' => \App\Http\Middleware\ValidateWidgetDomain::class,
         ]);
 

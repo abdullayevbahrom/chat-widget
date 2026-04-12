@@ -16,6 +16,8 @@ class Tenant extends Model
 {
     use HasFactory;
 
+    protected static ?self $currentTenant = null;
+
     protected $fillable = [
         'user_id',
         'name',
@@ -31,6 +33,30 @@ class Tenant extends Model
         'created_at',
         'updated_at',
     ];
+
+    /**
+     * Set the current tenant context.
+     */
+    public static function setCurrent(?self $tenant = null): void
+    {
+        static::$currentTenant = $tenant;
+    }
+
+    /**
+     * Get the current tenant context.
+     */
+    public static function current(): ?self
+    {
+        return static::$currentTenant;
+    }
+
+    /**
+     * Clear the current tenant context.
+     */
+    public static function clearCurrent(): void
+    {
+        static::$currentTenant = null;
+    }
 
     protected function casts(): array
     {

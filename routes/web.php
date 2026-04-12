@@ -13,9 +13,6 @@ use App\Http\Middleware\TrackVisitors;
 use App\Http\Middleware\ValidateWidgetDomain;
 use Illuminate\Support\Facades\Route;
 
-// ==========================================
-// Landing Page
-// ==========================================
 Route::get('/', function () {
     if (auth('tenant_user')->check()) {
         return redirect('/dashboard');
@@ -23,14 +20,10 @@ Route::get('/', function () {
     return view('welcome');
 })->name('home');
 
-// Widget test page (for development/testing only)
 Route::get('/test-widget', function () {
     return view('test-widget');
 })->name('test-widget');
 
-// ==========================================
-// Unified Auth Routes (single login page for all roles)
-// ==========================================
 Route::middleware(['web'])->group(function () {
     Route::get('/auth/login', [TenantAuthController::class, 'showLoginForm'])->name('login');
     Route::post('/auth/login', [TenantAuthController::class, 'login']);
@@ -42,10 +35,7 @@ Route::middleware(['auth:tenant_user'])->group(function () {
     Route::post('/auth/logout', [TenantAuthController::class, 'logout'])->name('logout');
 });
 
-// ==========================================
-// Tenant Dashboard Routes
-// ==========================================
-Route::middleware(['web', 'reset.tenant', 'auth:tenant_user', 'set.tenant'])->prefix('dashboard')->name('dashboard.')->group(function () {
+Route::middleware(['web', 'auth:tenant_user'])->prefix('dashboard')->name('dashboard.')->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('index');
 
     // Projects CRUD

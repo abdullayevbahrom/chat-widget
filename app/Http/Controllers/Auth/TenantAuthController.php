@@ -25,17 +25,14 @@ class TenantAuthController extends Controller
             'password' => ['required'],
         ]);
 
-        // Check if user is super admin first
         $user = User::where('email', $credentials['email'])->first();
 
         if ($user && $user->is_super_admin) {
-            // Super admin - use web guard
             if (Auth::guard('web')->attempt($credentials, $request->boolean('remember'))) {
                 $request->session()->regenerate();
                 return redirect()->intended('/admin');
             }
         } else {
-            // Tenant user - use tenant_user guard
             if (Auth::guard('tenant_user')->attempt($credentials, $request->boolean('remember'))) {
                 $request->session()->regenerate();
                 return redirect()->intended('/dashboard');
@@ -52,7 +49,7 @@ class TenantAuthController extends Controller
         if (Auth::guard('tenant_user')->check()) {
             return redirect('/dashboard');
         }
-        
+
         return view('auth.register');
     }
 
@@ -74,21 +71,21 @@ class TenantAuthController extends Controller
                 $counter++;
             }
 
-            $tenant = Tenant::create([
-                'name' => $emailUsername,
-                'slug' => $slug,
-                'is_active' => true,
-                'plan' => 'free',
-                'subscription_expires_at' => null,
-            ]);
-
             $user = User::create([
                 'name' => $emailUsername,
                 'email' => $data['email'],
                 'password' => Hash::make($data['password']),
-                'tenant_id' => $tenant->id,
                 'is_super_admin' => false,
                 'email_verified_at' => now(),
+            ]);
+
+            Tenant::create([
+                'name' => $emailUsername,
+                'user_id' => $user->id,
+                'slug' => $slug,
+                'is_active' => true,
+                'plan' => 'free',
+                'subscription_expires_at' => null,
             ]);
 
             return $user;
@@ -104,6 +101,7 @@ class TenantAuthController extends Controller
         Auth::guard('tenant_user')->logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
+
         return redirect('/');
     }
 }

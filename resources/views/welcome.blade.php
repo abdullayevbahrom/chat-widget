@@ -545,7 +545,7 @@
                             <div class="bg-white rounded-xl p-4 border border-gray-200">
                                 <div class="text-sm text-gray-500 mb-2">Your widget embed code:</div>
                                 <code
-                                    class="text-xs bg-gray-100 p-3 rounded-lg block break-all">&lt;script src="https://yourapp.com/widget.js" data-widget-key="wsk_xxx"&gt;&lt;/script&gt;</code>
+                                    class="text-xs bg-gray-100 p-3 rounded-lg block break-all">&lt;script src="{{ asset('js/widget.js') }}"&gt;&lt;/script&gt;</code>
                             </div>
                         </div>
                     </div>

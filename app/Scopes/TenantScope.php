@@ -29,7 +29,8 @@ class TenantScope implements Scope
      */
     public function __construct(
         protected ?string $relationColumn = null,
-    ) {}
+    ) {
+    }
 
     /**
      * Apply the scope to a given Eloquent query builder.
@@ -40,7 +41,7 @@ class TenantScope implements Scope
         if (app()->environment('testing')) {
             return;
         }
-        
+
         // Non-HTTP contextlarda (queue jobs, tinker, migrations) Auth::user()
         // chaqirish keraksiz va ba'zan xatolikka olib kelishi mumkin.
         // Faqat HTTP context da auth tekshiramiz.
@@ -67,18 +68,6 @@ class TenantScope implements Scope
         if ($currentTenant === null) {
             // No tenant context — return empty results for tenant-scoped models
             // to prevent data leakage across tenants.
-            // Uses Tenant::withoutTenantContext() static property as an explicit
-            // bypass signal for intentional context-free queries (e.g. widget key validation).
-            if (Tenant::isBypassingContext()) {
-                if (app()->environment('local', 'testing')) {
-                    Log::debug('TenantScope skipped: tenant context bypass is active.', [
-                        'model' => get_class($model),
-                    ]);
-                }
-
-                return;
-            }
-
             if (app()->environment('local', 'testing')) {
                 Log::debug('TenantScope applied: no tenant context, returning empty result.', [
                     'model' => get_class($model),
@@ -102,7 +91,7 @@ class TenantScope implements Scope
         $hasTenantColumn = $this->modelHasTenantColumn($model);
 
         if ($hasTenantColumn) {
-            $builder->where($model->getTable().'.tenant_id', $currentTenant->id);
+            $builder->where($model->getTable() . '.tenant_id', $currentTenant->id);
 
             return;
         }
@@ -118,7 +107,7 @@ class TenantScope implements Scope
 
         // Fallback: agar tenant_id ustuni ham, relation ham bo'lmasa,
         // jadval nomiga tenant_id qo'shib where() ishlatamiz
-        $builder->where($model->getTable().'.tenant_id', $currentTenant->id);
+        $builder->where($model->getTable() . '.tenant_id', $currentTenant->id);
     }
 
     /**
@@ -149,6 +138,6 @@ class TenantScope implements Scope
      */
     protected function isHttpContext(): bool
     {
-        return ! app()->runningInConsole() && app('request') !== null;
+        return !app()->runningInConsole() && app('request') !== null;
     }
 }

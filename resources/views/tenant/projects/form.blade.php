@@ -329,7 +329,6 @@
                 </div>
 
                 {{-- Telegram Bot Section --}}
-                @if($isEdit)
                 <div class="border-t border-gray-200 pt-6">
                     <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                         <svg class="w-5 h-5 text-brand-600" fill="currentColor" viewBox="0 0 24 24">
@@ -349,7 +348,7 @@
                                 <input type="password"
                                        name="telegram_bot_token"
                                        id="telegram_bot_token"
-                                       value="{{ $maskedToken }}"
+                                       value="{{ old('telegram_bot_token', $maskedToken) }}"
                                        placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
                                        class="w-full px-4 py-3 pr-20 rounded-xl border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all font-mono text-sm">
                                 <div class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
@@ -374,24 +373,6 @@
                             @enderror
                         </div>
 
-                        {{-- Bot Info (Read-only) --}}
-                        @if($project->telegram_bot_username || $project->telegram_bot_name)
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-xs font-medium text-gray-600 mb-1">Bot Username</label>
-                                <input type="text" readonly
-                                       value="{{ $project->telegram_bot_username }}"
-                                       class="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-gray-600 cursor-not-allowed text-sm">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-medium text-gray-600 mb-1">Bot Name</label>
-                                <input type="text" readonly
-                                       value="{{ $project->telegram_bot_name }}"
-                                       class="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-gray-600 cursor-not-allowed text-sm">
-                            </div>
-                        </div>
-                        @endif
-
                         {{-- Chat ID --}}
                         <div>
                             <label for="telegram_chat_id" class="block text-sm font-medium text-gray-700 mb-1">Chat ID</label>
@@ -408,6 +389,7 @@
                         </div>
 
                         {{-- Send Test Message Button --}}
+                        @if($isEdit)
                         <div class="flex justify-end pt-2">
                             <button type="button"
                                     id="send-test-message-btn"
@@ -424,9 +406,9 @@
                                 <span id="button-text">Send Test Message</span>
                             </button>
                         </div>
+                        @endif
                     </div>
                 </div>
-                @endif
             </div>
 
             {{-- Form Actions --}}
@@ -453,7 +435,6 @@
     </div>
 
     {{-- Widget Preview Section --}}
-    @if($isEdit)
     <div class="mt-8">
         <h3 class="text-lg font-semibold text-gray-900 mb-4">Widget Preview</h3>
         <div class="glass rounded-2xl p-6 overflow-hidden">
@@ -537,7 +518,6 @@
             </div>
         </div>
     </div>
-    @endif
 </div>
 
 @push('styles')
@@ -743,33 +723,11 @@
         }));
     });
 
-    // Telegram Bot functions - plain JavaScript
-    @if($isEdit)
+    // Telegram Bot helper functions - works on both create and edit
     (function() {
         const tokenInput = document.getElementById('telegram_bot_token');
         const chatIdInput = document.getElementById('telegram_chat_id');
-        const sendBtn = document.getElementById('send-test-message-btn');
-        const sendIcon = document.getElementById('send-icon');
-        const loadingIcon = document.getElementById('loading-icon');
-        const buttonText = document.getElementById('button-text');
-        const resultDiv = document.getElementById('telegram-test-result');
-        const maskedToken = '{{ $maskedToken }}';
-
-        function updateButtonState() {
-            const tokenValue = tokenInput.value;
-            const chatIdValue = chatIdInput.value;
-            // Token is valid if it's not empty AND not the masked placeholder
-            const hasRealToken = tokenValue.length > 0 && tokenValue !== maskedToken;
-            const hasChatId = chatIdValue.length > 0;
-            sendBtn.disabled = !(hasRealToken && hasChatId);
-        }
-
-        tokenInput.addEventListener('input', updateButtonState);
-        chatIdInput.addEventListener('input', updateButtonState);
-
-        // Initial state check
-        updateButtonState();
-
+        
         window.toggleTokenVisibility = function() {
             const isPassword = tokenInput.type === 'password';
             tokenInput.type = isPassword ? 'text' : 'password';
@@ -777,10 +735,47 @@
 
         window.clearTokenField = function() {
             tokenInput.value = '';
-            updateButtonState();
+            const sendBtn = document.getElementById('send-test-message-btn');
+            if (sendBtn) {
+                const maskedToken = '{{ $maskedToken }}';
+                const tokenValue = tokenInput.value;
+                const chatIdValue = chatIdInput?.value;
+                const hasRealToken = tokenValue.length > 0 && tokenValue !== maskedToken;
+                const hasChatId = chatIdValue && chatIdValue.length > 0;
+                sendBtn.disabled = !(hasRealToken && hasChatId);
+            }
         };
+    })();
 
-        window.sendTestMessage = async function() {
+    // Telegram test message - only on edit pages
+    document.addEventListener('DOMContentLoaded', function() {
+        @if($isEdit)
+        (function() {
+            const tokenInput = document.getElementById('telegram_bot_token');
+            const chatIdInput = document.getElementById('telegram_chat_id');
+            const sendBtn = document.getElementById('send-test-message-btn');
+            const sendIcon = document.getElementById('send-icon');
+            const loadingIcon = document.getElementById('loading-icon');
+            const buttonText = document.getElementById('button-text');
+            const resultDiv = document.getElementById('telegram-test-result');
+            const maskedToken = '{{ $maskedToken }}';
+
+            function updateButtonState() {
+                const tokenValue = tokenInput.value;
+                const chatIdValue = chatIdInput.value;
+                // Token is valid if it's not empty AND not the masked placeholder
+                const hasRealToken = tokenValue.length > 0 && tokenValue !== maskedToken;
+                const hasChatId = chatIdValue.length > 0;
+                sendBtn.disabled = !(hasRealToken && hasChatId);
+            }
+
+            tokenInput.addEventListener('input', updateButtonState);
+            chatIdInput.addEventListener('input', updateButtonState);
+
+            // Initial state check
+            updateButtonState();
+
+            window.sendTestMessage = async function() {
             sendBtn.disabled = true;
             sendIcon.classList.add('hidden');
             loadingIcon.classList.remove('hidden');
@@ -827,8 +822,9 @@
             `;
             resultDiv.classList.remove('hidden');
         }
-    })();
-    @endif
+        })();
+        @endif
+    });
 
     // Color picker sync - works on both create and edit pages
     // This runs at the end of the page, DOM is already loaded

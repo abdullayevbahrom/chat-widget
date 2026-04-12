@@ -152,4 +152,44 @@ class Project extends Model
         return $this->conversations()->open()->count();
     }
 
+    /**
+     * Get a widget setting with a default value.
+     */
+    public function getWidgetSetting(string $key, mixed $default = null): mixed
+    {
+        $widgetSettings = $this->settings['widget'] ?? [];
+
+        return $widgetSettings[$key] ?? $default;
+    }
+
+    /**
+     * Generate a unique widget key for HMAC authentication.
+     */
+    public function generateWidgetKey(): string
+    {
+        $key = bin2hex(random_bytes(32));
+        $this->widget_key_hash = hash('sha256', $key);
+        $this->widget_key_generated_at = now();
+        $this->save();
+
+        return $key;
+    }
+
+    /**
+     * Regenerate the widget key.
+     */
+    public function regenerateWidgetKey(): string
+    {
+        return $this->generateWidgetKey();
+    }
+
+    /**
+     * Revoke the current widget key.
+     */
+    public function revokeWidgetKey(): void
+    {
+        $this->widget_key_hash = null;
+        $this->widget_key_generated_at = null;
+        $this->save();
+    }
 }

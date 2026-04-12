@@ -11,40 +11,28 @@ use App\Http\Controllers\Api\WidgetConversationController;
 use App\Http\Controllers\Api\WidgetMessageController;
 use App\Http\Middleware\RestrictHealthEndpoint;
 use App\Http\Middleware\ValidateCorsOrigins;
-use App\Http\Middleware\ValidateSanctumTenantScope;
 use App\Http\Middleware\ValidateWidgetDomain;
 use Illuminate\Support\Facades\Route;
 
-// Project-scoped Telegram Webhook — rate limited, no auth required (Telegram calls this)
-// Uses project ID for routing; resolves Project without tenant scope
 Route::middleware(['throttle:telegram-webhook'])
     ->post('projects/{project}/webhook', [TelegramWebhookController::class, 'handle'])
     ->name('telegram.webhook.project');
 
-// Legacy: Tenant-scoped Telegram Webhook — kept for backward compatibility during migration
-Route::middleware(['throttle:telegram-webhook'])
-    ->post('telegram/webhook/{tenantSlug}', [TelegramWebhookController::class, 'handleLegacy'])
-    ->name('telegram.webhook');
-
-// Tenant-scoped API routes — require authentication + tenant context
-Route::middleware(['auth:sanctum', 'set.tenant', 'enforce.tenant', ValidateSanctumTenantScope::class, 'throttle:tenant-api'])
+Route::middleware(['auth:sanctum'])
     ->prefix('tenant')
     ->group(function () {
         Route::get('/profile', [TenantProfileController::class, 'show']);
         Route::put('/profile', [TenantProfileController::class, 'update']);
 
-        // Project management
         Route::apiResource('projects', ProjectController::class);
         Route::post('projects/{project}/regenerate-key', [ProjectController::class, 'regenerateKey']);
         Route::post('projects/{project}/revoke-key', [ProjectController::class, 'revokeKey']);
     });
 
-// Widget Bootstrap API — domain validated, returns widget config + conversation state
 Route::middleware(['throttle:widget-config', ValidateWidgetDomain::class, ValidateCorsOrigins::class])
     ->get('widget/bootstrap', [WidgetBootstrapController::class, 'bootstrap'])
     ->name('widget.bootstrap');
 
-// Widget Message API — rate limited, widget domain validated
 Route::middleware(['throttle:widget-message', ValidateWidgetDomain::class, ValidateCorsOrigins::class])
     ->prefix('widget')
     ->group(function () {
@@ -55,7 +43,6 @@ Route::middleware(['throttle:widget-message', ValidateWidgetDomain::class, Valid
         Route::post('conversation/close', [WidgetConversationController::class, 'close'])->name('widget.conversation.close');
     });
 
-// Widget Attachment API — stricter rate limiting due to storage costs
 Route::middleware(['throttle:widget-attachment', ValidateWidgetDomain::class, ValidateCorsOrigins::class])
     ->prefix('widget')
     ->group(function () {
@@ -63,8 +50,7 @@ Route::middleware(['throttle:widget-attachment', ValidateWidgetDomain::class, Va
             ->name('widget.attachments.download');
     });
 
-// Admin Conversation API — authenticated, tenant-scoped
-Route::middleware(['auth:sanctum', 'set.tenant', 'enforce.tenant', ValidateSanctumTenantScope::class, 'throttle:admin-conversation'])
+Route::middleware(['auth:sanctum'])
     ->prefix('tenant')
     ->group(function () {
         Route::apiResource('conversations', AdminConversationController::class)->only(['index', 'show']);
@@ -75,18 +61,14 @@ Route::middleware(['auth:sanctum', 'set.tenant', 'enforce.tenant', ValidateSanct
         Route::get('conversations/unread-count', [AdminConversationController::class, 'unreadCount'])->name('tenant.conversations.unread-count');
     });
 
-// Widget WebSocket connection endpoint — domain validated
 Route::middleware(['throttle:widget-config', ValidateWidgetDomain::class, ValidateCorsOrigins::class])
     ->get('widget/ws/connect', [WidgetMessageController::class, 'wsConnect'])
     ->name('widget.ws.connect');
 
-// Widget WebSocket auth endpoint — validates session for private channel subscription
 Route::middleware(['throttle:widget-config', ValidateWidgetDomain::class, ValidateCorsOrigins::class])
     ->post('widget/ws/auth', [WidgetMessageController::class, 'wsAuth'])
     ->name('widget.ws.auth');
 
-// Health Check endpoint — monitoring tool'lar uchun
-// IP whitelist orqali himoyalangan; HEALTH_ALLOWED_IPS env da monitoring server IP'larni kiriting
 Route::middleware(['throttle:1,1', RestrictHealthEndpoint::class])
     ->get('health', [HealthController::class, 'index'])
     ->name('api.health');

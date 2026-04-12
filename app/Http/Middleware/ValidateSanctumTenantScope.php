@@ -38,7 +38,7 @@ class ValidateSanctumTenantScope
         }
 
         // Get the current tenant context
-        $currentTenant = Tenant::current();
+        $currentTenant = $user->tenant;
 
         if ($currentTenant === null) {
             // No tenant context - let other middleware handle this

@@ -63,7 +63,7 @@ class WidgetKeyService
 
         // Use tenant-prefixed cache key when tenant context is available.
         // For widget requests without tenant context, use a global cache key.
-        $currentTenant = Tenant::current();
+        $currentTenant = auth()->check() ? auth()->user()->tenant : null;
         $cacheKey = $currentTenant !== null
             ? "tenant:{$currentTenant->id}:project:key:{$hash}"
             : "project:key:{$hash}";

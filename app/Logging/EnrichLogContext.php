@@ -23,7 +23,7 @@ class EnrichLogContext
 
         // Tenant ID
         if (! isset($record['context']['tenant_id'])) {
-            $currentTenant = Tenant::current();
+            $currentTenant = auth()->check() ? auth()->user()->tenant : null;
             if ($currentTenant !== null) {
                 $record['context']['tenant_id'] = $currentTenant->id;
             }

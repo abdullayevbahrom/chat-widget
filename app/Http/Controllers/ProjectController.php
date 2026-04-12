@@ -52,8 +52,15 @@ class ProjectController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        $user = Auth::guard('tenant_user')->user();
+        $tenantId = $user?->tenant_id;
+
+        if (!$tenantId) {
+            return redirect()->route('login')->withErrors(['auth' => 'You must be logged in.']);
+        }
+
         $validated = $request->validate([
-            'domain' => ['required', 'string', 'max:255', 'unique:projects,domain', 'regex:/^[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$/'],
+            'domain' => ['required', 'string', 'max:255', 'unique:projects,domain,NULL,id,tenant_id,'.$tenantId, 'regex:/^[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$/'],
             'chat_name' => ['nullable', 'string', 'max:100'],
             'theme' => ['required', 'string', 'in:light,dark,auto'],
             'position' => ['required', 'string', 'in:bottom-right,bottom-left,top-right,top-left'],

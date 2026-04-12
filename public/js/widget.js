@@ -647,7 +647,7 @@
         forceTLS: window.location.protocol === 'https:',
         disableStats: true,
         enabledTransports: ['ws', 'wss'],
-        authEndpoint: `${WIDGET_HOST}/api/widget/ws/auth`,
+        authEndpoint: `${API_BASE}/api/widget/ws/auth`,
         auth: {
           headers: {
             'X-Session-Id': state.sessionId,
