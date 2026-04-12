@@ -229,39 +229,6 @@
       }
       .widget-message.outbound .widget-message-time { color: rgba(255,255,255,0.7); }
 
-      /* Pre-chat Form */
-      .widget-prechat {
-        padding: 16px;
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-        border-top: 1px solid ${COLORS.border};
-      }
-      .widget-prechat input {
-        width: 100%;
-        padding: 12px 14px;
-        background: ${COLORS.bgSecondary};
-        border: 1px solid ${COLORS.border};
-        border-radius: 10px;
-        color: ${COLORS.text};
-        font-size: 14px;
-        outline: none;
-      }
-      .widget-prechat input::placeholder { color: ${COLORS.textMuted}; }
-      .widget-prechat input:focus { border-color: ${COLORS.primary}; }
-      .widget-prechat button {
-        width: 100%;
-        padding: 12px;
-        background: ${COLORS.primary};
-        color: white;
-        border: none;
-        border-radius: 10px;
-        font-size: 14px;
-        font-weight: 600;
-        cursor: pointer;
-      }
-      .widget-prechat button:hover { opacity: 0.9; }
-
       /* Input Area */
       .widget-input-area {
         padding: 12px 16px;
@@ -363,19 +330,8 @@
       <!-- Content Area -->
       <div class="widget-messages" id="widget-messages"></div>
 
-      <!-- Pre-chat Form (shown initially) -->
-      <div class="widget-prechat" id="widget-prechat">
-        <div class="widget-welcome">
-          <p class="widget-welcome-message" id="widget-welcome-msg">Welcome! Let's get you an answer.</p>
-          <p class="widget-welcome-subtitle">Leave your name to start chatting.</p>
-        </div>
-        <input type="text" id="widget-name-input" placeholder="Your name" />
-        <input type="email" id="widget-email-input" placeholder="Email address (optional)" />
-        <button id="widget-start-btn">Start Chat</button>
-      </div>
-
-      <!-- Input Area (hidden until chat starts) -->
-      <div class="widget-input-area widget-hidden" id="widget-input-area">
+      <!-- Input Area (always visible) -->
+      <div class="widget-input-area" id="widget-input-area">
         <input type="text" id="widget-message-input" placeholder="Type a message..." />
         <button id="widget-send-btn" disabled>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -388,13 +344,13 @@
 
     // Event listeners
     setTimeout(() => {
-      document.getElementById('widget-minimize')?.addEventListener('click', () => closeChat());
-      document.getElementById('widget-close')?.addEventListener('click', () => closeChat());
-      document.getElementById('widget-start-btn')?.addEventListener('click', startChat);
-      document.getElementById('widget-send-btn')?.addEventListener('click', sendMessage);
+      document.getElementById('widget-minimize')?.addEventListener('click', (e) => { e.stopPropagation(); closeChat(); });
+      document.getElementById('widget-close')?.addEventListener('click', (e) => { e.stopPropagation(); closeChat(); });
+      document.getElementById('widget-send-btn')?.addEventListener('click', (e) => { e.stopPropagation(); sendMessage(); });
       document.getElementById('widget-message-input')?.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault();
+          e.stopPropagation();
           sendMessage();
         }
       });
@@ -511,9 +467,6 @@
   }
 
   async function startChat() {
-    const nameInput = document.getElementById('widget-name-input');
-    const name = nameInput?.value.trim() || 'Visitor';
-
     try {
       const data = await bootstrap();
       if (!data.success) throw new Error(data.error);
@@ -541,12 +494,7 @@
         });
       }
 
-      // Show input area, hide prechat
-      const prechat = document.getElementById('widget-prechat');
-      const inputArea = document.getElementById('widget-input-area');
-      if (prechat) prechat.classList.add('widget-hidden');
-      if (inputArea) inputArea.classList.remove('widget-hidden');
-      
+      // Focus input
       const messageInput = document.getElementById('widget-message-input');
       if (messageInput) messageInput.focus();
 
@@ -568,6 +516,11 @@
     // Initialize if needed
     if (!state.isInitialized) {
       init();
+    }
+
+    // Start chat (bootstrap + welcome message) if not already started
+    if (!state.chatStarted) {
+      startChat();
     }
   }
 

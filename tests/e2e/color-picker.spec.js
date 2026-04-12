@@ -83,16 +83,19 @@ test.describe('Widget Chat Bubble', () => {
     // Wait for widget to initialize
     await page.waitForTimeout(3000);
     
-    // Click the bubble to open chat
+    // Click the bubble to open chat (auto-starts chat now)
     await page.click('#widget-bubble');
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(3000);
     
-    // Fill name and start chat
-    await page.fill('#widget-name-input', 'Test User');
-    await page.click('#widget-start-btn');
-    await page.waitForTimeout(1500);
+    // Take screenshot for debugging
+    await page.screenshot({ path: 'test-results/widget-debug-send.png', fullPage: true });
     
-    // Type and send message
+    // Check that chat window is open
+    const chatWindow = await page.locator('#widget-window');
+    const isOpen = await chatWindow.evaluate(el => el.classList.contains('widget-open'));
+    console.log('Chat window is open:', isOpen);
+    
+    // Type and send message (no pre-chat form anymore)
     await page.fill('#widget-message-input', 'Hello from Playwright test!');
     await page.click('#widget-send-btn');
     
