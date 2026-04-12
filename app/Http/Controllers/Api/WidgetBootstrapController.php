@@ -139,6 +139,8 @@ class WidgetBootstrapController extends Controller
                     'enabled' => config('broadcasting.default') === 'reverb',
                     'channel' => 'private-conversation.'.$conversation->id,
                     'endpoint' => route('widget.ws.connect', [], false),
+                    'host' => config('broadcasting.connections.reverb.options.host', parse_url(config('app.url'), PHP_URL_HOST)),
+                    'port' => request()->secure() ? 443 : (config('broadcasting.connections.reverb.options.port', 6001)),
                 ],
             ]);
         } finally {

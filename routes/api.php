@@ -81,6 +81,11 @@ Route::middleware(['throttle:widget-config', ValidateWidgetDomain::class, Valida
     ->get('widget/ws/connect', [WidgetMessageController::class, 'wsConnect'])
     ->name('widget.ws.connect');
 
+// Widget WebSocket auth endpoint — validates session for private channel subscription
+Route::middleware(['throttle:widget-config', ValidateWidgetDomain::class, ValidateCorsOrigins::class])
+    ->post('widget/ws/auth', [WidgetMessageController::class, 'wsAuth'])
+    ->name('widget.ws.auth');
+
 // Health Check endpoint — monitoring tool'lar uchun
 // IP whitelist orqali himoyalangan; HEALTH_ALLOWED_IPS env da monitoring server IP'larni kiriting
 Route::middleware(['throttle:1,1', RestrictHealthEndpoint::class])

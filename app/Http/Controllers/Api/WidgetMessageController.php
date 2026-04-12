@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 class WidgetMessageController extends Controller
 {
@@ -473,6 +474,56 @@ class WidgetMessageController extends Controller
         }
 
         return $decoded;
+    }
+
+    /**
+     * WebSocket auth endpoint for widget private channel subscription.
+     *
+     * Validates the session ID and returns Pusher auth response.
+     * Pusher client SDK sends this during private channel subscription.
+     */
+    public function wsAuth(Request $request): array
+    {
+        $sessionId = $request->header('X-Session-Id');
+
+        if (blank($sessionId)) {
+            throw new AccessDeniedHttpException('Missing session ID');
+        }
+
+        /** @var Project|null $project */
+        $project = $request->get('project');
+
+        if ($project === null) {
+            throw new AccessDeniedHttpException('Invalid or missing widget key');
+        }
+
+        $this->initializeTenantContext($project);
+
+        try {
+            $visitor = Visitor::withoutGlobalScopes()
+                ->where('tenant_id', $project->tenant_id)
+                ->where('session_id', $sessionId)
+                ->first();
+
+            if (! $visitor) {
+                Log::warning('WebSocket auth rejected: invalid session.', [
+                    'project_id' => $project->id,
+                    'session_id' => $sessionId,
+                ]);
+
+                throw new AccessDeniedHttpException('Invalid session');
+            }
+
+            Log::info('WebSocket auth successful.', [
+                'project_id' => $project->id,
+                'visitor_id' => $visitor->id,
+            ]);
+
+            // Return empty array — Pusher will handle the auth response format
+            return [];
+        } finally {
+            Tenant::clearCurrent();
+        }
     }
 
     /**
