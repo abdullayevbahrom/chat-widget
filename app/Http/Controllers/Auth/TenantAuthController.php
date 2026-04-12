@@ -96,6 +96,6 @@ class TenantAuthController extends Controller
         Auth::guard('tenant_user')->logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
-        return redirect('/auth/login');
+        return redirect('/');
     }
 }

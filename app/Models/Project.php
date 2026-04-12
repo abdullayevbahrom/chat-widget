@@ -41,6 +41,11 @@ class Project extends Model
         'settings',
         'widget_key_generated_at',
         'is_active',
+        'telegram_bot_token',
+        'telegram_bot_username',
+        'telegram_bot_name',
+        'telegram_chat_id',
+        'telegram_is_active',
     ];
 
     /**
@@ -53,6 +58,7 @@ class Project extends Model
         return [
             'settings' => 'json',
             'is_active' => 'boolean',
+            'telegram_is_active' => 'boolean',
             'widget_key_generated_at' => 'datetime',
         ];
     }

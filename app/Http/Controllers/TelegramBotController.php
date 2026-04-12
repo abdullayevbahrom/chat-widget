@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\TelegramBotSetting;
+use App\Models\Project;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -19,56 +19,64 @@ class TelegramBotController extends Controller
     public function index(): View
     {
         $user = Auth::guard('tenant_user')->user();
-        $settings = TelegramBotSetting::firstOrNew(['tenant_id' => $user->tenant_id]);
+        $projects = Project::withoutGlobalScopes()
+            ->where('tenant_id', $user->tenant_id)
+            ->orderBy('name')
+            ->get();
 
-        $botToken = $settings->bot_token;
-        $maskedToken = $botToken ? $this->maskToken($botToken) : '';
+        $selectedProjectId = request('project_id');
+        $project = null;
+        $maskedToken = '';
+        $botToken = '';
 
-        return view('tenant.telegram-bot', compact('settings', 'maskedToken', 'botToken'));
+        if ($selectedProjectId) {
+            $project = $projects->firstWhere('id', $selectedProjectId);
+            if ($project) {
+                $botToken = $project->telegram_bot_token;
+                $maskedToken = $botToken ? $this->maskToken($botToken) : '';
+            }
+        }
+
+        return view('tenant.telegram-bot', compact('projects', 'project', 'maskedToken', 'botToken', 'selectedProjectId'));
     }
 
     /**
-     * Update the Telegram bot settings.
+     * Update the Telegram bot settings for a project.
      */
     public function update(Request $request): RedirectResponse
     {
         $user = Auth::guard('tenant_user')->user();
 
-        $settings = TelegramBotSetting::firstOrNew(['tenant_id' => $user->tenant_id]);
-
         $validated = $request->validate([
+            'project_id' => ['required', 'exists:projects,id'],
             'bot_token' => ['nullable', 'string', 'max:255'],
-            'webhook_url' => ['nullable', 'url', 'max:500'],
             'bot_username' => ['nullable', 'string', 'max:100'],
             'bot_name' => ['nullable', 'string', 'max:255'],
             'chat_id' => ['nullable', 'string', 'max:100'],
             'is_active' => ['nullable', 'boolean'],
         ]);
 
+        // Verify project belongs to tenant
+        $project = Project::withoutGlobalScopes()
+            ->where('id', $validated['project_id'])
+            ->where('tenant_id', $user->tenant_id)
+            ->firstOrFail();
+
         // Only update bot_token if a new value is provided (not masked)
         if (! empty($validated['bot_token']) && $validated['bot_token'] !== str_repeat('*', strlen($validated['bot_token']))) {
-            $settings->bot_token = $validated['bot_token'];
+            $project->telegram_bot_token = $validated['bot_token'];
 
             // Fetch bot info from Telegram API
             $botInfo = $this->fetchBotInfo($validated['bot_token']);
             if ($botInfo) {
-                $settings->bot_username = '@'.$botInfo['username'];
-                $settings->bot_name = $botInfo['first_name'];
+                $project->telegram_bot_username = '@'.$botInfo['username'];
+                $project->telegram_bot_name = $botInfo['first_name'];
             }
         }
 
-        $settings->webhook_url = $validated['webhook_url'] ?? $settings->webhook_url;
-        $settings->bot_username = $validated['bot_username'] ?? $settings->bot_username;
-        $settings->bot_name = $validated['bot_name'] ?? $settings->bot_name;
-        $settings->chat_id = $validated['chat_id'] ?? $settings->chat_id;
-        $settings->is_active = $request->boolean('is_active', false);
-
-        $settings->save();
-
-        // Set webhook if URL provided
-        if (! empty($validated['webhook_url'])) {
-            $this->setWebhook($settings);
-        }
+        $project->telegram_chat_id = $validated['chat_id'] ?? $project->telegram_chat_id;
+        $project->telegram_is_active = $request->boolean('is_active', false);
+        $project->save();
 
         return redirect()
             ->route('dashboard.telegram')
@@ -81,25 +89,34 @@ class TelegramBotController extends Controller
     public function testMessage(): JsonResponse
     {
         $user = Auth::guard('tenant_user')->user();
-        $settings = TelegramBotSetting::where('tenant_id', $user->tenant_id)->first();
 
-        if (! $settings || ! $settings->bot_token) {
+        $validated = request()->validate([
+            'project_id' => ['required', 'exists:projects,id'],
+        ]);
+
+        // Verify project belongs to tenant
+        $project = Project::withoutGlobalScopes()
+            ->where('id', $validated['project_id'])
+            ->where('tenant_id', $user->tenant_id)
+            ->first();
+
+        if (! $project || ! $project->telegram_bot_token) {
             return response()->json([
                 'success' => false,
                 'message' => 'Bot token is not configured.',
             ], 400);
         }
 
-        if (! $settings->chat_id) {
+        if (! $project->telegram_chat_id) {
             return response()->json([
                 'success' => false,
                 'message' => 'Chat ID is not configured.',
             ], 400);
         }
 
-        $response = Http::timeout(10)->post("https://api.telegram.org/bot{$settings->bot_token}/sendMessage", [
-            'chat_id' => $settings->chat_id,
-            'text' => "✅ Test message from ChatWidget\n\nThis is a test message to verify your Telegram bot integration is working correctly.\n\nTime: ".now()->format('Y-m-d H:i:s'),
+        $response = Http::timeout(10)->post("https://api.telegram.org/bot{$project->telegram_bot_token}/sendMessage", [
+            'chat_id' => $project->telegram_chat_id,
+            'text' => "✅ Test message from ChatWidget\n\nThis is a test message to verify your Telegram bot integration is working correctly.\n\nProject: {$project->name}\nTime: ".now()->format('Y-m-d H:i:s'),
             'parse_mode' => 'HTML',
         ]);
 
@@ -120,63 +137,13 @@ class TelegramBotController extends Controller
     }
 
     /**
-     * Delete the webhook URL.
+     * Delete the webhook URL - REMOVED.
      */
     public function deleteWebhook(): RedirectResponse
     {
-        $user = Auth::guard('tenant_user')->user();
-        $settings = TelegramBotSetting::where('tenant_id', $user->tenant_id)->first();
-
-        if (! $settings || ! $settings->bot_token) {
-            return redirect()
-                ->route('dashboard.telegram')
-                ->with('error', 'Bot token is not configured.');
-        }
-
-        // Delete webhook from Telegram
-        $response = Http::timeout(10)->post("https://api.telegram.org/bot{$settings->bot_token}/deleteWebhook", [
-            'drop_pending_updates' => true,
-        ]);
-
-        // Clear webhook URL from settings
-        $settings->webhook_url = null;
-        $settings->last_webhook_status = $response->successful() ? 'deleted' : 'failed';
-        $settings->save();
-
-        if ($response->successful()) {
-            return redirect()
-                ->route('dashboard.telegram')
-                ->with('success', 'Webhook deleted successfully.');
-        }
-
         return redirect()
             ->route('dashboard.telegram')
-            ->with('warning', 'Webhook URL cleared from settings, but failed to delete from Telegram API.');
-    }
-
-    /**
-     * Set webhook via Telegram API.
-     */
-    protected function setWebhook(TelegramBotSetting $settings): void
-    {
-        if (empty($settings->bot_token) || empty($settings->webhook_url)) {
-            return;
-        }
-
-        $response = Http::timeout(10)->post("https://api.telegram.org/bot{$settings->bot_token}/setWebhook", [
-            'url' => $settings->webhook_url,
-            'allowed_updates' => ['message', 'callback_query'],
-        ]);
-
-        $settings->last_webhook_status = $response->successful() ? 'active' : 'failed';
-        $settings->save();
-
-        if (! $response->successful()) {
-            Log::warning('Failed to set Telegram webhook', [
-                'tenant_id' => $settings->tenant_id,
-                'error' => $response->json(),
-            ]);
-        }
+            ->with('error', 'Webhook management has been removed.');
     }
 
     /**
