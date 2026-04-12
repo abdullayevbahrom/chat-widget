@@ -138,6 +138,7 @@ class WidgetBootstrapController extends Controller
                 'messages' => $messages,
                 'websocket' => [
                     'enabled' => config('broadcasting.default') === 'reverb',
+                    'app_key' => config('broadcasting.connections.reverb.key'),
                     'channel' => 'private-conversation.'.$conversation->id,
                     'endpoint' => route('widget.ws.connect', [], false),
                     'host' => config('broadcasting.connections.reverb.options.host', parse_url(config('app.url'), PHP_URL_HOST)),

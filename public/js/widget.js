@@ -649,11 +649,10 @@
         forceTLS: window.location.protocol === 'https:',
         disableStats: true,
         enabledTransports: ['ws', 'wss'],
-        authEndpoint: `${API_BASE}/api/widget/ws/auth`,
+        authEndpoint: `${WIDGET_HOST}/api/widget/ws/auth`,
         auth: {
           headers: {
             'X-Session-Id': state.sessionId,
-            'X-Widget-Key': WIDGET_SCRIPT?.dataset.widgetKey || '',
           },
         },
       });
@@ -663,6 +662,11 @@
 
       channel.bind('pusher:subscription_succeeded', () => {
         console.log('[Widget] WebSocket subscribed to', channelName);
+        state.wsConnected = true;
+      });
+
+      channel.bind('pusher:subscription_error', (err) => {
+        console.error('[Widget] WebSocket subscription error:', err);
       });
 
       channel.bind('.MessageCreated', (data) => {
