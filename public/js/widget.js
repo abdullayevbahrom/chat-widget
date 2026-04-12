@@ -501,7 +501,6 @@
     const response = await fetch(url, {
       method: options.method || 'POST',
       headers,
-      credentials: 'include',
       ...options,
     });
 
@@ -522,8 +521,7 @@
       headers: {
         'Accept': 'application/json',
         'Origin': window.location.origin,
-      },
-      credentials: 'include',
+      }
     });
 
     const data = await response.json().catch(() => ({}));
@@ -705,8 +703,7 @@
         headers: {
           'Accept': 'application/json',
           'Origin': window.location.origin,
-        },
-        credentials: 'include',
+        }
       });
 
       const data = await response.json().catch(() => ({}));
@@ -836,8 +833,7 @@
         headers: {
           'Accept': 'application/json',
           'Origin': window.location.origin,
-        },
-        credentials: 'include',
+        }
       });
 
       const data = await response.json().catch(() => ({}));
