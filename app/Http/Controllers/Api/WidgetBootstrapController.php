@@ -103,7 +103,7 @@ class WidgetBootstrapController extends Controller
                 ->get()
                 ->map(function ($message) {
                     return [
-                        'id' => $message->id,
+                        'id' => $message->public_id,
                         'body' => $message->body,
                         'sender_type' => $message->sender_type,
                         'sender_id' => $message->sender_id,
@@ -116,15 +116,16 @@ class WidgetBootstrapController extends Controller
 
             Log::info('Widget bootstrap completed.', [
                 'project_id' => $project->id,
-                'conversation_id' => $conversation->id,
-                'visitor_id' => $visitor?->id,
+                'conversation_id' => $conversation->public_id,
+                'visitor_id' => $visitor?->public_id,
                 'message_count' => $messages->count(),
             ]);
 
             return response()->json([
                 'success' => true,
-                'project_id' => $project->id,
+                'project_id' => $project->public_id ?? $project->id,
                 'project_name' => $project->name,
+                'greeting_message' => $project->greeting_message ?: 'Salom! 👋 Sizga qanday yordam bera olaman?',
                 'settings' => [
                     'chat_name' => $project->getWidgetSetting('chat_name', $project->name),
                     'theme' => $project->getWidgetSetting('theme', 'light'),
@@ -133,13 +134,13 @@ class WidgetBootstrapController extends Controller
                     'height' => $project->getWidgetSetting('height', 520),
                     'primary_color' => $project->getWidgetSetting('primary_color', '#6366f1'),
                 ],
-                'conversation_id' => $conversation->id,
-                'visitor_id' => $visitor?->id,
+                'conversation_id' => $conversation->public_id,
+                'visitor_id' => $visitor?->public_id,
                 'messages' => $messages,
                 'websocket' => [
                     'enabled' => config('broadcasting.default') === 'reverb',
                     'app_key' => config('broadcasting.connections.reverb.key'),
-                    'channel' => 'private-conversation.'.$conversation->id,
+                    'channel' => 'private-conversation.'.$conversation->public_id,
                     'endpoint' => route('widget.ws.connect', [], false),
                     'host' => env('REVERB_PUBLIC_HOST', config('broadcasting.connections.reverb.options.host', parse_url(config('app.url'), PHP_URL_HOST))),
                     'port' => env('REVERB_PUBLIC_PORT', request()->secure() ? 443 : (config('broadcasting.connections.reverb.options.port', 6001))),

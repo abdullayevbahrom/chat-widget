@@ -1,17 +1,19 @@
 /**
- * Widget Chat SDK - Pure Vanilla JS (No Build Step) v2.1.1
- * Fixed:
- * - send icon visibility
- * - disabled button contrast
- * - API_BASE support
- * - safer API helper
- * - send button state updater
+ * Widget Chat SDK - Pure Vanilla JS (No Build Step) v2.2.0
+ * Features:
+ * - Per-widget isolation (multiple widgets on same page)
+ * - Custom greeting message per project
+ * - UUID-based IDs for security
+ * - Conversation list with day grouping
  */
 
 (function (global) {
   'use strict';
 
-  const SDK_VERSION = '2.1.1';
+  const SDK_VERSION = '2.2.0';
+
+  // Generate unique widget instance ID
+  const WIDGET_INSTANCE_ID = 'widget_' + Math.random().toString(36).substr(2, 9);
 
   const WIDGET_SCRIPT =
     document.currentScript ||
@@ -23,8 +25,10 @@
     global.WIDGET_API_BASE ||
     'https://widget.marca.uz';
 
-  // ===== State =====
-  let state = {
+  // ===== Per-Widget State =====
+  // Each widget instance gets its own state object
+  const state = {
+    instanceId: WIDGET_INSTANCE_ID,
     isOpen: false,
     isInitialized: false,
     config: null,
@@ -37,6 +41,23 @@
     wsChannel: null,
     currentView: 'chat', // 'chat' or 'conversations'
     conversations: [],
+  };
+
+  // DOM element IDs with widget instance prefix to avoid conflicts
+  const IDS = {
+    backdrop: `${WIDGET_INSTANCE_ID}-backdrop`,
+    bubble: `${WIDGET_INSTANCE_ID}-bubble`,
+    window: `${WIDGET_INSTANCE_ID}-window`,
+    messages: `${WIDGET_INSTANCE_ID}-messages`,
+    inputArea: `${WIDGET_INSTANCE_ID}-input-area`,
+    messageInput: `${WIDGET_INSTANCE_ID}-message-input`,
+    sendBtn: `${WIDGET_INSTANCE_ID}-send-btn`,
+    projectName: `${WIDGET_INSTANCE_ID}-project-name`,
+    backBtn: `${WIDGET_INSTANCE_ID}-back-btn`,
+    viewToggle: `${WIDGET_INSTANCE_ID}-view-toggle`,
+    newChatBtn: `${WIDGET_INSTANCE_ID}-new-chat-btn`,
+    minimizeBtn: `${WIDGET_INSTANCE_ID}-minimize`,
+    closeBtn: `${WIDGET_INSTANCE_ID}-close`,
   };
 
   localStorage.setItem('widget_session_id', state.sessionId);
@@ -539,6 +560,30 @@
 
     if (!body) return;
 
+    // If no conversation ID, bootstrap first to get one
+    if (!state.conversationId) {
+      try {
+        const data = await bootstrap();
+        if (!data.success) throw new Error(data.error);
+        state.conversationId = data.conversation_id;
+        state.visitorId = data.visitor_id;
+
+        // Reconnect WebSocket with new conversation
+        disconnectWebSocket();
+        if (state.config?.websocket?.enabled) {
+          connectWebSocket({
+            ...state.config.websocket,
+            channel: `private-conversation.${state.conversationId}`,
+          });
+        }
+      } catch (err) {
+        console.error('[Widget] Bootstrap error during send:', err);
+        showError('Failed to start conversation');
+        return;
+      }
+    }
+
+    // Add message to UI immediately (optimistic update)
     addMessage({
       body,
       direction: 'outbound',
@@ -559,6 +604,14 @@
 
       if (!result.success) {
         showError('Failed to send message');
+      }
+
+      // If server returns new message data, update state
+      if (result.message) {
+        const exists = state.messages.some((m) => m.id === result.message.id);
+        if (!exists) {
+          state.messages.push(result.message);
+        }
       }
     } catch (err) {
       console.error('[Widget] Send error:', err);
@@ -647,6 +700,7 @@
       const wsPath = usePath || '/app';
 
       const pusher = new Pusher(config.app_key || 'app-key', {
+        cluster: 'mt1',
         wsHost: wsHost,
         wsPort: wsPort,
         wssPort: wsPort,
@@ -791,6 +845,9 @@
     const projectName = document.getElementById('widget-project-name');
     if (projectName) projectName.textContent = 'Conversations';
 
+    const statusEl = document.querySelector('.widget-header-status');
+    if (statusEl) statusEl.style.display = 'none';
+
     fetchConversations();
   }
 
@@ -799,16 +856,9 @@
     const messagesDiv = document.getElementById('widget-messages');
     if (!messagesDiv) return;
 
+    // Clear and re-render messages
     messagesDiv.innerHTML = '';
-    state.messages.forEach(addMessage);
-
-    if (!state.messages.length) {
-      addMessage({
-        body: 'Salom! 👋 Sizga qanday yordam bera olaman?',
-        direction: 'inbound',
-        created_at: new Date().toISOString(),
-      });
-    }
+    state.messages.forEach(msg => addMessage(msg));
 
     const inputArea = document.getElementById('widget-input-area');
     if (inputArea) inputArea.style.display = 'flex';
@@ -822,18 +872,24 @@
     const viewToggle = document.getElementById('widget-view-toggle');
     if (viewToggle) viewToggle.classList.remove('widget-hidden');
 
+    const statusEl = document.querySelector('.widget-header-status');
+    if (statusEl) statusEl.style.display = 'flex';
+
     const projectName = document.getElementById('widget-project-name');
     if (projectName && state.config) {
       projectName.textContent = state.config.settings?.chat_name || state.config.project_name || 'Support';
     }
 
     const messageInput = document.getElementById('widget-message-input');
-    if (messageInput) messageInput.focus();
+    if (messageInput) {
+      messageInput.focus();
+      updateSendButtonState();
+    }
   }
 
   async function openConversation(conversationId) {
     try {
-      // First, load the messages for this conversation
+      // Load messages for this conversation
       const url = `${API_BASE}/api/widget/messages?conversation_id=${encodeURIComponent(conversationId)}`;
       const response = await fetch(url, {
         method: 'GET',
@@ -852,19 +908,17 @@
       state.conversationId = conversationId;
       state.messages = data.messages || [];
 
-      const viewToggle = document.getElementById('widget-view-toggle');
-      if (viewToggle) viewToggle.classList.remove('widget-hidden');
-
-      const newChatBtn = document.getElementById('widget-new-chat-btn');
-      if (newChatBtn) newChatBtn.classList.add('widget-hidden');
+      // Disconnect old WebSocket and reconnect for this conversation
+      disconnectWebSocket();
+      if (state.config?.websocket?.enabled) {
+        const wsConfig = {
+          ...state.config.websocket,
+          channel: `private-conversation.${conversationId}`,
+        };
+        connectWebSocket(wsConfig);
+      }
 
       showChatView();
-
-      // Reconnect WebSocket for this conversation
-      if (state.config?.websocket?.enabled) {
-        disconnectWebSocket();
-        connectWebSocket(state.config.websocket);
-      }
     } catch (err) {
       console.error('[Widget] Open conversation error:', err);
       showError('Failed to load conversation');
@@ -874,12 +928,13 @@
   function startNewChat() {
     state.currentView = 'chat';
     state.messages = [];
+    state.conversationId = null;
 
     const inputArea = document.getElementById('widget-input-area');
     if (inputArea) inputArea.style.display = 'flex';
 
     const backBtn = document.getElementById('widget-back-btn');
-    if (backBtn) backBtn.classList.remove('widget-hidden');
+    if (backBtn) backBtn.classList.add('widget-hidden');
 
     const newChatBtn = document.getElementById('widget-new-chat-btn');
     if (newChatBtn) newChatBtn.classList.add('widget-hidden');
@@ -887,7 +942,32 @@
     const viewToggle = document.getElementById('widget-view-toggle');
     if (viewToggle) viewToggle.classList.remove('widget-hidden');
 
-    showChatView();
+    const statusEl = document.querySelector('.widget-header-status');
+    if (statusEl) statusEl.style.display = 'flex';
+
+    const projectName = document.getElementById('widget-project-name');
+    if (projectName && state.config) {
+      projectName.textContent = state.config.settings?.chat_name || state.config.project_name || 'Support';
+    }
+
+    // Show greeting message
+    const messagesDiv = document.getElementById('widget-messages');
+    if (messagesDiv) {
+      messagesDiv.innerHTML = '';
+      const greeting = state.config?.greeting_message || 'Salom! 👋 Sizga qanday yordam bera olaman?';
+      addMessage({
+        body: greeting,
+        direction: 'inbound',
+        created_at: new Date().toISOString(),
+      });
+    }
+
+    const messageInput = document.getElementById('widget-message-input');
+    if (messageInput) {
+      messageInput.value = '';
+      messageInput.focus();
+      updateSendButtonState();
+    }
   }
 
   // ===== Styles for conversation list =====
@@ -1023,16 +1103,20 @@
         projectName.textContent = data.settings?.chat_name || data.project_name || 'Support';
       }
 
+      // If there are existing messages, show them in chat view
       if (data.messages?.length) {
+        state.messages = data.messages;
         data.messages.forEach(addMessage);
-      }
-
-      if (!data.messages?.length) {
+        showChatView();
+      } else {
+        // No messages - show greeting from project config
+        const greeting = data.greeting_message || 'Salom! 👋 Sizga qanday yordam bera olaman?';
         addMessage({
-          body: 'Salom! 👋 Sizga qanday yordam bera olaman?',
+          body: greeting,
           direction: 'inbound',
           created_at: new Date().toISOString(),
         });
+        showChatView();
       }
 
       const messageInput = document.getElementById('widget-message-input');

@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class Conversation extends Model
 {
@@ -36,6 +37,12 @@ class Conversation extends Model
     protected static function booted(): void
     {
         static::addGlobalScope(new TenantScope);
+
+        static::creating(function (Conversation $conversation): void {
+            if (blank($conversation->public_id)) {
+                $conversation->public_id = (string) Str::uuid();
+            }
+        });
 
         static::saving(function (Conversation $conversation): void {
             Log::debug('Validating conversation tenant state before save.', [

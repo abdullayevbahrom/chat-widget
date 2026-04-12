@@ -26,6 +26,7 @@ class Project extends Model
         'telegram_bot_name',
         'telegram_chat_id',
         'telegram_is_active',
+        'greeting_message',
     ];
 
     protected function casts(): array

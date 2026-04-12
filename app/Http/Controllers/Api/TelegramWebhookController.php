@@ -19,6 +19,7 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class TelegramWebhookController extends Controller
 {
@@ -80,6 +81,27 @@ class TelegramWebhookController extends Controller
             ->with('tenant')
             ->first();
 
+        // Fallback: If no TelegramBotSetting exists, create one from project's legacy token
+        if ($setting === null && filled($project->telegram_bot_token)) {
+            Log::info('Creating TelegramBotSetting from legacy project token.', [
+                'project_id' => $project->id,
+                'tenant_id' => $project->tenant_id,
+            ]);
+
+            $setting = new TelegramBotSetting();
+            $setting->tenant_id = $project->tenant_id;
+            $setting->bot_token = $project->telegram_bot_token;
+            $setting->bot_username = ltrim($project->telegram_bot_username ?? '', '@');
+            $setting->bot_name = $project->telegram_bot_name;
+            $setting->chat_id = $project->telegram_chat_id;
+            $setting->webhook_secret = Str::random(32);
+            $setting->is_active = $project->telegram_is_active ?? true;
+            $setting->save();
+
+            // Reload with tenant relation for subsequent code that uses $setting->tenant
+            $setting->load('tenant');
+        }
+
         if ($setting === null) {
             Log::warning('Telegram webhook received for project without configured bot.', [
                 'project_id' => $project->id,
@@ -100,7 +122,11 @@ class TelegramWebhookController extends Controller
             return response()->json(['ok' => false, 'error' => 'Webhook not configured'], 400);
         }
 
-        if ($secretToken === null) {
+        // Skip secret token validation for legacy bot settings (created from project token)
+        // These will be validated by the bot token check instead
+        $isLegacyBot = filled($project->telegram_bot_token) && blank($project->telegram_bot_username);
+
+        if (! $isLegacyBot && $secretToken === null) {
             Log::warning('Telegram webhook received without secret token header.', [
                 'tenant_id' => $setting->tenant_id,
                 'setting_id' => $setting->id,
@@ -110,7 +136,7 @@ class TelegramWebhookController extends Controller
             return response()->json(['ok' => false, 'error' => 'Unauthorized'], 401);
         }
 
-        if (! hash_equals($setting->webhook_secret, $secretToken)) {
+        if (! $isLegacyBot && ! hash_equals($setting->webhook_secret, $secretToken)) {
             Log::warning('Telegram webhook received with invalid secret token.', [
                 'tenant_id' => $setting->tenant_id,
                 'setting_id' => $setting->id,

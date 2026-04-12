@@ -62,6 +62,7 @@ class ProjectController extends Controller
         $validated = $request->validate([
             'domain' => ['required', 'string', 'max:255', 'unique:projects,domain,NULL,id,tenant_id,'.$tenantId, 'regex:/^[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$/'],
             'chat_name' => ['nullable', 'string', 'max:100'],
+            'greeting_message' => ['nullable', 'string', 'max:500'],
             'theme' => ['required', 'string', 'in:light,dark,auto'],
             'position' => ['required', 'string', 'in:bottom-right,bottom-left,top-right,top-left'],
             'width' => ['required', 'integer', 'min:200', 'max:800'],
@@ -78,11 +79,12 @@ class ProjectController extends Controller
         $chatName = trim($validated['chat_name'] ?? '');
 
         $project = new Project();
-        $project->tenant_id = $user->tenant->id;
+        $project->tenant_id = $user->tenant_id;
         $project->domain = $domain;
         $project->name = $domain; // name is same as domain
-        $project->slug = $this->generateUniqueSlug($domain, (int) $user->tenant->id);
+        $project->slug = $this->generateUniqueSlug($domain, (int) $user->tenant_id);
         $project->is_active = $request->boolean('is_active', true);
+        $project->greeting_message = $validated['greeting_message'] ?? null;
         $project->settings = [
             'widget' => [
                 'chat_name' => $chatName ?: $domain,
@@ -95,6 +97,10 @@ class ProjectController extends Controller
             ],
         ];
 
+        $project->telegram_chat_id = $validated['telegram_chat_id'] ?? null;
+        $project->telegram_is_active = filled($validated['telegram_bot_token']) && filled($validated['telegram_chat_id']);
+        $project->save();
+
         // Telegram settings
         if (! empty($validated['telegram_bot_token'])) {
             $project->telegram_bot_token = $validated['telegram_bot_token'];
@@ -102,11 +108,7 @@ class ProjectController extends Controller
             // Set webhook and fetch bot info from Telegram API
             $this->configureTelegramWebhook($project, $validated['telegram_bot_token']);
         }
-        $project->telegram_chat_id = $validated['telegram_chat_id'] ?? null;
-        $project->telegram_is_active = filled($validated['telegram_bot_token']) && filled($validated['telegram_chat_id']);
-
         $project->save();
-
         // Generate embed script (domain + HMAC only, no widget key)
         $embedScript = $this->embedService->generateEmbedScript($project);
 
@@ -135,6 +137,7 @@ class ProjectController extends Controller
         $validated = $request->validate([
             'domain' => ['required', 'string', 'max:255', 'unique:projects,domain,'.$project->id, 'regex:/^[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$/'],
             'chat_name' => ['nullable', 'string', 'max:100'],
+            'greeting_message' => ['nullable', 'string', 'max:500'],
             'theme' => ['required', 'string', 'in:light,dark,auto'],
             'position' => ['required', 'string', 'in:bottom-right,bottom-left,top-right,top-left'],
             'width' => ['required', 'integer', 'min:200', 'max:800'],
@@ -154,6 +157,7 @@ class ProjectController extends Controller
             $project->slug = $this->generateUniqueSlug($domain, (int) $project->tenant_id, $project);
         }
         $project->is_active = $request->boolean('is_active', true);
+        $project->greeting_message = $validated['greeting_message'] ?? $project->greeting_message;
         $project->settings = [
             'widget' => [
                 'chat_name' => $chatName ?: $domain,
@@ -167,17 +171,17 @@ class ProjectController extends Controller
         ];
 
         // Telegram settings - only update token if a new value is provided (not masked)
+        $project->telegram_chat_id = $validated['telegram_chat_id'] ?? $project->telegram_chat_id;
+        $project->telegram_is_active = filled($project->telegram_bot_token) && filled($project->telegram_chat_id);
+        $project->save();
         if (! empty($validated['telegram_bot_token']) && $validated['telegram_bot_token'] !== str_repeat('*', strlen($validated['telegram_bot_token']))) {
             $project->telegram_bot_token = $validated['telegram_bot_token'];
 
             // Set webhook and fetch bot info from Telegram API
             $this->configureTelegramWebhook($project, $validated['telegram_bot_token']);
         }
-        $project->telegram_chat_id = $validated['telegram_chat_id'] ?? $project->telegram_chat_id;
-        $project->telegram_is_active = filled($project->telegram_bot_token) && filled($project->telegram_chat_id);
-
         $project->save();
-
+        
         return redirect()
             ->route('dashboard.projects.edit', $project)
             ->with('success', 'Project updated successfully.');
@@ -292,7 +296,7 @@ class ProjectController extends Controller
     protected function configureTelegramWebhook(Project $project, string $token): void
     {
         $appUrl = rtrim(config('app.url'), '/');
-        $webhookUrl = "{$appUrl}/projects/{$project->id}/webhook";
+        $webhookUrl = "{$appUrl}/api/projects/{$project->id}/webhook";
 
         // Set webhook
         $webhookResponse = Http::timeout(10)->post("https://api.telegram.org/bot{$token}/setWebhook", [

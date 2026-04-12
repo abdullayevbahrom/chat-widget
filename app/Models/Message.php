@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class Message extends Model
 {
@@ -64,6 +65,11 @@ class Message extends Model
 
     protected static function booted(): void
     {
+        static::creating(function (Message $message): void {
+            if (blank($message->public_id)) {
+                $message->public_id = (string) Str::uuid();
+            }
+        });
         static::created(function (Message $message): void {
             if ($message->conversation === null) {
                 Log::warning('Skipping conversation last_message_at sync because conversation is missing.', [

@@ -158,6 +158,22 @@
                     <p class="mt-1 text-xs text-gray-400">This name appears in the widget header. Leave empty to use project name.</p>
                 </div>
 
+                {{-- Greeting Message --}}
+                <div>
+                    <label for="greeting_message" class="block text-sm font-semibold text-gray-700 mb-2">
+                        Greeting Message
+                    </label>
+                    <textarea id="greeting_message"
+                              name="greeting_message"
+                              rows="3"
+                              class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all resize-none"
+                              placeholder="Salom! 👋 Sizga qanday yordam bera olaman?">{{ old('greeting_message', $project->greeting_message ?? 'Salom! 👋 Sizga qanday yordam bera olaman?') }}</textarea>
+                    <p class="mt-1 text-xs text-gray-400">This message appears when a visitor opens the widget for the first time. Leave empty to use default greeting.</p>
+                    @error('greeting_message')
+                        <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                    @enderror
+                </div>
+
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {{-- Theme --}}
                     <div>

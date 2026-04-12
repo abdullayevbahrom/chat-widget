@@ -97,7 +97,7 @@ class WidgetMessageController extends Controller
             if ($conversation->isClosed() || $conversation->isArchived()) {
                 Log::info('Widget message rejected: conversation is not open.', [
                     'project_id' => $project->id,
-                    'conversation_id' => $conversation->id,
+                    'conversation_public_id' => $conversation->public_id,
                     'status' => $conversation->status,
                 ]);
 
@@ -153,16 +153,14 @@ class WidgetMessageController extends Controller
 
             Log::info('Stored widget visitor message.', [
                 'project_id' => $project->id,
-                'conversation_id' => $conversation->id,
-                'message_id' => $message->id,
+                'conversation_public_id' => $conversation->public_id,
+                'message_public_id' => $message->public_id,
                 'message_type' => $message->message_type,
             ]);
 
             return response()->json([
                 'success' => true,
                 'message' => $this->serializeMessage($message->fresh()),
-                'message_id' => $message->id,
-                'conversation_id' => $conversation->id,
             ]);
         } finally {
             Tenant::clearCurrent();
@@ -218,8 +216,8 @@ class WidgetMessageController extends Controller
 
             Log::info('Returning widget message history with cursor pagination.', [
                 'project_id' => $project->id,
-                'visitor_id' => $visitor->id,
-                'conversation_id' => $conversation->id,
+                'visitor_public_id' => $visitor->public_id,
+                'conversation_public_id' => $conversation->public_id,
                 'message_count' => $result['messages']->count(),
                 'next_cursor' => $result['next_cursor'],
                 'has_more' => $result['has_more'],
@@ -406,7 +404,7 @@ class WidgetMessageController extends Controller
 
         Log::info('Issued widget visitor binding token.', [
             'project_id' => $project->id,
-            'visitor_id' => $visitor->id,
+            'visitor_public_id' => $visitor->public_id,
             'cookie_name' => $this->getVisitorCookieName($project),
             'cookie_domain' => $domain,
         ]);
@@ -541,18 +539,16 @@ class WidgetMessageController extends Controller
     protected function serializeMessage(Message $message): array
     {
         return [
-            'id' => $message->id,
-            'conversation_id' => $message->conversation_id,
-            'type' => $message->isInbound() ? 'visitor' : 'admin',
-            'message_type' => $message->message_type,
+            'id' => $message->public_id,
+            'conversation_id' => $message->conversation?->public_id,
             'direction' => $message->direction,
+            'message_type' => $message->message_type,
             'body' => $message->body,
             'attachments' => array_values(array_map(
                 fn (array $attachment): array => $this->messageAttachmentService->serializeForApi($attachment),
                 $message->attachments ?? [],
             )),
             'is_read' => $message->is_read,
-            'sender_type' => $message->sender_type,
             'created_at' => $message->created_at->toISOString(),
         ];
     }

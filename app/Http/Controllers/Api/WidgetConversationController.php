@@ -72,7 +72,7 @@ class WidgetConversationController extends Controller
                 $lastMsg = $lastMessages->get($conv->id);
 
                 $grouped[$date]['items'][] = [
-                    'id' => $conv->id,
+                    'id' => $conv->public_id,
                     'status' => $conv->status,
                     'subject' => $conv->subject,
                     'last_message' => $lastMsg?->body ?? 'No messages',
@@ -148,14 +148,14 @@ class WidgetConversationController extends Controller
 
         Log::info('Widget conversation status requested.', [
             'project_id' => $project->id,
-            'visitor_id' => $visitor->id,
-            'conversation_id' => $conversation->id,
+            'visitor_public_id' => $visitor->public_id,
+            'conversation_public_id' => $conversation->public_id,
             'status' => $conversation->status,
         ]);
 
         return response()->json([
             'conversation' => [
-                'id' => $conversation->id,
+                'id' => $conversation->public_id,
                 'status' => $conversation->status,
                 'subject' => $conversation->subject,
                 'unread_count' => $conversation->getUnreadCount(),
@@ -235,14 +235,14 @@ class WidgetConversationController extends Controller
 
         Log::info('Visitor closed their conversation.', [
             'project_id' => $project->id,
-            'visitor_id' => $visitor->id,
-            'conversation_id' => $conversation->id,
+            'visitor_public_id' => $visitor->public_id,
+            'conversation_public_id' => $conversation->public_id,
         ]);
 
         return response()->json([
             'success' => true,
             'conversation' => [
-                'id' => $conversation->id,
+                'id' => $conversation->public_id,
                 'status' => Conversation::STATUS_CLOSED,
             ],
         ]);
