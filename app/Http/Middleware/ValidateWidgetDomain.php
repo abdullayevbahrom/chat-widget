@@ -55,6 +55,7 @@ class ValidateWidgetDomain
     /**
      * Resolve project from the request's Origin/Referer header.
      * Uses caching to avoid repeated database queries.
+     * Caches only the project ID to avoid serialization issues.
      */
     protected function resolveProjectFromOrigin(Request $request): ?Project
     {
@@ -67,14 +68,36 @@ class ValidateWidgetDomain
         // Cache the domain-to-project mapping for 1 hour
         $cacheKey = "widget:domain:{$origin}";
 
-        return Cache::remember($cacheKey, now()->addHour(), function () use ($origin) {
+        // Get cached project ID
+        $projectId = Cache::get($cacheKey);
+
+        // If not cached, find project and cache the ID
+        if ($projectId === null) {
             $domain = $this->normalizeDomain($origin);
 
-            return Project::query()
+            $project = Project::withoutGlobalScopes()
                 ->where('domain', $domain)
                 ->where('is_active', true)
                 ->first();
-        });
+
+            if ($project === null) {
+                // Cache negative result for 5 minutes to avoid repeated DB queries
+                Cache::put($cacheKey, 'not_found', now()->addMinutes(5));
+                return null;
+            }
+
+            // Cache the project ID
+            Cache::put($cacheKey, $project->id, now()->addHour());
+            $projectId = $project->id;
+        }
+
+        // Handle 'not_found' cache value
+        if ($projectId === 'not_found') {
+            return null;
+        }
+
+        // Load and return the project
+        return Project::withoutGlobalScopes()->find($projectId);
     }
 
     /**
@@ -117,9 +140,6 @@ class ValidateWidgetDomain
         // Remove scheme
         $domain = preg_replace('#^https?://#', '', $origin);
 
-        // Remove port
-        $domain = preg_replace('/:\d+$/', '', $domain);
-
         // Remove trailing slash
         $domain = rtrim($domain, '/');
 
@@ -135,5 +155,6 @@ class ValidateWidgetDomain
     {
         Cache::forget("widget:domain:https://{$domain}");
         Cache::forget("widget:domain:http://{$domain}");
+        Cache::forget("widget:domain:{$domain}");
     }
 }

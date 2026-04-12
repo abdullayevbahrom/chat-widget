@@ -23,6 +23,11 @@ Route::get('/', function () {
     return view('welcome');
 })->name('home');
 
+// Widget test page (for development/testing only)
+Route::get('/test-widget', function () {
+    return view('test-widget');
+})->name('test-widget');
+
 // ==========================================
 // Unified Auth Routes (single login page for all roles)
 // ==========================================
