@@ -10,7 +10,7 @@ up:
 	@$(DC) up -d --build --remove-orphans
 	@$(PHP) $(CI)
 	@$(PHP) php artisan key:generate
-	@$(PHP) php artisan migrate --force
+# 	@$(PHP) php artisan migrate --force
 	@$(PHP) php artisan storage:link --force
 	@$(PHP) php artisan optimize:clear
 	@$(PHP) php artisan optimize

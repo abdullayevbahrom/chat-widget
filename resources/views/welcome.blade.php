@@ -246,10 +246,6 @@
                             class="px-8 py-4 rounded-xl gradient-cta text-white font-semibold text-lg hover:opacity-90 transition shadow-lg shadow-brand-500/30">
                             🚀 Start Free — No Card Required
                         </a>
-                        <a href="/admin"
-                            class="px-8 py-4 rounded-xl glass text-white font-semibold text-lg hover:bg-white/20 transition">
-                            🔐 Admin Panel
-                        </a>
                     </div>
                     <div class="flex items-center gap-6 mt-8 animate-fade-in-up delay-4">
                         <div class="flex items-center gap-2">
@@ -877,7 +873,6 @@
                     <h4 class="text-white font-semibold mb-4">Resources</h4>
                     <ul class="space-y-2 text-sm">
                         <li><a href="/app" class="hover:text-white transition">Tenant Portal</a></li>
-                        <li><a href="/admin" class="hover:text-white transition">Admin Panel</a></li>
                         <li><a href="/widget/embed" class="hover:text-white transition">Widget Demo</a></li>
                     </ul>
                 </div>
