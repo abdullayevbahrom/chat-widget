@@ -128,8 +128,16 @@ class WidgetMessageController extends Controller
                 ], static fn (mixed $value): bool => filled($value)),
             ]);
 
-            // Broadcast the message to real-time listeners
-            broadcast(new WidgetMessageSent($conversation, $message))->toOthers();
+            // Broadcast the message to real-time listeners (ignore errors to avoid breaking message storage)
+            try {
+                broadcast(new WidgetMessageSent($conversation, $message))->toOthers();
+            } catch (\Throwable $e) {
+                Log::warning('Failed to broadcast WidgetMessageSent event.', [
+                    'message_id' => $message->id,
+                    'conversation_id' => $conversation->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
 
             // Forward to Telegram via TelegramService for immediate delivery
             $telegramMessageId = app(TelegramService::class)->sendMessage($conversation, $body);
