@@ -4,6 +4,7 @@
     $isEdit = $project->exists;
     $title = $isEdit ? 'Edit Project' : 'Create Project';
     $widget = $project->settings['widget'] ?? [];
+    $chatName = $widget['chat_name'] ?? ($project->name ?: '');
     $theme = $widget['theme'] ?? 'light';
     $position = $widget['position'] ?? 'bottom-right';
     $width = $widget['width'] ?? 400;
