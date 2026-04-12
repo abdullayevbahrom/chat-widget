@@ -72,7 +72,7 @@
                 </div>
             @endif
 
-            <form method="POST" action="{{ route('tenant.login') }}">
+            <form method="POST" action="{{ route('login') }}">
                 @csrf
                 
                 <!-- Email -->

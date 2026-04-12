@@ -15,10 +15,6 @@ class TenantAuthController extends Controller
 {
     public function showLoginForm()
     {
-        if (Auth::guard('tenant_user')->check()) {
-            return redirect('/dashboard');
-        }
-        
         return view('auth.login');
     }
 
@@ -29,9 +25,21 @@ class TenantAuthController extends Controller
             'password' => ['required'],
         ]);
 
-        if (Auth::guard('tenant_user')->attempt($credentials, $request->boolean('remember'))) {
-            $request->session()->regenerate();
-            return redirect()->intended('/dashboard');
+        // Check if user is super admin first
+        $user = User::where('email', $credentials['email'])->first();
+
+        if ($user && $user->is_super_admin) {
+            // Super admin - use web guard
+            if (Auth::guard('web')->attempt($credentials, $request->boolean('remember'))) {
+                $request->session()->regenerate();
+                return redirect()->intended('/admin');
+            }
+        } else {
+            // Tenant user - use tenant_user guard
+            if (Auth::guard('tenant_user')->attempt($credentials, $request->boolean('remember'))) {
+                $request->session()->regenerate();
+                return redirect()->intended('/dashboard');
+            }
         }
 
         return back()->withErrors([

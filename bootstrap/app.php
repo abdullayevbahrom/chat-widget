@@ -23,14 +23,8 @@ return Application::configure(basePath: dirname(__DIR__))
         channels: __DIR__ . '/../routes/channels.php',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        // Redirect unauthenticated users to the appropriate login page
-        $middleware->redirectUsersTo(function (Request $request): string {
-            if ($request->is('admin*') || $request->is('admin')) {
-                return route('admin.login');
-            }
-
-            return route('tenant.login');
-        });
+        // Redirect unauthenticated users to the unified login page
+        $middleware->redirectUsersTo('/auth/login');
 
         $trustedProxies = array_values(array_filter(
             array_map('trim', explode(',', (string) env('TRUSTED_PROXIES', ''))),

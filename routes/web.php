@@ -28,18 +28,16 @@ Route::get('/', function () {
 })->name('home');
 
 // ==========================================
-// Tenant Auth Routes
+// Unified Auth Routes (single login page for all roles)
 // ==========================================
-Route::prefix('auth')->name('tenant.')->middleware('guest:tenant_user')->group(function () {
-    Route::get('/login', [TenantAuthController::class, 'showLoginForm'])->name('login');
-    Route::post('/login', [TenantAuthController::class, 'login']);
-    Route::get('/register', [TenantAuthController::class, 'showRegistrationForm'])->name('register');
-    Route::post('/register', [TenantAuthController::class, 'register']);
-});
+Route::get('/auth/login', [TenantAuthController::class, 'showLoginForm'])->name('login');
+Route::post('/auth/login', [TenantAuthController::class, 'login']);
 
-Route::post('/auth/logout', [TenantAuthController::class, 'logout'])
-    ->middleware(['auth:tenant_user'])
-    ->name('tenant.logout');
+Route::middleware(['auth:tenant_user'])->group(function () {
+    Route::get('/auth/register', [TenantAuthController::class, 'showRegistrationForm'])->name('register');
+    Route::post('/auth/register', [TenantAuthController::class, 'register']);
+    Route::post('/auth/logout', [TenantAuthController::class, 'logout'])->name('logout');
+});
 
 // ==========================================
 // Tenant Dashboard Routes
@@ -93,26 +91,17 @@ Route::get('/api/widget/config', [WidgetEmbedController::class, 'config'])
     ->name('widget.config');
 
 // ==========================================
-// Admin Panel Routes
+// Admin Panel Routes (authenticated only, no separate login page)
 // ==========================================
-Route::prefix('admin')->name('admin.')->group(function () {
-    // Guest routes
-    Route::middleware('guest:web')->group(function () {
-        Route::get('/login', [AdminAuthController::class, 'showLoginForm'])->name('login');
-        Route::post('/login', [AdminAuthController::class, 'login']);
-    });
-
-    // Authenticated admin routes
-    Route::middleware(['auth:web'])->group(function () {
-        Route::post('/logout', [AdminAuthController::class, 'logout'])->name('logout');
-        Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
-        Route::resource('manage-tenants', AdminTenantController::class)
-            ->parameters(['manage-tenants' => 'tenant'])
-            ->except(['show'])
-            ->names('tenants');
-        Route::resource('manage-users', AdminUserController::class)
-            ->parameters(['manage-users' => 'user'])
-            ->except(['show'])
-            ->names('users');
-    });
+Route::prefix('admin')->name('admin.')->middleware(['auth:web'])->group(function () {
+    Route::post('/logout', [AdminAuthController::class, 'logout'])->name('logout');
+    Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
+    Route::resource('manage-tenants', AdminTenantController::class)
+        ->parameters(['manage-tenants' => 'tenant'])
+        ->except(['show'])
+        ->names('tenants');
+    Route::resource('manage-users', AdminUserController::class)
+        ->parameters(['manage-users' => 'user'])
+        ->except(['show'])
+        ->names('users');
 });

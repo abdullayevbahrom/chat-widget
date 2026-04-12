@@ -30,7 +30,7 @@ async function tenantLogin(page, email = 'verified@example.com', password = 'Ver
 }
 
 async function adminLogin(page, email = 'admin@example.com', password = 'Admin123!') {
-  await page.goto('/admin/login', { waitUntil: 'networkidle' });
+  await page.goto('/auth/login', { waitUntil: 'networkidle' });
   await page.locator('#email').fill(email);
   await page.locator('#password').fill(password);
   await page.getByRole('button', { name: 'Sign In' }).click();
@@ -175,13 +175,13 @@ test.describe('3. Tenant Dashboard', () => {
 
 test.describe('4. Admin Panel', () => {
   test('admin login sahifasi ochiladi', async ({ page }) => {
-    await page.goto('/admin/login', { waitUntil: 'networkidle' });
+    await page.goto('/auth/login', { waitUntil: 'networkidle' });
 
-    await expect(page).toHaveTitle(/Super Admin/);
+    await expect(page).toHaveTitle(/Login/);
     await expect(page.locator('#email')).toBeVisible();
     await expect(page.locator('#password')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Sign In' })).toBeVisible();
-    console.log('✅ Admin login page loaded');
+    console.log('✅ Unified login page loaded');
   });
 
   test('admin login → dashboard', async ({ page }) => {
