@@ -126,6 +126,7 @@ class WidgetBootstrapController extends Controller
                 'project_id' => $project->id,
                 'project_name' => $project->name,
                 'settings' => [
+                    'chat_name' => $project->getWidgetSetting('chat_name', $project->name),
                     'theme' => $project->getWidgetSetting('theme', 'light'),
                     'position' => $project->getWidgetSetting('position', 'bottom-right'),
                     'width' => $project->getWidgetSetting('width', 360),

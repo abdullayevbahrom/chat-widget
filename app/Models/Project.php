@@ -119,7 +119,7 @@ class Project extends Model
                 throw new \InvalidArgumentException('The "widget" settings key must be an array.');
             }
 
-            $allowedWidgetKeys = ['theme', 'position', 'width', 'height', 'primary_color', 'custom_css'];
+            $allowedWidgetKeys = ['theme', 'position', 'width', 'height', 'primary_color', 'custom_css', 'chat_name'];
             $widget = $settings['widget'];
 
             foreach (array_keys($widget) as $key) {

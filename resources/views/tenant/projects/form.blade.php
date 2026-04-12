@@ -108,12 +108,6 @@
 
     {{-- Form Card --}}
     <div class="glass rounded-2xl shadow-xl overflow-hidden">
-        @if($isEdit && $project->hasWidgetKey())
-            <form id="regenerate-widget-key" action="{{ route('dashboard.projects.regenerate-key', $project) }}" method="POST" class="hidden">
-                @csrf
-            </form>
-        @endif
-
         <form action="{{ $isEdit ? route('dashboard.projects.update', $project) : route('dashboard.projects.store') }}"
               method="POST"
               x-data="projectForm({
@@ -147,6 +141,20 @@
                     @error('domain')
                         <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
                     @enderror
+                </div>
+
+                {{-- Chat Name --}}
+                <div>
+                    <label for="chat_name" class="block text-sm font-semibold text-gray-700 mb-2">
+                        Chat Name
+                    </label>
+                    <input type="text"
+                           id="chat_name"
+                           name="chat_name"
+                           value="{{ old('chat_name', $chatName) }}"
+                           class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all"
+                           placeholder="Support Team">
+                    <p class="mt-1 text-xs text-gray-400">This name appears in the widget header. Leave empty to use project name.</p>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -423,16 +431,6 @@
             {{-- Form Actions --}}
             <div class="px-6 py-4 bg-gray-50/80 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div class="flex items-center gap-3">
-                    @if($isEdit && $project->hasWidgetKey())
-                        <button type="submit"
-                                form="regenerate-widget-key"
-                                class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-colors">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                            </svg>
-                            Regenerate Key
-                        </button>
-                    @endif
                 </div>
                 <div class="flex items-center gap-3">
                     <a href="{{ route('dashboard.projects.index') }}"
@@ -470,7 +468,7 @@
                                 </svg>
                             </div>
                             <div class="widget-preview-info">
-                                <div class="widget-preview-title">{{ $project->name ?? 'Project Name' }}</div>
+                                <div class="widget-preview-title" id="widget-preview-title">{{ $widget['chat_name'] ?? $project->name ?? 'Project Name' }}</div>
                                 <div class="widget-preview-status">Online</div>
                             </div>
                         </div>
@@ -937,6 +935,28 @@
         // Initial update on page load
         const initialColor = previewText?.value || mainText?.value || '#6366f1';
         updatePreviewColor(initialColor);
+
+        // Chat name sync with preview
+        const chatNameInput = document.getElementById('chat_name');
+        const previewTitle = document.getElementById('widget-preview-title');
+        const domainInput = document.getElementById('domain');
+        
+        function updatePreviewTitle() {
+            if (!previewTitle) return;
+            const chatName = chatNameInput?.value?.trim();
+            const domain = domainInput?.value?.trim();
+            previewTitle.textContent = chatName || domain || 'Project Name';
+        }
+        
+        if (chatNameInput) {
+            chatNameInput.addEventListener('input', updatePreviewTitle);
+        }
+        if (domainInput) {
+            domainInput.addEventListener('input', updatePreviewTitle);
+        }
+        
+        // Initial update
+        updatePreviewTitle();
     })();
     @endif
 </script>

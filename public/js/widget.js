@@ -599,7 +599,7 @@
 
       const projectName = document.getElementById('widget-project-name');
       if (projectName) {
-        projectName.textContent = data.project_name || 'Support';
+        projectName.textContent = data.settings?.chat_name || data.project_name || 'Support';
       }
 
       if (data.messages?.length) {

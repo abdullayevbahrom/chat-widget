@@ -53,6 +53,7 @@ class ProjectController extends Controller
     {
         $validated = $request->validate([
             'domain' => ['required', 'string', 'max:255', 'unique:projects,domain', 'regex:/^[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$/'],
+            'chat_name' => ['nullable', 'string', 'max:100'],
             'theme' => ['required', 'string', 'in:light,dark,auto'],
             'position' => ['required', 'string', 'in:bottom-right,bottom-left,top-right,top-left'],
             'width' => ['required', 'integer', 'min:200', 'max:800'],
@@ -66,6 +67,7 @@ class ProjectController extends Controller
 
         $user = Auth::guard('tenant_user')->user();
         $domain = strtolower(trim($validated['domain']));
+        $chatName = trim($validated['chat_name'] ?? '');
 
         $project = new Project();
         $project->tenant_id = $user->tenant_id;
@@ -75,6 +77,7 @@ class ProjectController extends Controller
         $project->is_active = $request->boolean('is_active', true);
         $project->settings = [
             'widget' => [
+                'chat_name' => $chatName ?: $domain,
                 'theme' => $validated['theme'],
                 'position' => $validated['position'],
                 'width' => (int) $validated['width'],
@@ -127,6 +130,7 @@ class ProjectController extends Controller
     {
         $validated = $request->validate([
             'domain' => ['required', 'string', 'max:255', 'unique:projects,domain,'.$project->id, 'regex:/^[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$/'],
+            'chat_name' => ['nullable', 'string', 'max:100'],
             'theme' => ['required', 'string', 'in:light,dark,auto'],
             'position' => ['required', 'string', 'in:bottom-right,bottom-left,top-right,top-left'],
             'width' => ['required', 'integer', 'min:200', 'max:800'],
@@ -139,6 +143,7 @@ class ProjectController extends Controller
         ]);
 
         $domain = strtolower(trim($validated['domain']));
+        $chatName = trim($validated['chat_name'] ?? '');
         $project->domain = $domain;
         $project->name = $domain;
         if (blank($project->slug)) {
@@ -147,6 +152,7 @@ class ProjectController extends Controller
         $project->is_active = $request->boolean('is_active', true);
         $project->settings = [
             'widget' => [
+                'chat_name' => $chatName ?: $domain,
                 'theme' => $validated['theme'],
                 'position' => $validated['position'],
                 'width' => (int) $validated['width'],
