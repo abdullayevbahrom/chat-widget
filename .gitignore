@@ -44,3 +44,6 @@ playwright-report/
 test-*.cjs
 test-*.js
 test-*.mjs
+playwright*
+build-widget.js
+.ai*

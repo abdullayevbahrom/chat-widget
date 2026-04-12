@@ -38,6 +38,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'set.tenant' => SetTenantContext::class,
             'enforce.tenant' => EnforceTenantContext::class,
             'check.tenant.domain' => CheckTenantDomainWhitelist::class,
+            'widget.domain' => \App\Http\Middleware\ValidateWidgetDomain::class,
         ]);
 
         // API rate limiting is configured explicitly in AppServiceProvider

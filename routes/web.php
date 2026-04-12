@@ -10,7 +10,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\WidgetEmbedController;
 use App\Http\Middleware\TrackVisitors;
-use App\Http\Middleware\ValidateWidgetKey;
+use App\Http\Middleware\ValidateWidgetDomain;
 use Illuminate\Support\Facades\Route;
 
 // ==========================================
@@ -60,7 +60,7 @@ Route::middleware(['web', 'reset.tenant', 'auth:tenant_user', 'set.tenant'])->pr
 // Widget Embed Endpoints
 // ==========================================
 Route::get('/widget/embed', [WidgetEmbedController::class, 'embed'])
-    ->middleware(['throttle:widget-config', TrackVisitors::class, ValidateWidgetKey::class])
+    ->middleware(['throttle:widget-config', TrackVisitors::class, ValidateWidgetDomain::class])
     ->name('widget.embed.view');
 
 Route::get('/widget.js', [WidgetEmbedController::class, 'script'])
@@ -68,7 +68,7 @@ Route::get('/widget.js', [WidgetEmbedController::class, 'script'])
     ->name('widget.embed');
 
 Route::get('/api/widget/config', [WidgetEmbedController::class, 'config'])
-    ->middleware(['throttle:widget-config', ValidateWidgetKey::class])
+    ->middleware(['throttle:widget-config', ValidateWidgetDomain::class])
     ->name('widget.config');
 
 // ==========================================

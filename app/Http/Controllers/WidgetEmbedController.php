@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Project;
 use App\Services\WidgetBootstrapService;
-use App\Services\WidgetKeyService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -15,18 +14,18 @@ use Illuminate\View\View;
 class WidgetEmbedController extends Controller
 {
     public function __construct(
-        protected WidgetKeyService $widgetKeyService,
         protected WidgetBootstrapService $widgetBootstrapService,
     ) {}
 
     /**
      * Serve the widget JavaScript embed script.
      *
-     * This endpoint returns the public widget SDK bundle. The SDK receives the
-     * widget key from `data-widget-key` on the host page, not the script URL.
+     * This endpoint returns the public widget SDK bundle.
+     * Domain validation is done via the ValidateWidgetDomain middleware
+     * which checks the Origin/Referer header against the projects table.
      *
      * Content-Type: application/javascript
-     * No authentication required.
+     * No authentication required - domain validated via middleware.
      */
     public function script(Request $request): Response
     {
@@ -55,6 +54,8 @@ class WidgetEmbedController extends Controller
      *
      * This view is loaded inside an iframe to provide isolation
      * from the host page styles. Includes the full chat UI.
+     *
+     * Domain validation is handled by ValidateWidgetDomain middleware.
      */
     public function embed(Request $request): View|Response
     {
@@ -62,7 +63,7 @@ class WidgetEmbedController extends Controller
         $project = $request->get('project');
 
         if ($project === null) {
-            return response('Invalid widget key.', 401)
+            return response('Invalid or unregistered domain.', 401)
                 ->header('Content-Type', 'text/plain');
         }
 
@@ -71,7 +72,7 @@ class WidgetEmbedController extends Controller
                 ->header('Content-Type', 'text/plain');
         }
 
-        $trustedOrigin = $request->attributes->get('widget_verified_origin');
+        $trustedOrigin = $request->attributes->get('widget_origin');
 
         if (! is_string($trustedOrigin) || $trustedOrigin === '') {
             return response('Widget origin could not be verified.', 403)

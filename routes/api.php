@@ -12,7 +12,7 @@ use App\Http\Controllers\Api\WidgetMessageController;
 use App\Http\Middleware\RestrictHealthEndpoint;
 use App\Http\Middleware\ValidateCorsOrigins;
 use App\Http\Middleware\ValidateSanctumTenantScope;
-use App\Http\Middleware\ValidateWidgetKey;
+use App\Http\Middleware\ValidateWidgetDomain;
 use Illuminate\Support\Facades\Route;
 
 // Tenant-scoped API routes — require authentication + tenant context
@@ -34,8 +34,8 @@ Route::middleware(['throttle:telegram-webhook'])
     ->post('telegram/webhook/{tenantSlug}', [TelegramWebhookController::class, 'handle'])
     ->name('telegram.webhook');
 
-// Widget Message API — rate limited, widget key validated, CORS origin validated
-Route::middleware(['throttle:widget-message', ValidateWidgetKey::class, ValidateCorsOrigins::class])
+// Widget Message API — rate limited, widget domain validated
+Route::middleware(['throttle:widget-message', ValidateWidgetDomain::class, ValidateCorsOrigins::class])
     ->prefix('widget')
     ->group(function () {
         Route::post('messages', [WidgetMessageController::class, 'store'])->name('widget.messages.store');
@@ -45,7 +45,7 @@ Route::middleware(['throttle:widget-message', ValidateWidgetKey::class, Validate
     });
 
 // Widget Attachment API — stricter rate limiting due to storage costs
-Route::middleware(['throttle:widget-attachment', ValidateWidgetKey::class, ValidateCorsOrigins::class])
+Route::middleware(['throttle:widget-attachment', ValidateWidgetDomain::class, ValidateCorsOrigins::class])
     ->prefix('widget')
     ->group(function () {
         Route::get('attachments/{projectId}/{conversationId}/{fileName}', [WidgetAttachmentController::class, 'download'])
@@ -70,9 +70,8 @@ Route::middleware(['throttle:60,1'])
     ->post('csp-report', [CspReportController::class, 'store'])
     ->name('csp.report.store');
 
-// Widget WebSocket connection endpoint — authenticates via widget key/bootstrap token
-// and returns Reverb connection config without exposing the app_key directly
-Route::middleware(['throttle:widget-config', ValidateWidgetKey::class, ValidateCorsOrigins::class])
+// Widget WebSocket connection endpoint — domain validated
+Route::middleware(['throttle:widget-config', ValidateWidgetDomain::class, ValidateCorsOrigins::class])
     ->get('widget/ws/connect', [WidgetMessageController::class, 'wsConnect'])
     ->name('widget.ws.connect');
 
