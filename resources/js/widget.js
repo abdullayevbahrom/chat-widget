@@ -483,7 +483,11 @@ if (typeof window !== 'undefined') {
     async requestOnce(endpoint, options = {}) {
       const bootstrapToken = utils.getBootstrapToken();
       const widgetKey = utils.getWidgetKey();
-      if (!bootstrapToken && !widgetKey) {
+      
+      // Bootstrap endpoint doesn't require authentication - uses Origin header for domain validation
+      const isBootstrapEndpoint = endpoint.includes('/api/widget/bootstrap');
+      
+      if (!isBootstrapEndpoint && !bootstrapToken && !widgetKey) {
         throw Object.assign(new Error('Widget authentication not found'), { status: 401 });
       }
 
