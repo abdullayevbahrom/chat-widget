@@ -22,35 +22,20 @@ return [
     // Applied to /api/widget/* routes only.
     // Other API routes use the default Laravel CORS behavior.
 
-    'paths' => ['api/widget/*'],
+    'paths' => ['api/*', 'sanctum/csrf-cookie', 'broadcasting/auth'],
 
-    // Dynamically loaded from REVERB_ALLOWED_ORIGINS env variable.
-    // These are the only origins allowed to make cross-origin requests
-    // to widget endpoints. Wildcard (*) values are filtered out.
-    'allowed_origins' => array_values(array_filter(
-        array_map('trim', explode(',', (string) env('REVERB_ALLOWED_ORIGINS', ''))),
-        static fn (string $origin): bool => $origin !== '' && $origin !== '*' && ! str_contains($origin, '*')
-    )),
+    'allowed_origins' => ['*'],
 
-    // If no origins are configured, fall back to localhost for development.
     'allowed_origins_patterns' => [],
 
-    'allowed_methods' => ['GET', 'POST', 'OPTIONS'],
+    'allowed_methods' => ['*'],
 
-    'allowed_headers' => [
-        'Content-Type',
-        'X-Widget-Key',
-        'X-Widget-Bootstrap',
-        'Authorization',
-        'X-Requested-With',
-    ],
+    'allowed_headers' => ['*'],
 
-    'exposed_headers' => [
-        'Retry-After',
-    ],
+    'exposed_headers' => [],
 
     'max_age' => 3600,
 
-    'supports_credentials' => true,
+    'supports_credentials' => false,
 
 ];
