@@ -21,6 +21,7 @@
     visitorId: null,
     sessionId: localStorage.getItem('widget_session_id') || crypto.randomUUID(),
     messages: [],
+    chatStarted: false,
   };
 
   // Save session ID
@@ -29,10 +30,9 @@
   // ===== Elements =====
   let elements = {};
 
-  // ===== Theme Colors =====
+  // ===== Theme Colors (can be overridden via data attributes) =====
   const COLORS = {
-    primary: '#6366f1',
-    primaryDark: '#4f46e5',
+    primary: WIDGET_SCRIPT?.dataset.primaryColor || '#6366f1',
     bg: '#0f172a',
     bgSecondary: '#1e293b',
     bgTertiary: '#334155',
@@ -74,7 +74,7 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        transition: transform 0.2s, box-shadow 0.2s;
+        transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
       }
       #widget-bubble:hover {
         transform: scale(1.05);
@@ -172,7 +172,7 @@
 
       /* Welcome Section */
       .widget-welcome {
-        padding: 24px 16px;
+        padding: 24px 16px 12px;
         text-align: center;
       }
       .widget-welcome-message {
@@ -231,10 +231,11 @@
 
       /* Pre-chat Form */
       .widget-prechat {
-        padding: 20px 16px;
+        padding: 16px;
         display: flex;
         flex-direction: column;
         gap: 12px;
+        border-top: 1px solid ${COLORS.border};
       }
       .widget-prechat input {
         width: 100%;
@@ -259,7 +260,7 @@
         font-weight: 600;
         cursor: pointer;
       }
-      .widget-prechat button:hover { background: ${COLORS.primaryDark}; }
+      .widget-prechat button:hover { opacity: 0.9; }
 
       /* Input Area */
       .widget-input-area {
@@ -268,6 +269,7 @@
         display: flex;
         gap: 8px;
         background: ${COLORS.bgSecondary};
+        align-items: center;
       }
       .widget-input-area input {
         flex: 1;
@@ -294,7 +296,7 @@
         justify-content: center;
         flex-shrink: 0;
       }
-      .widget-input-area button:hover { background: ${COLORS.primaryDark}; }
+      .widget-input-area button:hover { opacity: 0.9; }
       .widget-input-area button:disabled { opacity: 0.5; cursor: not-allowed; }
       .widget-input-area button svg { width: 20px; height: 20px; }
 
@@ -306,30 +308,6 @@
         font-size: 14px;
       }
       .widget-error { color: ${COLORS.error}; }
-
-      /* Typing Indicator */
-      .widget-typing {
-        align-self: flex-start;
-        padding: 12px 16px;
-        background: ${COLORS.inboundBubble};
-        border-radius: 16px;
-        border-bottom-left-radius: 4px;
-        display: flex;
-        gap: 4px;
-      }
-      .widget-typing span {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: ${COLORS.textMuted};
-        animation: typing 1.4s infinite;
-      }
-      .widget-typing span:nth-child(2) { animation-delay: 0.2s; }
-      .widget-typing span:nth-child(3) { animation-delay: 0.4s; }
-      @keyframes typing {
-        0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-        30% { transform: translateY(-4px); opacity: 1; }
-      }
     `;
     document.head.appendChild(style);
   }
@@ -339,13 +317,21 @@
     const btn = document.createElement('button');
     btn.id = 'widget-bubble';
     btn.setAttribute('aria-label', 'Open chat');
-    btn.innerHTML = `
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-      </svg>
-    `;
-    btn.onclick = () => openChat();
+    btn.innerHTML = getBubbleIcon('open');
+    btn.onclick = () => toggleChat();
     return btn;
+  }
+
+  function getBubbleIcon(type) {
+    if (type === 'close') {
+      return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>
+      </svg>`;
+    }
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+    </svg>`;
   }
 
   function createWindow() {
@@ -413,7 +399,8 @@
         }
       });
       document.getElementById('widget-message-input')?.addEventListener('input', (e) => {
-        document.getElementById('widget-send-btn').disabled = !e.target.value.trim();
+        const btn = document.getElementById('widget-send-btn');
+        if (btn) btn.disabled = !e.target.value.trim();
       });
     }, 0);
 
@@ -458,13 +445,14 @@
 
   async function sendMessage() {
     const input = document.getElementById('widget-message-input');
-    const body = input.value.trim();
+    const body = input?.value.trim();
     if (!body) return;
 
     // Add message to UI immediately
     addMessage({ body, direction: 'outbound', created_at: new Date().toISOString() });
-    input.value = '';
-    document.getElementById('widget-send-btn').disabled = true;
+    if (input) input.value = '';
+    const sendBtn = document.getElementById('widget-send-btn');
+    if (sendBtn) sendBtn.disabled = true;
 
     try {
       const result = await api('/api/widget/messages', {
@@ -487,10 +475,15 @@
   // ===== UI Functions =====
   function addMessage(msg) {
     const messagesDiv = document.getElementById('widget-messages');
+    if (!messagesDiv) return;
+
     const div = document.createElement('div');
     const isInbound = msg.direction === 'inbound' || msg.sender_type !== 'App\\Models\\Visitor';
     div.className = `widget-message ${isInbound ? 'inbound' : 'outbound'}`;
-    div.textContent = msg.body;
+    
+    const textSpan = document.createElement('span');
+    textSpan.textContent = msg.body;
+    div.appendChild(textSpan);
 
     const timeDiv = document.createElement('div');
     timeDiv.className = 'widget-message-time';
@@ -509,6 +502,8 @@
 
   function showError(msg) {
     const messagesDiv = document.getElementById('widget-messages');
+    if (!messagesDiv) return;
+    
     const div = document.createElement('div');
     div.className = 'widget-error';
     div.textContent = msg;
@@ -517,7 +512,7 @@
 
   async function startChat() {
     const nameInput = document.getElementById('widget-name-input');
-    const name = nameInput.value.trim() || 'Visitor';
+    const name = nameInput?.value.trim() || 'Visitor';
 
     try {
       const data = await bootstrap();
@@ -526,20 +521,34 @@
       state.config = data;
       state.conversationId = data.conversation_id;
       state.visitorId = data.visitor_id;
+      state.chatStarted = true;
 
-      // Update UI
-      document.getElementById('widget-project-name').textContent = data.project_name || 'Support';
-      document.getElementById('widget-welcome-msg').textContent = `Welcome! Let's get you an answer.`;
+      // Update UI with project name from API
+      const projectName = document.getElementById('widget-project-name');
+      if (projectName) projectName.textContent = data.project_name || 'Support';
 
       // Load existing messages
       if (data.messages?.length) {
         data.messages.forEach(addMessage);
       }
 
+      // Add welcome message if no messages
+      if (!data.messages?.length) {
+        addMessage({
+          body: `Salom! 👋 Sizga qanday yordam bera olaman?`,
+          direction: 'inbound',
+          created_at: new Date().toISOString(),
+        });
+      }
+
       // Show input area, hide prechat
-      document.getElementById('widget-prechat').classList.add('widget-hidden');
-      document.getElementById('widget-input-area').classList.remove('widget-hidden');
-      document.getElementById('widget-message-input').focus();
+      const prechat = document.getElementById('widget-prechat');
+      const inputArea = document.getElementById('widget-input-area');
+      if (prechat) prechat.classList.add('widget-hidden');
+      if (inputArea) inputArea.classList.remove('widget-hidden');
+      
+      const messageInput = document.getElementById('widget-message-input');
+      if (messageInput) messageInput.focus();
 
     } catch (err) {
       console.error('[Widget] Bootstrap error:', err);
@@ -552,6 +561,10 @@
     const win = document.getElementById('widget-window');
     if (win) win.classList.add('widget-open');
 
+    // Change bubble icon to close
+    const bubble = document.getElementById('widget-bubble');
+    if (bubble) bubble.innerHTML = getBubbleIcon('close');
+
     // Initialize if needed
     if (!state.isInitialized) {
       init();
@@ -562,6 +575,18 @@
     state.isOpen = false;
     const win = document.getElementById('widget-window');
     if (win) win.classList.remove('widget-open');
+
+    // Change bubble icon back to chat
+    const bubble = document.getElementById('widget-bubble');
+    if (bubble) bubble.innerHTML = getBubbleIcon('open');
+  }
+
+  function toggleChat() {
+    if (state.isOpen) {
+      closeChat();
+    } else {
+      openChat();
+    }
   }
 
   // ===== Initialization =====
