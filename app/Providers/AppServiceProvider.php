@@ -7,16 +7,12 @@ use App\Listeners\LogWebSocketConnection;
 use App\Listeners\SendFailedJobNotification;
 use App\Models\Conversation;
 use App\Models\Project;
-use App\Models\ProjectDomain;
 use App\Models\TelegramBotSetting;
 use App\Models\Tenant;
-use App\Models\TenantDomain;
 use App\Models\User;
 use App\Policies\ConversationPolicy;
-use App\Policies\ProjectDomainPolicy;
 use App\Policies\ProjectPolicy;
 use App\Policies\TelegramBotSettingPolicy;
-use App\Policies\TenantDomainPolicy;
 use App\Policies\TenantPolicy;
 use App\Policies\UserPolicy;
 use Illuminate\Auth\Events\Verified;
@@ -45,10 +41,8 @@ class AppServiceProvider extends ServiceProvider
     {
         // Register policies
         Gate::policy(Tenant::class, TenantPolicy::class);
-        Gate::policy(TenantDomain::class, TenantDomainPolicy::class);
         Gate::policy(TelegramBotSetting::class, TelegramBotSettingPolicy::class);
         Gate::policy(Project::class, ProjectPolicy::class);
-        Gate::policy(ProjectDomain::class, ProjectDomainPolicy::class);
         Gate::policy(Conversation::class, ConversationPolicy::class);
         Gate::policy(User::class, UserPolicy::class);
 

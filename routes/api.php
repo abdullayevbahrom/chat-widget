@@ -4,14 +4,11 @@ use App\Http\Controllers\Api\AdminConversationController;
 use App\Http\Controllers\Api\CspReportController;
 use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\ProjectController;
-use App\Http\Controllers\Api\ProjectDomainController;
 use App\Http\Controllers\Api\TelegramWebhookController;
-use App\Http\Controllers\Api\TenantDomainController;
 use App\Http\Controllers\Api\TenantProfileController;
 use App\Http\Controllers\Api\WidgetAttachmentController;
 use App\Http\Controllers\Api\WidgetConversationController;
 use App\Http\Controllers\Api\WidgetMessageController;
-use App\Http\Middleware\EnsureVerifiedWidgetDomain;
 use App\Http\Middleware\RestrictHealthEndpoint;
 use App\Http\Middleware\ValidateCorsOrigins;
 use App\Http\Middleware\ValidateSanctumTenantScope;
@@ -24,16 +21,11 @@ Route::middleware(['auth:sanctum', 'set.tenant', 'enforce.tenant', ValidateSanct
     ->group(function () {
         Route::get('/profile', [TenantProfileController::class, 'show']);
         Route::put('/profile', [TenantProfileController::class, 'update']);
-        Route::apiResource('domains', TenantDomainController::class);
 
         // Project management
         Route::apiResource('projects', ProjectController::class);
         Route::post('projects/{project}/regenerate-key', [ProjectController::class, 'regenerateKey']);
         Route::post('projects/{project}/revoke-key', [ProjectController::class, 'revokeKey']);
-
-        // Project domain management
-        Route::apiResource('project-domains', ProjectDomainController::class);
-        Route::post('project-domains/{domain}/verify', [ProjectDomainController::class, 'verify']);
     });
 
 // Telegram Webhook — rate limited, no auth required (Telegram calls this)
@@ -43,7 +35,7 @@ Route::middleware(['throttle:telegram-webhook'])
     ->name('telegram.webhook');
 
 // Widget Message API — rate limited, widget key validated, CORS origin validated
-Route::middleware(['throttle:widget-message', ValidateWidgetKey::class, EnsureVerifiedWidgetDomain::class, ValidateCorsOrigins::class])
+Route::middleware(['throttle:widget-message', ValidateWidgetKey::class, ValidateCorsOrigins::class])
     ->prefix('widget')
     ->group(function () {
         Route::post('messages', [WidgetMessageController::class, 'store'])->name('widget.messages.store');
@@ -53,7 +45,7 @@ Route::middleware(['throttle:widget-message', ValidateWidgetKey::class, EnsureVe
     });
 
 // Widget Attachment API — stricter rate limiting due to storage costs
-Route::middleware(['throttle:widget-attachment', ValidateWidgetKey::class, EnsureVerifiedWidgetDomain::class, ValidateCorsOrigins::class])
+Route::middleware(['throttle:widget-attachment', ValidateWidgetKey::class, ValidateCorsOrigins::class])
     ->prefix('widget')
     ->group(function () {
         Route::get('attachments/{projectId}/{conversationId}/{fileName}', [WidgetAttachmentController::class, 'download'])
@@ -80,7 +72,7 @@ Route::middleware(['throttle:60,1'])
 
 // Widget WebSocket connection endpoint — authenticates via widget key/bootstrap token
 // and returns Reverb connection config without exposing the app_key directly
-Route::middleware(['throttle:widget-config', ValidateWidgetKey::class, EnsureVerifiedWidgetDomain::class, ValidateCorsOrigins::class])
+Route::middleware(['throttle:widget-config', ValidateWidgetKey::class, ValidateCorsOrigins::class])
     ->get('widget/ws/connect', [WidgetMessageController::class, 'wsConnect'])
     ->name('widget.ws.connect');
 

@@ -143,8 +143,6 @@ class Tenant extends Model
     protected $fillable = [
         'name',
         'slug',
-        'domain',
-        'subdomain',
         'settings',
         // Plan & status
         'plan',
@@ -215,14 +213,6 @@ class Tenant extends Model
     }
 
     /**
-     * Check if the tenant has a custom domain.
-     */
-    public function hasCustomDomain(): bool
-    {
-        return filled($this->domain);
-    }
-
-    /**
      * Get the users that belong to this tenant.
      */
     public function users(): HasMany
@@ -255,93 +245,11 @@ class Tenant extends Model
     }
 
     /**
-     * Get the domains associated with this tenant.
-     */
-    public function domains(): HasMany
-    {
-        return $this->hasMany(TenantDomain::class);
-    }
-
-    /**
-     * Get only the active domains for this tenant.
-     */
-    public function activeDomains(): HasMany
-    {
-        return $this->hasMany(TenantDomain::class)->where('is_active', true);
-    }
-
-    /**
      * Get the Telegram bot settings for this tenant.
      */
     public function telegramBotSetting(): HasOne
     {
         return $this->hasOne(TelegramBotSetting::class);
-    }
-
-    /**
-     * Cache prefix for domain-related operations.
-     */
-    protected const DOMAIN_CACHE_PREFIX = 'tenant_domain:';
-
-    /**
-     * Check if the tenant has a specific domain in its whitelist.
-     * Results are cached to avoid repeated database queries.
-     */
-    public function hasDomain(string $domain): bool
-    {
-        $cacheKey = self::DOMAIN_CACHE_PREFIX."{$this->id}:has:{$domain}";
-        $cacheTtl = now()->addMinutes(15);
-
-        return Cache::remember($cacheKey, $cacheTtl, function () use ($domain) {
-            return $this->domains()->where('domain', $domain)->where('is_active', true)->exists();
-        });
-    }
-
-    /**
-     * Clear the domain cache when domains are modified.
-     */
-    public function clearDomainCache(): void
-    {
-        // Clear the domains list cache
-        Cache::forget(self::DOMAIN_CACHE_PREFIX."{$this->id}:domains");
-
-        // Clear all individual hasDomain caches
-        // We use a wildcard pattern via the cache driver's native capabilities
-        $this->clearDomainCacheByPattern(self::DOMAIN_CACHE_PREFIX."{$this->id}:");
-    }
-
-    /**
-     * Clear cache entries matching a prefix pattern.
-     * Works with Redis, file, and array cache drivers.
-     */
-    protected function clearDomainCacheByPattern(string $prefix): void
-    {
-        $driver = Cache::driver();
-
-        // For Redis, scan and delete keys matching the pattern
-        if ($driver instanceof RedisStore) {
-            $redis = $driver->connection();
-            $cursor = null;
-            $pattern = $prefix.'*';
-            do {
-                $result = $redis->scan($cursor, ['match' => $pattern, 'count' => 100]);
-                $cursor = $result[0];
-                $keys = $result[1];
-                if (! empty($keys)) {
-                    $driver->delete($keys);
-                }
-            } while ($cursor !== '0' && $cursor !== 0);
-
-            return;
-        }
-
-        // For drivers that support tags, flush the tenant's domain tag
-        if (Cache::supportsTags()) {
-            Cache::tags("tenant:{$this->id}:domains")->flush();
-        }
-
-        // For file/array drivers, we rely on TTL expiration.
-        // The prefix-based forget calls in observers handle explicit clears.
     }
 
     /**

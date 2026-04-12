@@ -34,10 +34,10 @@ class Project extends Model
         'tenant_id',
         'name',
         'slug',
+        'domain',
         'widget_key_hash',
         'widget_key_prefix',
         'description',
-        'primary_domain',
         'settings',
         'widget_key_generated_at',
         'is_active',
@@ -183,14 +183,6 @@ class Project extends Model
     }
 
     /**
-     * Get the domains for this project.
-     */
-    public function domains(): HasMany
-    {
-        return $this->hasMany(ProjectDomain::class);
-    }
-
-    /**
      * Get the conversations for this project.
      */
     public function conversations(): HasMany
@@ -212,24 +204,6 @@ class Project extends Model
     public function activeConversationsCount(): int
     {
         return $this->conversations()->open()->count();
-    }
-
-    /**
-     * Get only the active domains for this project.
-     */
-    public function activeDomains(): HasMany
-    {
-        return $this->hasMany(ProjectDomain::class)->where('is_active', true);
-    }
-
-    /**
-     * Get only the verified domains for this project.
-     */
-    public function verifiedDomains(): HasMany
-    {
-        return $this->hasMany(ProjectDomain::class)
-            ->where('verification_status', 'verified')
-            ->where('is_active', true);
     }
 
     /**
@@ -289,14 +263,6 @@ class Project extends Model
     }
 
     /**
-     * Check if the project has at least one verified domain.
-     */
-    public function hasVerifiedDomain(): bool
-    {
-        return $this->verifiedDomains()->exists();
-    }
-
-    /**
      * Get the widget settings from the settings JSON.
      */
     public function getWidgetSetting(string $key, mixed $default = null): mixed
@@ -314,33 +280,5 @@ class Project extends Model
         if (filled($this->widget_key_hash)) {
             Cache::forget("{$tenantPrefix}project:key:{$this->widget_key_hash}");
         }
-
-        Cache::forget("{$tenantPrefix}project:{$this->id}:domains:verified");
-    }
-
-    /**
-     * Get cached verified domains for this project.
-     *
-     * @return array<string>
-     */
-    public function getVerifiedDomainsCache(): array
-    {
-        $tenantPrefix = $this->tenant_id !== null ? "tenant:{$this->tenant_id}:" : '';
-
-        return Cache::remember(
-            "{$tenantPrefix}project:{$this->id}:domains:verified",
-            now()->addMinutes(15),
-            fn () => $this->verifiedDomains()->pluck('domain')->toArray()
-        );
-    }
-
-    /**
-     * Clear the verified domains cache.
-     */
-    public function clearVerifiedDomainsCache(): void
-    {
-        $tenantPrefix = $this->tenant_id !== null ? "tenant:{$this->tenant_id}:" : '';
-
-        Cache::forget("{$tenantPrefix}project:{$this->id}:domains:verified");
     }
 }

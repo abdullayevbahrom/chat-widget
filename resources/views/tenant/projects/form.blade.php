@@ -11,6 +11,7 @@
     $primaryColor = $widget['primary_color'] ?? '#6366f1';
     $customCss = $widget['custom_css'] ?? '';
     $pageTitle = $isEdit ? 'Edit Project' : 'Create Project';
+    $maskedToken = $project->telegram_bot_token ? str_repeat('*', strlen($project->telegram_bot_token)) : '';
 @endphp
 
 @section('content')
@@ -125,24 +126,22 @@
             @endif
 
             <div class="p-6 space-y-6">
-                {{-- Project Name --}}
+                {{-- Domain --}}
                 <div>
-                    <label for="name" class="block text-sm font-semibold text-gray-700 mb-2">
-                        Project Name <span class="text-red-500">*</span>
+                    <label for="domain" class="block text-sm font-semibold text-gray-700 mb-2">
+                        Domain <span class="text-red-500">*</span>
                     </label>
                     <input type="text"
-                           id="name"
-                           name="name"
-                           value="{{ old('name', $project->name) }}"
+                           id="domain"
+                           name="domain"
+                           value="{{ old('domain', $project->domain) }}"
                            required
-                           x-model="name"
-                           @input="errors.name = ''"
-                           class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all {{ $errors->has('name') ? 'border-red-300 bg-red-50' : '' }}"
-                           placeholder="My Awesome Widget">
-                    @error('name')
+                           class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all {{ $errors->has('domain') ? 'border-red-300 bg-red-50' : '' }}"
+                           placeholder="example.com">
+                    <p class="mt-1 text-xs text-gray-400">Enter the full domain (e.g., example.com or sub.example.com)</p>
+                    @error('domain')
                         <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
                     @enderror
-                    <p x-show="errors.name" x-text="errors.name" class="mt-1 text-xs text-red-600"></p>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -185,7 +184,7 @@
                             Position <span class="text-red-500">*</span>
                         </label>
                         <div class="grid grid-cols-2 gap-2">
-                            @foreach(['bottom-right' => 'Bottom Right', 'bottom-left' => 'Bottom Left', 'top-right' => 'Top Right', 'top-left' => 'Top Left'] as $value => $label)
+                            @foreach(['top-left' => 'Top Left', 'top-right' => 'Top Right', 'bottom-left' => 'Bottom Left', 'bottom-right' => 'Bottom Right'] as $value => $label)
                                 <label class="relative cursor-pointer">
                                     <input type="radio"
                                            name="position"
@@ -194,7 +193,7 @@
                                            @change="errors.position = ''"
                                            class="peer sr-only"
                                            {{ old('position', $position) === $value ? 'checked' : '' }}>
-                                    <div class="peer-checked:border-brand-500 peer-checked:bg-brand-50 peer-checked:text-brand-700 border-2 border-gray-200 rounded-xl py-2.5 px-3 text-xs font-medium text-gray-600 hover:border-gray-300 transition-all">
+                                    <div class="peer-checked:border-brand-500 peer-checked:bg-brand-50 peer-checked:text-brand-700 border-2 border-gray-200 rounded-xl py-2.5 px-2 text-center text-xs font-medium text-gray-600 hover:border-gray-300 transition-all">
                                         {{ $label }}
                                     </div>
                                 </label>
@@ -262,16 +261,14 @@
                         <div class="relative">
                             <input type="color"
                                    id="primary_color_picker"
-                                   x-model="primaryColor"
-                                   @input="primaryColor = $event.target.value; errors.primaryColor = ''"
+                                   value="{{ old('primary_color', $primaryColor) }}"
                                    class="w-12 h-12 rounded-xl cursor-pointer border-2 border-gray-200 p-0.5">
                         </div>
                         <div class="flex-1">
                             <input type="text"
                                    id="primary_color"
                                    name="primary_color"
-                                   x-model="primaryColor"
-                                   @input="errors.primaryColor = ''"
+                                   value="{{ old('primary_color', $primaryColor) }}"
                                    class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all font-mono uppercase {{ $errors->has('primary_color') ? 'border-red-300 bg-red-50' : '' }}"
                                    placeholder="#6366f1"
                                    maxlength="7">
@@ -316,6 +313,106 @@
                         <span class="ml-3 text-sm font-medium text-gray-700" x-text="isActive ? 'Active' : 'Inactive'"></span>
                     </label>
                 </div>
+
+                {{-- Telegram Bot Section --}}
+                @if($isEdit)
+                <div class="border-t border-gray-200 pt-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-brand-600" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.161c-.18 1.897-.962 6.502-1.359 8.627-.168.9-.5 1.201-.82 1.23-.697.064-1.226-.461-1.901-.903-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.911.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.429-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635.099-.002.321.023.465.141a.506.506 0 01.171.325c.016.093.036.306.02.472z"/>
+                        </svg>
+                        Telegram Bot Integration
+                    </h3>
+
+                    {{-- Test Message Result --}}
+                    <div id="telegram-test-result" class="hidden mb-4 rounded-xl border p-4 flex items-center gap-3"></div>
+
+                    <div class="space-y-4">
+                        {{-- Bot Token --}}
+                        <div>
+                            <label for="telegram_bot_token" class="block text-sm font-medium text-gray-700 mb-1">Bot Token</label>
+                            <div class="relative">
+                                <input type="password"
+                                       name="telegram_bot_token"
+                                       id="telegram_bot_token"
+                                       value="{{ $maskedToken }}"
+                                       placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
+                                       class="w-full px-4 py-3 pr-20 rounded-xl border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all font-mono text-sm">
+                                <div class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                                    <button type="button" onclick="toggleTokenVisibility()"
+                                            class="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-500" title="Show/Hide">
+                                        <svg id="eye-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                        </svg>
+                                    </button>
+                                    <button type="button" onclick="clearTokenField()"
+                                            class="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-500" title="Clear">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1">Get your token from <a href="https://t.me/BotFather" target="_blank" class="text-brand-600 hover:underline">@BotFather</a> on Telegram</p>
+                            @error('telegram_bot_token')
+                                <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                        {{-- Bot Info (Read-only) --}}
+                        @if($project->telegram_bot_username || $project->telegram_bot_name)
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Bot Username</label>
+                                <input type="text" readonly
+                                       value="{{ $project->telegram_bot_username }}"
+                                       class="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-gray-600 cursor-not-allowed text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Bot Name</label>
+                                <input type="text" readonly
+                                       value="{{ $project->telegram_bot_name }}"
+                                       class="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-gray-600 cursor-not-allowed text-sm">
+                            </div>
+                        </div>
+                        @endif
+
+                        {{-- Chat ID --}}
+                        <div>
+                            <label for="telegram_chat_id" class="block text-sm font-medium text-gray-700 mb-1">Chat ID</label>
+                            <input type="text"
+                                   name="telegram_chat_id"
+                                   id="telegram_chat_id"
+                                   value="{{ old('telegram_chat_id', $project->telegram_chat_id) }}"
+                                   placeholder="e.g., -1001234567890 or 123456789"
+                                   class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all font-mono text-sm">
+                            <p class="text-xs text-gray-500 mt-1">Send a message to your bot, then check <a href="https://t.me/userinfobot" target="_blank" class="text-brand-600 hover:underline">@userinfobot</a> for your Chat ID</p>
+                            @error('telegram_chat_id')
+                                <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                        {{-- Send Test Message Button --}}
+                        <div class="flex justify-end pt-2">
+                            <button type="button"
+                                    id="send-test-message-btn"
+                                    onclick="sendTestMessage()"
+                                    disabled
+                                    class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-brand-700 bg-brand-50 hover:bg-brand-100 border border-brand-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                                <svg id="send-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                                </svg>
+                                <svg id="loading-icon" class="w-4 h-4 animate-spin hidden" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span id="button-text">Send Test Message</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                @endif
             </div>
 
             {{-- Form Actions --}}
@@ -361,7 +458,6 @@
             position: initial.position,
             width: initial.width,
             height: initial.height,
-            primaryColor: initial.primaryColor,
             customCss: document.getElementById('custom_css')?.value || '',
             isActive: {{ old('is_active', $project->is_active) ? 'true' : 'false' }},
             isEdit: {{ $isEdit ? 'true' : 'false' }},
@@ -376,11 +472,16 @@
             },
 
             validateForm() {
-                this.errors = { name: '', theme: '', position: '', width: '', height: '', primaryColor: '' };
+                this.errors = { theme: '', position: '', width: '', height: '', primaryColor: '' };
                 let isValid = true;
 
-                if (!this.name || this.name.trim() === '') {
-                    this.errors.name = 'Project name is required';
+                // Validate domain
+                const domain = document.getElementById('domain').value;
+                if (!domain || domain.trim() === '') {
+                    this.errors.domain = 'Domain is required';
+                    isValid = false;
+                } else if (!/^[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$/.test(domain)) {
+                    this.errors.domain = 'Must be a valid domain (e.g., example.com)';
                     isValid = false;
                 }
 
@@ -404,7 +505,7 @@
                     isValid = false;
                 }
 
-                if (!this.primaryColor || !/^#[0-9a-fA-F]{6}$/.test(this.primaryColor)) {
+                if (!document.getElementById('primary_color').value || !/^#[0-9a-fA-F]{6}$/.test(document.getElementById('primary_color').value)) {
                     this.errors.primaryColor = 'Must be a valid hex color (e.g. #6366f1)';
                     isValid = false;
                 }
@@ -417,6 +518,115 @@
             },
         }));
     });
+
+    // Telegram Bot functions - plain JavaScript
+    @if($isEdit)
+    (function() {
+        const tokenInput = document.getElementById('telegram_bot_token');
+        const chatIdInput = document.getElementById('telegram_chat_id');
+        const sendBtn = document.getElementById('send-test-message-btn');
+        const sendIcon = document.getElementById('send-icon');
+        const loadingIcon = document.getElementById('loading-icon');
+        const buttonText = document.getElementById('button-text');
+        const resultDiv = document.getElementById('telegram-test-result');
+        const maskedToken = '{{ $maskedToken }}';
+
+        function updateButtonState() {
+            const tokenValue = tokenInput.value;
+            const chatIdValue = chatIdInput.value;
+            // Token is valid if it's not empty AND not the masked placeholder
+            const hasRealToken = tokenValue.length > 0 && tokenValue !== maskedToken;
+            const hasChatId = chatIdValue.length > 0;
+            sendBtn.disabled = !(hasRealToken && hasChatId);
+        }
+
+        tokenInput.addEventListener('input', updateButtonState);
+        chatIdInput.addEventListener('input', updateButtonState);
+
+        // Initial state check
+        updateButtonState();
+
+        window.toggleTokenVisibility = function() {
+            const isPassword = tokenInput.type === 'password';
+            tokenInput.type = isPassword ? 'text' : 'password';
+        };
+
+        window.clearTokenField = function() {
+            tokenInput.value = '';
+            updateButtonState();
+        };
+
+        window.sendTestMessage = async function() {
+            sendBtn.disabled = true;
+            sendIcon.classList.add('hidden');
+            loadingIcon.classList.remove('hidden');
+            buttonText.textContent = 'Sending...';
+            resultDiv.classList.add('hidden');
+
+            try {
+                const response = await fetch('{{ route('dashboard.projects.send-test-message', $project) }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        telegram_bot_token: tokenInput.value !== maskedToken ? tokenInput.value : null,
+                        telegram_chat_id: chatIdInput.value || null,
+                    }),
+                });
+
+                const data = await response.json();
+                showTestResult(data.success ? 'success' : 'error', data.message);
+            } catch (error) {
+                showTestResult('error', 'Failed to send test message.');
+            } finally {
+                sendBtn.disabled = false;
+                sendIcon.classList.remove('hidden');
+                loadingIcon.classList.add('hidden');
+                buttonText.textContent = 'Send Test Message';
+            }
+        };
+
+        function showTestResult(type, message) {
+            const isSuccess = type === 'success';
+            resultDiv.className = `mb-4 rounded-xl border p-4 flex items-center gap-3 ${isSuccess ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`;
+            resultDiv.innerHTML = `
+                <svg class="w-5 h-5 flex-shrink-0 ${isSuccess ? 'text-emerald-600' : 'text-red-600'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${isSuccess ? 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' : 'M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'}"></path>
+                </svg>
+                <p class="font-medium text-sm ${isSuccess ? 'text-emerald-800' : 'text-red-800'}">${message}</p>
+                <button onclick="document.getElementById('telegram-test-result').classList.add('hidden')" class="ml-auto ${isSuccess ? 'text-emerald-600 hover:text-emerald-800' : 'text-red-600 hover:text-red-800'}">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            `;
+            resultDiv.classList.remove('hidden');
+        }
+    })();
+    @endif
+
+    // Color picker sync - works on both create and edit pages
+    // This runs at the end of the page, DOM is already loaded
+    (function() {
+        const picker = document.getElementById('primary_color_picker');
+        const textInput = document.getElementById('primary_color');
+
+        if (picker && textInput) {
+            // Sync picker to text
+            picker.addEventListener('input', function() {
+                textInput.value = this.value;
+            });
+
+            // Sync text to picker
+            textInput.addEventListener('input', function() {
+                const value = this.value;
+                if (/^#[0-9a-fA-F]{6}$/.test(value)) {
+                    picker.value = value;
+                }
+            });
+        }
+    })();
 </script>
 @endpush
 @endsection

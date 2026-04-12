@@ -152,7 +152,7 @@ class WidgetEmbedController extends Controller
                 'primary_color' => $project->getWidgetSetting('primary_color', '#8B5CF6'),
                 'custom_css' => $project->getWidgetSetting('custom_css', null),
             ],
-            'verified_domains' => $project->getVerifiedDomainsCache(),
+            'verified_domains' => filled($project->domain) ? [$project->domain] : [],
             'websocket' => [
                 // SECURITY: Do not expose Reverb app_key directly to the client.
                 // Instead, provide a backend proxy endpoint for WebSocket connections.

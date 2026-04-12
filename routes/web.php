@@ -8,9 +8,7 @@ use App\Http\Controllers\Auth\TenantAuthController;
 use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProjectController;
-use App\Http\Controllers\TenantDomainController;
 use App\Http\Controllers\WidgetEmbedController;
-use App\Http\Middleware\EnsureVerifiedWidgetDomain;
 use App\Http\Middleware\TrackVisitors;
 use App\Http\Middleware\ValidateWidgetKey;
 use Illuminate\Support\Facades\Route;
@@ -48,14 +46,7 @@ Route::middleware(['web', 'reset.tenant', 'auth:tenant_user', 'set.tenant'])->pr
     // Projects CRUD
     Route::resource('projects', ProjectController::class)->except(['show']);
     Route::post('/projects/{project}/regenerate-key', [ProjectController::class, 'regenerateKey'])->name('projects.regenerate-key');
-
-    // Domains CRUD
-    Route::resource('tenant-domains', TenantDomainController::class)
-        ->parameters(['tenant-domains' => 'domain'])
-        ->except(['show'])
-        ->names('domains');
-    Route::post('/tenant-domains/{domain}/verify', [TenantDomainController::class, 'verify'])->name('domains.verify');
-    Route::post('/tenant-domains/{domain}/reverify', [TenantDomainController::class, 'reverify'])->name('domains.reverify');
+    Route::post('/projects/{project}/send-test-message', [ProjectController::class, 'sendTestMessage'])->name('projects.send-test-message');
 
     // Conversations
     Route::get('/conversations', [ConversationController::class, 'index'])->name('conversations.index');
@@ -69,7 +60,7 @@ Route::middleware(['web', 'reset.tenant', 'auth:tenant_user', 'set.tenant'])->pr
 // Widget Embed Endpoints
 // ==========================================
 Route::get('/widget/embed', [WidgetEmbedController::class, 'embed'])
-    ->middleware(['throttle:widget-config', TrackVisitors::class, ValidateWidgetKey::class, EnsureVerifiedWidgetDomain::class])
+    ->middleware(['throttle:widget-config', TrackVisitors::class, ValidateWidgetKey::class])
     ->name('widget.embed.view');
 
 Route::get('/widget.js', [WidgetEmbedController::class, 'script'])
@@ -77,7 +68,7 @@ Route::get('/widget.js', [WidgetEmbedController::class, 'script'])
     ->name('widget.embed');
 
 Route::get('/api/widget/config', [WidgetEmbedController::class, 'config'])
-    ->middleware(['throttle:widget-config', ValidateWidgetKey::class, EnsureVerifiedWidgetDomain::class])
+    ->middleware(['throttle:widget-config', ValidateWidgetKey::class])
     ->name('widget.config');
 
 // ==========================================

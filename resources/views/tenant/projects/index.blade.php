@@ -71,7 +71,7 @@
                 <table class="w-full">
                     <thead>
                         <tr class="border-b border-gray-200 bg-gray-50/80">
-                            <th class="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Project Name</th>
+                            <th class="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Domain</th>
                             <th class="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Widget Key</th>
                             <th class="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Theme</th>
                             <th class="text-center px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
@@ -81,15 +81,15 @@
                     <tbody class="divide-y divide-gray-100">
                         @foreach($projects as $project)
                             <tr class="hover:bg-brand-50/30 transition-colors duration-150">
-                                {{-- Project Name --}}
+                                {{-- Domain --}}
                                 <td class="px-6 py-4">
                                     <div class="flex items-center gap-3">
                                         <div class="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white"
                                              style="background: {{ $project->getWidgetSetting('primary_color', '#6366f1') }}">
-                                            {{ strtoupper(substr($project->name, 0, 1)) }}
+                                            {{ strtoupper(substr($project->domain ?? $project->name, 0, 1)) }}
                                         </div>
                                         <div>
-                                            <p class="font-semibold text-gray-900">{{ $project->name }}</p>
+                                            <p class="font-semibold text-gray-900">{{ $project->domain ?? $project->name }}</p>
                                             <p class="text-xs text-gray-500">{{ $project->created_at->diffForHumans() }}</p>
                                         </div>
                                     </div>
