@@ -133,7 +133,7 @@
             <!-- Register Link -->
             <p class="mt-6 text-center text-sm text-gray-600">
                 Don't have an account?
-                <a href="{{ route('tenant.register') }}" class="font-semibold text-brand-600 hover:text-brand-700 hover:underline">
+                <a href="{{ route('register') }}" class="font-semibold text-brand-600 hover:text-brand-700 hover:underline">
                     Create one now
                 </a>
             </p>

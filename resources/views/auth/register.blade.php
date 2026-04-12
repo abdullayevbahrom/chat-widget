@@ -58,7 +58,7 @@
             @endif
 
             <!-- Register Form -->
-            <form method="POST" action="{{ route('tenant.register') }}">
+            <form method="POST" action="{{ route('register') }}">
                 @csrf
                 
                 <!-- Email -->
@@ -116,7 +116,7 @@
             <!-- Login Link -->
             <p class="mt-6 text-center text-sm text-gray-600">
                 Already have an account?
-                <a href="{{ route('tenant.login') }}" class="font-semibold text-brand-600 hover:text-brand-700 hover:underline">
+                <a href="{{ route('login') }}" class="font-semibold text-brand-600 hover:text-brand-700 hover:underline">
                     Sign in
                 </a>
             </p>
