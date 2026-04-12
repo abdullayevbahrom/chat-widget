@@ -46,4 +46,4 @@ test-*.js
 test-*.mjs
 playwright*
 build-widget.js
-.ai*
+/.ai*

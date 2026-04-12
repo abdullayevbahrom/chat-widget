@@ -122,7 +122,7 @@ class WidgetEmbedController extends Controller
     /**
      * Return widget configuration as JSON.
      *
-     * Authenticated via X-Widget-Key or a bootstrap token bound to the request origin.
+     * Domain validated via ValidateWidgetDomain middleware.
      * Rate limited to prevent abuse.
      */
     public function config(Request $request): JsonResponse
@@ -132,12 +132,14 @@ class WidgetEmbedController extends Controller
 
         if ($project === null) {
             return response()->json([
-                'error' => 'Invalid or missing widget key.',
+                'success' => false,
+                'error' => 'Invalid or unregistered domain.',
             ], 401);
         }
 
         if (! $project->is_active) {
             return response()->json([
+                'success' => false,
                 'error' => 'This widget is currently disabled.',
             ], 403);
         }
@@ -153,12 +155,7 @@ class WidgetEmbedController extends Controller
                 'primary_color' => $project->getWidgetSetting('primary_color', '#8B5CF6'),
                 'custom_css' => $project->getWidgetSetting('custom_css', null),
             ],
-            'verified_domains' => filled($project->domain) ? [$project->domain] : [],
             'websocket' => [
-                // SECURITY: Do not expose Reverb app_key directly to the client.
-                // Instead, provide a backend proxy endpoint for WebSocket connections.
-                // The widget should connect via /api/widget/ws which authenticates
-                // the request server-side before establishing the WebSocket connection.
                 'enabled' => config('broadcasting.default') === 'reverb',
                 'endpoint' => route('widget.ws.connect', [], false),
                 'host' => parse_url(config('app.url'), PHP_URL_HOST),
@@ -167,7 +164,7 @@ class WidgetEmbedController extends Controller
             ],
         ];
 
-        $trustedOrigin = $request->attributes->get('widget_bootstrap_origin');
+        $trustedOrigin = $request->attributes->get('widget_origin');
 
         if (is_string($trustedOrigin) && $trustedOrigin !== '') {
             $payload['bootstrap_token'] = $this->widgetBootstrapService->issueToken($project, $trustedOrigin);
