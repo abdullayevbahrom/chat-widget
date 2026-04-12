@@ -27,11 +27,6 @@ return Application::configure(basePath: dirname(__DIR__))
         // Redirect unauthenticated users to the unified login page
         $middleware->redirectUsersTo('/auth/login');
 
-        $trustedProxies = array_values(array_filter(
-            array_map('trim', explode(',', (string) env('TRUSTED_PROXIES', ''))),
-            static fn(string $proxy): bool => $proxy !== '' && $proxy !== '*'
-        ));
-
         // Register tenant middleware aliases
         $middleware->alias([
             'reset.tenant' => ResetTenantContext::class,
@@ -42,35 +37,14 @@ return Application::configure(basePath: dirname(__DIR__))
             'widget.domain' => \App\Http\Middleware\ValidateWidgetDomain::class,
         ]);
 
-        // API rate limiting is configured explicitly in AppServiceProvider
-        // using RateLimiter::for('api', ...) with per-user/per-IP limits.
-    
-        // CSRF protection — only exclude webhook and widget message endpoints
-        // that are called by external services (Telegram, widget SDK) and cannot
-        // include CSRF tokens. All other API routes (tenant CRUD, project management)
-        // remain CSRF-protected for SPA cookie-based auth with Sanctum.
-        //
-        // SECURITY NOTE: `api/widget/*` is excluded from CSRF because the
-        // widget runs in a cross-origin iframe and cannot read/forward CSRF tokens.
-        // Protection is provided by:
-        //  1. ValidateWidgetDomain middleware (domain origin verification via Origin/Referer)
-        //  2. Rate limiting (widget-message limiter, 30 req/min per domain)
-        //  3. Encrypted visitor binding tokens (cookie-based, HttpOnly, Secure)
+
         $middleware->validateCsrfTokens(except: [
             'api/telegram/webhook/*',
             'api/widget/*',
         ]);
 
-        // TrustProxies: Configure trusted proxies for correct IP detection
-        // behind load balancers / reverse proxies (Issue #11).
-        // The TRUSTED_PROXIES env variable should be set in production
-        // to the IP(s) of your load balancer or reverse proxy.
-        //
-        // SECURITY NOTE: When $trustedProxies is empty ([]), Laravel will
-        // NOT trust any proxy headers. Passing null would cause Laravel to
-        // trust ALL proxies (wildcard), which is a security risk.
         $middleware->trustProxies(
-            at: $trustedProxies,
+            at: env('TRUSTED_PROXIES', '*'),
             headers: Request::HEADER_X_FORWARDED_FOR |
             Request::HEADER_X_FORWARDED_HOST |
             Request::HEADER_X_FORWARDED_PORT |
@@ -92,6 +66,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // This applies to /api/widget/* paths only (see config/cors.php)
         $middleware->api(append: [
             HandleCors::class,
+        ]);
+        
+        $middleware->append([
+            \App\Http\Middleware\SecurityHeaders::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

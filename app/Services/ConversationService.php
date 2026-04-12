@@ -74,7 +74,15 @@ class ConversationService
                     'conversation_id' => $conversation->id,
                 ]);
 
-                event(new ConversationOpened($conversation));
+                // Broadcast conversation opened event (ignore errors to avoid transaction rollback)
+                try {
+                    event(new ConversationOpened($conversation));
+                } catch (\Throwable $e) {
+                    Log::warning('Failed to broadcast ConversationOpened event.', [
+                        'conversation_id' => $conversation->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
 
                 return $conversation;
             } catch (QueryException $exception) {
