@@ -16,6 +16,17 @@ use App\Http\Middleware\ValidateSanctumTenantScope;
 use App\Http\Middleware\ValidateWidgetDomain;
 use Illuminate\Support\Facades\Route;
 
+// Project-scoped Telegram Webhook — rate limited, no auth required (Telegram calls this)
+// Uses project ID for routing; resolves Project without tenant scope
+Route::middleware(['throttle:telegram-webhook'])
+    ->post('projects/{project}/webhook', [TelegramWebhookController::class, 'handle'])
+    ->name('telegram.webhook.project');
+
+// Legacy: Tenant-scoped Telegram Webhook — kept for backward compatibility during migration
+Route::middleware(['throttle:telegram-webhook'])
+    ->post('telegram/webhook/{tenantSlug}', [TelegramWebhookController::class, 'handleLegacy'])
+    ->name('telegram.webhook');
+
 // Tenant-scoped API routes — require authentication + tenant context
 Route::middleware(['auth:sanctum', 'set.tenant', 'enforce.tenant', ValidateSanctumTenantScope::class, 'throttle:tenant-api'])
     ->prefix('tenant')
@@ -28,12 +39,6 @@ Route::middleware(['auth:sanctum', 'set.tenant', 'enforce.tenant', ValidateSanct
         Route::post('projects/{project}/regenerate-key', [ProjectController::class, 'regenerateKey']);
         Route::post('projects/{project}/revoke-key', [ProjectController::class, 'revokeKey']);
     });
-
-// Telegram Webhook — rate limited, no auth required (Telegram calls this)
-// Uses dedicated 'telegram-webhook' rate limiter with IP spoofing protection
-Route::middleware(['throttle:telegram-webhook'])
-    ->post('telegram/webhook/{tenantSlug}', [TelegramWebhookController::class, 'handle'])
-    ->name('telegram.webhook');
 
 // Widget Bootstrap API — domain validated, returns widget config + conversation state
 Route::middleware(['throttle:widget-config', ValidateWidgetDomain::class, ValidateCorsOrigins::class])

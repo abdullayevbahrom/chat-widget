@@ -397,6 +397,9 @@
     win.id = 'widget-window';
     win.innerHTML = `
       <div class="widget-header">
+        <button id="widget-back-btn" class="widget-hidden" title="Back to list">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block; pointer-events:none;"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        </button>
         <div class="widget-header-avatar">
           ${ICONS.robot}
         </div>
@@ -407,6 +410,9 @@
         <div class="widget-header-actions">
           <button id="widget-view-toggle" title="Conversations">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block; pointer-events:none;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+          </button>
+          <button id="widget-new-chat-btn" class="widget-hidden" title="New chat">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block; pointer-events:none;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
           </button>
           <button id="widget-minimize" title="Minimize">
             ${ICONS.minimize}
@@ -428,6 +434,11 @@
     `;
 
     setTimeout(() => {
+      document.getElementById('widget-back-btn')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showConversationsView();
+      });
+
       document.getElementById('widget-view-toggle')?.addEventListener('click', (e) => {
         e.stopPropagation();
         if (state.currentView === 'chat') {
@@ -435,6 +446,11 @@
         } else {
           showChatView();
         }
+      });
+
+      document.getElementById('widget-new-chat-btn')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        startNewChat();
       });
 
       document.getElementById('widget-minimize')?.addEventListener('click', (e) => {
@@ -711,8 +727,12 @@
 
     if (!state.conversations.length) {
       const emptyDiv = document.createElement('div');
-      emptyDiv.className = 'widget-loading';
-      emptyDiv.textContent = 'No conversations yet';
+      emptyDiv.className = 'widget-empty-state';
+      emptyDiv.innerHTML = `
+        <div class="widget-empty-icon">💬</div>
+        <div class="widget-empty-title">No conversations yet</div>
+        <div class="widget-empty-desc">Start a new chat and your conversation history will appear here.</div>
+      `;
       messagesDiv.appendChild(emptyDiv);
       return;
     }
@@ -731,12 +751,12 @@
         itemDiv.dataset.conversationId = item.id;
         itemDiv.innerHTML = `
           <div class="widget-conv-content">
-            <div class="widget-conv-status">
+            <div class="widget-conv-top-row">
               <span class="widget-conv-status-badge status-${item.status}">${item.status}</span>
-              ${item.unread_count > 0 ? `<span class="widget-conv-unread">${item.unread_count}</span>` : ''}
+              <span class="widget-conv-time">${item.last_message_at ? formatTime(item.last_message_at) : ''}</span>
             </div>
             <div class="widget-conv-message">${item.last_message || 'No messages'}</div>
-            <div class="widget-conv-time">${item.last_message_at ? formatTime(item.last_message_at) : ''}</div>
+            ${item.unread_count > 0 ? `<span class="widget-conv-unread">${item.unread_count}</span>` : ''}
           </div>
         `;
         itemDiv.onclick = () => openConversation(item.id);
@@ -747,6 +767,22 @@
 
   function showConversationsView() {
     state.currentView = 'conversations';
+
+    const backBtn = document.getElementById('widget-back-btn');
+    if (backBtn) backBtn.classList.add('widget-hidden');
+
+    const newChatBtn = document.getElementById('widget-new-chat-btn');
+    if (newChatBtn) newChatBtn.classList.remove('widget-hidden');
+
+    const inputArea = document.getElementById('widget-input-area');
+    if (inputArea) inputArea.style.display = 'none';
+
+    const viewToggle = document.getElementById('widget-view-toggle');
+    if (viewToggle) viewToggle.classList.add('widget-hidden');
+
+    const projectName = document.getElementById('widget-project-name');
+    if (projectName) projectName.textContent = 'Conversations';
+
     fetchConversations();
   }
 
@@ -758,14 +794,92 @@
     messagesDiv.innerHTML = '';
     state.messages.forEach(addMessage);
 
+    if (!state.messages.length) {
+      addMessage({
+        body: 'Salom! 👋 Sizga qanday yordam bera olaman?',
+        direction: 'inbound',
+        created_at: new Date().toISOString(),
+      });
+    }
+
     const inputArea = document.getElementById('widget-input-area');
     if (inputArea) inputArea.style.display = 'flex';
+
+    const backBtn = document.getElementById('widget-back-btn');
+    if (backBtn) backBtn.classList.add('widget-hidden');
+
+    const newChatBtn = document.getElementById('widget-new-chat-btn');
+    if (newChatBtn) newChatBtn.classList.add('widget-hidden');
+
+    const viewToggle = document.getElementById('widget-view-toggle');
+    if (viewToggle) viewToggle.classList.remove('widget-hidden');
+
+    const projectName = document.getElementById('widget-project-name');
+    if (projectName && state.config) {
+      projectName.textContent = state.config.settings?.chat_name || state.config.project_name || 'Support';
+    }
+
+    const messageInput = document.getElementById('widget-message-input');
+    if (messageInput) messageInput.focus();
   }
 
   async function openConversation(conversationId) {
-    // For now, just switch to chat view
-    // In a full implementation, this would load the specific conversation
+    try {
+      // First, load the messages for this conversation
+      const url = `${API_BASE}/api/widget/messages?conversation_id=${encodeURIComponent(conversationId)}`;
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Origin': window.location.origin,
+        },
+        credentials: 'include',
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || data.message || 'Failed to load conversation');
+      }
+
+      state.conversationId = conversationId;
+      state.messages = data.messages || [];
+
+      const viewToggle = document.getElementById('widget-view-toggle');
+      if (viewToggle) viewToggle.classList.remove('widget-hidden');
+
+      const newChatBtn = document.getElementById('widget-new-chat-btn');
+      if (newChatBtn) newChatBtn.classList.add('widget-hidden');
+
+      showChatView();
+
+      // Reconnect WebSocket for this conversation
+      if (state.config?.websocket?.enabled) {
+        disconnectWebSocket();
+        connectWebSocket(state.config.websocket);
+      }
+    } catch (err) {
+      console.error('[Widget] Open conversation error:', err);
+      showError('Failed to load conversation');
+    }
+  }
+
+  function startNewChat() {
     state.currentView = 'chat';
+    state.messages = [];
+
+    const inputArea = document.getElementById('widget-input-area');
+    if (inputArea) inputArea.style.display = 'flex';
+
+    const backBtn = document.getElementById('widget-back-btn');
+    if (backBtn) backBtn.classList.remove('widget-hidden');
+
+    const newChatBtn = document.getElementById('widget-new-chat-btn');
+    if (newChatBtn) newChatBtn.classList.add('widget-hidden');
+
+    const viewToggle = document.getElementById('widget-view-toggle');
+    if (viewToggle) viewToggle.classList.remove('widget-hidden');
+
     showChatView();
   }
 
@@ -792,6 +906,7 @@
         cursor: pointer;
         transition: background 0.15s ease;
         margin-bottom: 8px;
+        position: relative;
       }
 
       .widget-conversation-item:hover {
@@ -804,7 +919,7 @@
         gap: 4px;
       }
 
-      .widget-conv-status {
+      .widget-conv-top-row {
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -837,6 +952,9 @@
         border-radius: 10px;
         min-width: 18px;
         text-align: center;
+        position: absolute;
+        top: 12px;
+        right: 12px;
       }
 
       .widget-conv-message {
@@ -845,11 +963,39 @@
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+        padding-right: 32px;
       }
 
       .widget-conv-time {
         color: ${COLORS.textMuted};
         font-size: 11px;
+      }
+
+      .widget-empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 40px 20px;
+        text-align: center;
+      }
+
+      .widget-empty-icon {
+        font-size: 48px;
+        margin-bottom: 16px;
+      }
+
+      .widget-empty-title {
+        color: ${COLORS.text};
+        font-size: 16px;
+        font-weight: 600;
+        margin-bottom: 8px;
+      }
+
+      .widget-empty-desc {
+        color: ${COLORS.textMuted};
+        font-size: 13px;
+        line-height: 1.5;
       }
     `;
     document.head.appendChild(style);

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Events\WidgetMessageSent;
 use App\Http\Controllers\Controller;
 use App\Jobs\SendTelegramNotificationJob;
+use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\Project;
 use App\Models\TelegramBotSetting;
@@ -197,8 +198,16 @@ class WidgetMessageController extends Controller
             $cursor = $request->integer('cursor');
             $perPage = max(1, min($request->integer('per_page', 50), 100));
 
-            // Find the visitor's most recent open conversation
-            $conversation = $this->conversationService->getOpenConversation($visitor, $project);
+            // Allow loading a specific conversation by ID, or fall back to the most recent open one
+            $specificConversationId = $request->query('conversation_id');
+            if ($specificConversationId !== null) {
+                $conversation = Conversation::withoutGlobalScopes()
+                    ->where('project_id', $project->id)
+                    ->where('visitor_id', $visitor->id)
+                    ->find($specificConversationId);
+            } else {
+                $conversation = $this->conversationService->getOpenConversation($visitor, $project);
+            }
 
             if ($conversation === null) {
                 return response()->json(['messages' => [], 'next_cursor' => null, 'has_more' => false]);

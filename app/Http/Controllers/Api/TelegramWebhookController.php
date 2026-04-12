@@ -6,6 +6,7 @@ use App\Events\MessageCreated;
 use App\Events\WidgetMessageSent;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Models\Project;
 use App\Models\TelegramBotSetting;
 use App\Models\Tenant;
 use App\Services\ConversationService;
@@ -47,7 +48,7 @@ class TelegramWebhookController extends Controller
     /**
      * Handle incoming Telegram webhook updates.
      */
-    public function handle(Request $request, string $tenantSlug): JsonResponse
+    public function handle(Request $request, Project $project): JsonResponse
     {
         $secretToken = $request->header('X-Telegram-Bot-Api-Secret-Token');
 
@@ -70,20 +71,19 @@ class TelegramWebhookController extends Controller
                 'client_ip' => $clientIp,
                 'x_forwarded_for' => $sanitizedForwardedFor !== '' ? $sanitizedForwardedFor : null,
                 'x_real_ip' => $sanitizedRealIp !== '' ? $sanitizedRealIp : null,
-                'tenant_slug' => $tenantSlug,
+                'project_id' => $project->id,
             ]);
         }
 
-        // N+1 fix: Load tenant and bot settings in a single query chain
-        $setting = TelegramBotSetting::whereHas('tenant', function ($query) use ($tenantSlug) {
-            $query->where('slug', $tenantSlug);
-        })
+        // Load bot settings for this project's tenant in a single query
+        $setting = TelegramBotSetting::where('tenant_id', $project->tenant_id)
             ->with('tenant')
             ->first();
 
         if ($setting === null) {
-            Log::warning('Telegram webhook received for unknown tenant or unconfigured bot.', [
-                'tenant_slug' => $tenantSlug,
+            Log::warning('Telegram webhook received for project without configured bot.', [
+                'project_id' => $project->id,
+                'tenant_id' => $project->tenant_id,
                 'ip' => $clientIp,
             ]);
 
@@ -332,6 +332,224 @@ class TelegramWebhookController extends Controller
         broadcast(new WidgetMessageSent($conversation, $adminMessage, $agentName))->toOthers();
 
         // Also broadcast via the simple MessageCreated event for the widget SDK
+        broadcast(new MessageCreated($adminMessage))->toOthers();
+
+        return response()->json(['ok' => true, 'result' => true]);
+    }
+
+    /**
+     * Legacy webhook handler — resolves by tenant slug for backward compatibility.
+     *
+     * @deprecated Use handle(Project $project) with /projects/{project}/webhook instead.
+     */
+    public function handleLegacy(Request $request, string $tenantSlug): JsonResponse
+    {
+        $secretToken = $request->header('X-Telegram-Bot-Api-Secret-Token');
+        $clientIp = $this->resolveClientIp($request);
+
+        // Load bot settings for this tenant
+        $tenant = Tenant::where('slug', $tenantSlug)->first();
+
+        if ($tenant === null) {
+            Log::warning('Telegram webhook received for unknown tenant (legacy route).', [
+                'tenant_slug' => $tenantSlug,
+                'ip' => $clientIp,
+            ]);
+
+            return response()->json(['ok' => false, 'error' => 'Tenant not found'], 404);
+        }
+
+        $setting = TelegramBotSetting::where('tenant_id', $tenant->id)
+            ->with('tenant')
+            ->first();
+
+        if ($setting === null) {
+            Log::warning('Telegram webhook received for tenant without configured bot (legacy route).', [
+                'tenant_id' => $tenant->id,
+                'tenant_slug' => $tenantSlug,
+                'ip' => $clientIp,
+            ]);
+
+            return response()->json(['ok' => false, 'error' => 'Bot not configured'], 404);
+        }
+
+        if ($setting->webhook_secret === null) {
+            Log::warning('Telegram webhook received for setting without webhook_secret (legacy).', [
+                'tenant_id' => $setting->tenant_id,
+                'setting_id' => $setting->id,
+                'ip' => $clientIp,
+            ]);
+
+            return response()->json(['ok' => false, 'error' => 'Webhook not configured'], 400);
+        }
+
+        if ($secretToken === null) {
+            Log::warning('Telegram webhook received without secret token header (legacy).', [
+                'tenant_id' => $setting->tenant_id,
+                'setting_id' => $setting->id,
+                'ip' => $clientIp,
+            ]);
+
+            return response()->json(['ok' => false, 'error' => 'Unauthorized'], 401);
+        }
+
+        if (! hash_equals($setting->webhook_secret, $secretToken)) {
+            Log::warning('Telegram webhook received with invalid secret token (legacy).', [
+                'tenant_id' => $setting->tenant_id,
+                'setting_id' => $setting->id,
+                'ip' => $clientIp,
+            ]);
+
+            return response()->json(['ok' => false, 'error' => 'Unauthorized'], 401);
+        }
+
+        if (! $setting->is_active) {
+            Log::info('Telegram webhook received for inactive bot (legacy).', [
+                'tenant_id' => $setting->tenant_id,
+                'setting_id' => $setting->id,
+            ]);
+
+            return response()->json(['ok' => true, 'result' => true]);
+        }
+
+        $payload = $request->all();
+
+        // Verify the request originates from Telegram's IP range
+        if (! $this->isTelegramIp($clientIp)) {
+            Log::warning('Telegram webhook received from untrusted IP (legacy).', [
+                'tenant_id' => $setting->tenant_id,
+                'setting_id' => $setting->id,
+                'client_ip' => $clientIp,
+            ]);
+
+            return response()->json(['ok' => false, 'error' => 'Unauthorized'], 403);
+        }
+
+        // Replay attack protection
+        $updateId = $payload['update_id'] ?? null;
+
+        if ($updateId !== null) {
+            $cacheKey = "telegram_update_{$setting->id}_{$updateId}";
+
+            if (Cache::has($cacheKey)) {
+                return response()->json(['ok' => true, 'result' => true]);
+            }
+
+            Cache::put($cacheKey, true, now()->addDay());
+        }
+
+        // Handle callback_query
+        if (isset($payload['callback_query']) && is_array($payload['callback_query'])) {
+            return $this->handleCallbackQuery($payload['callback_query'], $setting);
+        }
+
+        if (! isset($payload['message']) || ! is_array($payload['message'])) {
+            return response()->json(['ok' => true, 'result' => true]);
+        }
+
+        $messagePayload = $payload['message'];
+        $chatId = isset($messagePayload['chat']['id']) ? (string) $messagePayload['chat']['id'] : null;
+
+        if ($chatId === null || $chatId === '') {
+            return response()->json(['ok' => true, 'result' => true]);
+        }
+
+        $this->syncChatBinding($setting, $chatId);
+
+        if ($setting->chat_id !== $chatId) {
+            return response()->json(['ok' => true, 'result' => true]);
+        }
+
+        // Handle /close command
+        $text = $messagePayload['text'] ?? null;
+
+        if (is_string($text) && trim($text) === '/close') {
+            $this->handleCloseCommand($setting, $chatId);
+
+            return response()->json(['ok' => true, 'result' => true]);
+        }
+
+        $replyToTelegramId = $messagePayload['reply_to_message']['message_id'] ?? null;
+
+        if (! is_int($replyToTelegramId)) {
+            return response()->json(['ok' => true, 'result' => true]);
+        }
+
+        $sourceMessage = Message::withoutGlobalScopes()
+            ->where('tenant_id', $setting->tenant_id)
+            ->where('telegram_message_id', $replyToTelegramId)
+            ->first();
+
+        if ($sourceMessage === null) {
+            return response()->json(['ok' => true, 'result' => true]);
+        }
+
+        $conversation = Conversation::withoutGlobalScopes()->find($sourceMessage->conversation_id);
+
+        if ($conversation === null) {
+            return response()->json(['ok' => true, 'result' => true]);
+        }
+
+        $project = $conversation->project()->withoutGlobalScopes()->first();
+
+        if ($project === null) {
+            return response()->json(['ok' => true, 'result' => true]);
+        }
+
+        $attachments = blank($setting->bot_token)
+            ? []
+            : $this->messageAttachmentService->storeTelegramAttachments(
+                $this->telegramBotService,
+                $setting->bot_token,
+                $messagePayload,
+                $project,
+                $conversation
+            );
+        $body = $this->extractAndSanitizeTelegramBody($messagePayload);
+
+        if ($body === null && $attachments === []) {
+            return response()->json(['ok' => true, 'result' => true]);
+        }
+
+        if ($conversation->isClosed()) {
+            try {
+                $this->conversationService->reopenConversation($conversation);
+            } catch (\LogicException $e) {
+                Log::warning('Could not reopen conversation via legacy Telegram reply.', [
+                    'tenant_id' => $setting->tenant_id,
+                    'conversation_id' => $conversation->id,
+                    'exception' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        $adminMessage = Message::withoutGlobalScopes()->create([
+            'tenant_id' => $setting->tenant_id,
+            'conversation_id' => $conversation->id,
+            'sender_type' => $setting->tenant->getMorphClass(),
+            'sender_id' => $setting->tenant_id,
+            'message_type' => $this->resolveMessageType($attachments),
+            'body' => $body,
+            'attachments' => $attachments !== [] ? $attachments : null,
+            'direction' => Message::DIRECTION_OUTBOUND,
+            'is_read' => false,
+            'metadata' => [
+                'telegram_update_id' => $payload['update_id'] ?? null,
+                'telegram_message_id' => $messagePayload['message_id'] ?? null,
+                'reply_to_message_id' => $replyToTelegramId,
+                'chat_id' => $chatId,
+                'from' => [
+                    'id' => $messagePayload['from']['id'] ?? null,
+                    'username' => $messagePayload['from']['username'] ?? null,
+                    'first_name' => $messagePayload['from']['first_name'] ?? null,
+                    'last_name' => $messagePayload['from']['last_name'] ?? null,
+                ],
+            ],
+        ]);
+
+        $agentName = $this->resolveAgentName($messagePayload['from'] ?? []);
+
+        broadcast(new WidgetMessageSent($conversation, $adminMessage, $agentName))->toOthers();
         broadcast(new MessageCreated($adminMessage))->toOthers();
 
         return response()->json(['ok' => true, 'result' => true]);

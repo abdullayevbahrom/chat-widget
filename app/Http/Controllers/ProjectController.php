@@ -284,9 +284,8 @@ class ProjectController extends Controller
      */
     protected function configureTelegramWebhook(Project $project, string $token): void
     {
-        $tenantSlug = $project->tenant->slug;
         $appUrl = rtrim(config('app.url'), '/');
-        $webhookUrl = "{$appUrl}/api/telegram/webhook/{$tenantSlug}";
+        $webhookUrl = "{$appUrl}/projects/{$project->id}/webhook";
 
         // Set webhook
         $webhookResponse = Http::timeout(10)->post("https://api.telegram.org/bot{$token}/setWebhook", [
