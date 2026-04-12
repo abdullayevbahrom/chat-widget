@@ -31,6 +31,37 @@ class Message extends Model
 
     public const DIRECTION_OUTBOUND = 'outbound';
 
+    /**
+     * Temporary cache for sender model (not saved to database).
+     *
+     * @var \Illuminate\Database\Eloquent\Model|null
+     */
+    public ?Model $senderCache = null;
+
+    /**
+     * Get an attribute from the model, excluding our cache properties.
+     */
+    public function getAttribute($key): mixed
+    {
+        if ($key === '_cached_sender') {
+            return $this->senderCache;
+        }
+
+        return parent::getAttribute($key);
+    }
+
+    /**
+     * Set a given attribute on the model, excluding our cache properties.
+     */
+    public function setAttribute($key, $value): mixed
+    {
+        if ($key === '_cached_sender') {
+            return $this->senderCache = $value;
+        }
+
+        return parent::setAttribute($key, $value);
+    }
+
     protected static function booted(): void
     {
         static::created(function (Message $message): void {
