@@ -13,6 +13,7 @@ use App\Models\Visitor;
 use App\Services\ConversationService;
 use App\Services\MessageAttachmentService;
 use App\Services\TelegramBotService;
+use App\Services\TelegramService;
 use App\Services\VisitorTrackingService;
 use App\Traits\TelegramMessageHelpers;
 use Illuminate\Http\JsonResponse;
@@ -129,6 +130,13 @@ class WidgetMessageController extends Controller
 
             // Broadcast the message to real-time listeners
             broadcast(new WidgetMessageSent($conversation, $message))->toOthers();
+
+            // Forward to Telegram via TelegramService for immediate delivery
+            $telegramMessageId = app(TelegramService::class)->sendMessage($conversation, $body);
+
+            if ($telegramMessageId) {
+                $message->updateQuietly(['telegram_message_id' => $telegramMessageId]);
+            }
 
             $this->notifyTelegram($project, $message, $validated);
             $this->issueVisitorBinding($request, $project, $visitor);

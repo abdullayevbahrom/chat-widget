@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Events\MessageCreated;
 use App\Events\WidgetMessageSent;
 use App\Models\Conversation;
 use App\Models\Message;
@@ -329,6 +330,9 @@ class TelegramWebhookController extends Controller
 
         // Broadcast the admin reply to the widget in real time via Reverb
         broadcast(new WidgetMessageSent($conversation, $adminMessage, $agentName))->toOthers();
+
+        // Also broadcast via the simple MessageCreated event for the widget SDK
+        broadcast(new MessageCreated($adminMessage))->toOthers();
 
         return response()->json(['ok' => true, 'result' => true]);
     }

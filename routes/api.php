@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\TelegramWebhookController;
 use App\Http\Controllers\Api\TenantProfileController;
 use App\Http\Controllers\Api\WidgetAttachmentController;
+use App\Http\Controllers\Api\WidgetBootstrapController;
 use App\Http\Controllers\Api\WidgetConversationController;
 use App\Http\Controllers\Api\WidgetMessageController;
 use App\Http\Middleware\RestrictHealthEndpoint;
@@ -33,6 +34,11 @@ Route::middleware(['auth:sanctum', 'set.tenant', 'enforce.tenant', ValidateSanct
 Route::middleware(['throttle:telegram-webhook'])
     ->post('telegram/webhook/{tenantSlug}', [TelegramWebhookController::class, 'handle'])
     ->name('telegram.webhook');
+
+// Widget Bootstrap API — domain validated, returns widget config + conversation state
+Route::middleware(['throttle:widget-config', ValidateWidgetDomain::class, ValidateCorsOrigins::class])
+    ->get('widget/bootstrap', [WidgetBootstrapController::class, 'bootstrap'])
+    ->name('widget.bootstrap');
 
 // Widget Message API — rate limited, widget domain validated
 Route::middleware(['throttle:widget-message', ValidateWidgetDomain::class, ValidateCorsOrigins::class])

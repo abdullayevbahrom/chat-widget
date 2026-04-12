@@ -123,7 +123,9 @@ class WidgetEmbedController extends Controller
      * Return widget configuration as JSON.
      *
      * Domain validated via ValidateWidgetDomain middleware.
-     * Rate limited to prevent abuse.
+     * Note: The preferred entry point is now GET /api/widget/bootstrap
+     * which returns config + conversation + messages in one call.
+     * This endpoint is kept for backward compatibility.
      */
     public function config(Request $request): JsonResponse
     {

@@ -1,0 +1,148 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Models\Conversation;
+use App\Models\Project;
+use App\Models\Tenant;
+use App\Models\Visitor;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+
+class WidgetBootstrapController extends Controller
+{
+    /**
+     * Bootstrap the widget with project settings, visitor tracking, and conversation state.
+     *
+     * This endpoint is called by the widget SDK on page load. It:
+     * 1. Validates the project via ValidateWidgetDomain middleware
+     * 2. Gets or creates a visitor from the session_id (localStorage UUID)
+     * 3. Gets the current open conversation or creates one
+     * 4. Returns recent message history and WebSocket config
+     */
+    public function bootstrap(Request $request): JsonResponse
+    {
+        /** @var Project|null $project */
+        $project = $request->get('project');
+
+        if ($project === null) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Invalid or unregistered domain.',
+            ], 400);
+        }
+
+        if (! $project->is_active) {
+            return response()->json([
+                'success' => false,
+                'error' => 'This widget is currently disabled.',
+            ], 403);
+        }
+
+        // Set tenant context for subsequent queries
+        if ($project->tenant !== null) {
+            Tenant::setCurrent($project->tenant);
+        }
+
+        try {
+            // Get or create visitor from session_id (localStorage UUID)
+            $sessionId = $request->input('session_id');
+            $visitor = null;
+
+            if (filled($sessionId)) {
+                $visitor = Visitor::withoutGlobalScopes()->firstOrCreate(
+                    [
+                        'tenant_id' => $project->tenant_id,
+                        'session_id' => $sessionId,
+                    ],
+                    [
+                        'user_agent' => $request->userAgent(),
+                        'first_visit_at' => now(),
+                        'last_visit_at' => now(),
+                        'visit_count' => 1,
+                    ]
+                );
+
+                // Update last visit if existing
+                if (! $visitor->wasRecentlyCreated) {
+                    $visitor->update([
+                        'last_visit_at' => now(),
+                        'visit_count' => $visitor->visit_count + 1,
+                        'user_agent' => $request->userAgent(),
+                    ]);
+                }
+            }
+
+            // Get current open conversation or create one
+            $conversation = null;
+            if ($visitor) {
+                $conversation = Conversation::withoutGlobalScopes()
+                    ->where('project_id', $project->id)
+                    ->where('visitor_id', $visitor->id)
+                    ->where('status', Conversation::STATUS_OPEN)
+                    ->latest('created_at')
+                    ->first();
+            }
+
+            if ($conversation === null) {
+                $conversation = Conversation::withoutGlobalScopes()->create([
+                    'project_id' => $project->id,
+                    'visitor_id' => $visitor?->id,
+                    'status' => Conversation::STATUS_OPEN,
+                    'source' => Conversation::SOURCE_WIDGET,
+                ]);
+            }
+
+            // Load recent messages (last 20)
+            $messages = $conversation->messages()
+                ->orderBy('created_at', 'asc')
+                ->limit(20)
+                ->get()
+                ->map(function ($message) {
+                    return [
+                        'id' => $message->id,
+                        'body' => $message->body,
+                        'sender_type' => $message->sender_type,
+                        'sender_id' => $message->sender_id,
+                        'direction' => $message->direction,
+                        'message_type' => $message->message_type,
+                        'created_at' => $message->created_at->toISOString(),
+                        'attachments' => $message->attachments,
+                    ];
+                });
+
+            Log::info('Widget bootstrap completed.', [
+                'project_id' => $project->id,
+                'conversation_id' => $conversation->id,
+                'visitor_id' => $visitor?->id,
+                'message_count' => $messages->count(),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'project_id' => $project->id,
+                'project_name' => $project->name,
+                'settings' => [
+                    'theme' => $project->getWidgetSetting('theme', 'light'),
+                    'position' => $project->getWidgetSetting('position', 'bottom-right'),
+                    'width' => $project->getWidgetSetting('width', 360),
+                    'height' => $project->getWidgetSetting('height', 520),
+                    'primary_color' => $project->getWidgetSetting('primary_color', '#6366f1'),
+                ],
+                'conversation_id' => $conversation->id,
+                'visitor_id' => $visitor?->id,
+                'messages' => $messages,
+                'websocket' => [
+                    'enabled' => config('broadcasting.default') === 'reverb',
+                    'channel' => 'private-conversation.'.$conversation->id,
+                    'endpoint' => route('widget.ws.connect', [], false),
+                ],
+            ]);
+        } finally {
+            Tenant::clearCurrent();
+        }
+    }
+}

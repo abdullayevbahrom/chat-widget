@@ -39,6 +39,7 @@ if (typeof window !== 'undefined') {
     visitorName: null,
     visitorEmail: null,
     conversationId: null,
+    visitorId: null,
     lastCursor: null,
     pollingInterval: null,
     projectId: null,
@@ -123,6 +124,22 @@ if (typeof window !== 'undefined') {
         runtimeConfig?.widget_key ||
         runtimeConfig?.widgetKey ||
         null;
+    },
+
+    getSessionId() {
+      let sessionId = null;
+      try {
+        sessionId = localStorage.getItem('widget_visitor_uuid');
+      } catch (_) { /* localStorage unavailable */ }
+      if (!sessionId) {
+        sessionId = typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `widget_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+        try {
+          localStorage.setItem('widget_visitor_uuid', sessionId);
+        } catch (_) { /* localStorage unavailable */ }
+      }
+      return sessionId;
     },
 
     getBootstrapToken() {
@@ -284,7 +301,13 @@ if (typeof window !== 'undefined') {
       global.WIDGET_CONFIG.trustedOrigin = payload.trusted_origin || global.WIDGET_CONFIG.trustedOrigin || null;
     },
 
+    async fetchBootstrap() {
+      const sessionId = utils.getSessionId();
+      return this.request(`/api/widget/bootstrap?session_id=${encodeURIComponent(sessionId)}`);
+    },
+
     async fetchConfig() {
+      // Legacy fallback — bootstrap is the preferred entry point
       return utils.normalizeConfig(await this.request('/api/widget/config'));
     },
 
@@ -305,6 +328,12 @@ if (typeof window !== 'undefined') {
         if (visitorEmail) {
           body.append('visitor_email', visitorEmail);
         }
+        if (state.conversationId) {
+          body.append('conversation_id', state.conversationId);
+        }
+        if (state.visitorId) {
+          body.append('visitor_id', state.visitorId);
+        }
         attachments.forEach(file => body.append('attachments[]', file));
 
         return this.request('/api/widget/messages', {
@@ -313,12 +342,16 @@ if (typeof window !== 'undefined') {
         });
       }
 
+      // New bootstrap API format: conversation_id + visitor_id + body
       return this.request('/api/widget/messages', {
         method: 'POST',
         body: JSON.stringify({
           message,
+          body: message,
           visitor_name: visitorName,
           visitor_email: visitorEmail,
+          conversation_id: state.conversationId,
+          visitor_id: state.visitorId,
         }),
       });
     },
@@ -533,7 +566,8 @@ if (typeof window !== 'undefined') {
 
       await this.loadMessages();
 
-      // Try WebSocket first, fall back to polling
+      // Try WebSocket first (Reverb), fall back to polling
+      // WebSocket may already be initialized with messages from bootstrap
       const wsInitialized = this.initWebSocket(state.conversationId);
       if (!wsInitialized) {
         startPolling();
@@ -585,18 +619,24 @@ if (typeof window !== 'undefined') {
         const bootstrapToken = utils.getBootstrapToken();
         const widgetKey = utils.getWidgetKey();
 
-        // Support both new websocket config format (without app_key) and legacy reverb format
-        const appKey = wsConfig.app_key || 'widget-proxy-key';
-        const wsHost = wsConfig.host;
-        const wsPort = wsConfig.port || (wsConfig.secure ? 443 : 80);
+        // Determine Reverb connection parameters
+        const reverbKey = wsConfig.key || wsConfig.app_key || 'widget-proxy-key';
+        const wsHost = wsConfig.host || window.location.hostname;
+        const wsPort = wsConfig.port || 6001;
+        const wsSecure = wsConfig.secure !== undefined ? wsConfig.secure : window.location.protocol === 'https:';
+
+        // Determine the channel name: prefer explicit channel from bootstrap, fallback to legacy format
+        const channelName = wsConfig.channel || `private-conversation.${conversationId}`;
+        // Extract just the channel identifier part (strip 'private-' prefix for Echo)
+        const channelIdentifier = channelName.replace(/^private-/, '');
 
         const echo = new Echo({
-          broadcaster: 'pusher',
-          key: appKey,
+          broadcaster: 'reverb',
+          key: reverbKey,
           wsHost: wsHost,
           wsPort: wsPort,
-          wssPort: wsPort,
-          forceTLS: wsConfig.secure !== false,
+          wssPort: wsSecure ? wsPort : wsPort,
+          forceTLS: wsSecure,
           disableStats: true,
           enabledTransports: ['ws', 'wss'],
           cluster: 'mt1', // Reverb uses a dummy cluster
@@ -636,9 +676,16 @@ if (typeof window !== 'undefined') {
         state.useWebSocket = true;
         state.wsReconnectAttempts = 0;
 
-        echo.private(`widget.conversation.${conversationId}`)
+        echo.private(channelIdentifier)
+          .listen('.MessageCreated', (data) => {
+            console.log('[Widget] Received MessageCreated event:', data);
+            if (data.message) {
+              this.addMessage(data.message);
+            }
+          })
           .listen('.widget.message-sent', (data) => {
-            console.log('[Widget] Received WebSocket message:', data);
+            // Legacy event fallback
+            console.log('[Widget] Received legacy WebSocket message:', data);
             if (data.message) {
               this.addMessage(data.message);
             }
@@ -657,7 +704,7 @@ if (typeof window !== 'undefined') {
           this.handleWsReconnect(conversationId);
         });
 
-        console.log('[Widget] WebSocket connected for conversation', conversationId);
+        console.log('[Widget] WebSocket connected for conversation', conversationId, 'on channel', channelName);
         return true;
       } catch (error) {
         console.error('[Widget] WebSocket initialization failed:', error);
@@ -1096,9 +1143,39 @@ if (typeof window !== 'undefined') {
 
     try {
       utils.clearLegacyVisitorToken();
-      state.config = await api.fetchConfig();
-      state.projectId = state.config.project_id;
+
+      // Primary path: use bootstrap API (returns config + conversation + messages + websocket)
+      const bootstrapResponse = await api.request('/api/widget/bootstrap?session_id=' + encodeURIComponent(utils.getSessionId()));
+
+      if (!bootstrapResponse.success) {
+        throw Object.assign(new Error(bootstrapResponse.error || 'Bootstrap failed'), { status: 400 });
+      }
+
+      // Normalize bootstrap response into state.config
+      state.config = utils.normalizeConfig({
+        project_id: bootstrapResponse.project_id,
+        project_name: bootstrapResponse.project_name,
+        settings: bootstrapResponse.settings || {},
+        websocket: bootstrapResponse.websocket || null,
+      });
+
+      // Store bootstrap-derived identifiers
+      state.conversationId = bootstrapResponse.conversation_id || state.conversationId;
+      state.visitorId = bootstrapResponse.visitor_id || null;
+      state.projectId = bootstrapResponse.project_id || state.projectId;
+
       ui.init();
+
+      // Load message history directly from bootstrap response (no separate API call needed)
+      if (bootstrapResponse.messages && bootstrapResponse.messages.length > 0) {
+        bootstrapResponse.messages.forEach(message => {
+          ui.addMessage(message);
+          if (message.id) {
+            state.messageIds.add(String(message.id));
+          }
+        });
+        ui.cleanupMessageIds();
+      }
 
       if (window.location.hash === '#chat' || window.location.hash === '#support') {
         open();

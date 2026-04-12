@@ -259,3 +259,63 @@ Broadcast::channel('widget.conversation.{conversationId}', function (Request $re
 
     return true;
 });
+
+// Simple private conversation channel for widget visitors.
+// Authorizes via visitor_id matching the conversation's visitor.
+Broadcast::channel('private-conversation.{conversationId}', function (Request $request, int $conversationId) {
+    $origin = $request->header('Origin');
+
+    if ($origin && ! isTrustedOrigin($origin)) {
+        Log::warning('Private conversation channel auth rejected: untrusted origin.', [
+            'channel' => 'websocket',
+            'action' => 'broadcast_auth',
+            'error_type' => 'untrusted_origin',
+            'conversation_id' => $conversationId,
+            'origin' => $origin,
+        ]);
+
+        return false;
+    }
+
+    $visitorId = $request->input('visitor_id');
+
+    if ($visitorId === null || ! is_numeric($visitorId)) {
+        Log::warning('Private conversation channel auth rejected: invalid visitor_id.', [
+            'channel' => 'websocket',
+            'action' => 'broadcast_auth',
+            'error_type' => 'invalid_visitor_id',
+            'conversation_id' => $conversationId,
+            'visitor_id' => $visitorId,
+        ]);
+
+        return false;
+    }
+
+    $conversation = Conversation::withoutGlobalScopes()->find($conversationId);
+
+    if ($conversation === null) {
+        Log::warning('Private conversation channel auth rejected: conversation not found.', [
+            'channel' => 'websocket',
+            'action' => 'broadcast_auth',
+            'error_type' => 'conversation_not_found',
+            'conversation_id' => $conversationId,
+        ]);
+
+        return false;
+    }
+
+    if ((int) $visitorId !== (int) $conversation->visitor_id) {
+        Log::warning('Private conversation channel auth rejected: visitor ID mismatch.', [
+            'channel' => 'websocket',
+            'action' => 'broadcast_auth',
+            'error_type' => 'visitor_id_mismatch',
+            'conversation_id' => $conversationId,
+            'provided_visitor_id' => $visitorId,
+            'conversation_visitor_id' => $conversation->visitor_id,
+        ]);
+
+        return false;
+    }
+
+    return true;
+});
