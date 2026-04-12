@@ -693,11 +693,13 @@
 
   function initPusher(config) {
     try {
-      // If using nginx proxy path, set host to current origin
-      const usePath = config.use_path || null;
-      const wsHost = usePath ? window.location.hostname : (config.host || '127.0.0.1');
-      const wsPort = usePath ? (window.location.protocol === 'https:' ? 443 : 80) : (config.port || 6001);
-      const wsPath = usePath || '/app';
+      // Always use the config host (widget server), NOT window.location.hostname
+      // The widget may be embedded on any site, but WS connects to widget server
+      // Strip protocol from host if present (e.g., "https://widget.marca.uz" → "widget.marca.uz")
+      const rawHost = config.host || '127.0.0.1';
+      const wsHost = rawHost.replace(/^https?:\/\//, '');
+      const wsPort = config.port || (window.location.protocol === 'https:' ? 443 : 6001);
+      const wsPath = config.use_path || '/app';
 
       const pusher = new Pusher(config.app_key || 'app-key', {
         cluster: 'mt1',
