@@ -11,9 +11,9 @@ class WidgetEmbedService
      * Generate HMAC signature for widget embed.
      *
      * Creates a time-limited HMAC-SHA256 signature that binds
-     * the widget key to the project ID and domain.
+     * the domain to the project. No widget key needed.
      */
-    public function signEmbed(Project $project, string $widgetKey): array
+    public function signEmbed(Project $project): array
     {
         $secret = $this->getEmbedSecret();
         $expiresAt = now()->addYears(10)->timestamp; // Long-lived signature for embed scripts
@@ -21,7 +21,6 @@ class WidgetEmbedService
         $payload = implode('|', [
             $project->id,
             $project->domain,
-            $widgetKey,
             $expiresAt,
         ]);
 
@@ -29,7 +28,6 @@ class WidgetEmbedService
 
         return [
             'project_id' => $project->id,
-            'widget_key' => $widgetKey,
             'domain' => $project->domain,
             'expires_at' => $expiresAt,
             'signature' => $signature,
@@ -39,7 +37,7 @@ class WidgetEmbedService
     /**
      * Verify HMAC signature for widget embed request.
      */
-    public function verifyEmbed(int $projectId, string $domain, string $widgetKey, int $expiresAt, string $signature): bool
+    public function verifyEmbed(int $projectId, string $domain, int $expiresAt, string $signature): bool
     {
         // Check expiration
         if ($expiresAt < time()) {
@@ -51,7 +49,6 @@ class WidgetEmbedService
         $expectedPayload = implode('|', [
             $projectId,
             $domain,
-            $widgetKey,
             $expiresAt,
         ]);
 
@@ -63,17 +60,16 @@ class WidgetEmbedService
     /**
      * Generate the full embed script HTML.
      *
-     * Produces a script tag that can be copy-pasted into any website.
-     * The script loads the widget SDK with HMAC-signed credentials.
+     * Produces a simple script tag that can be copy-pasted into any website.
+     * Uses HMAC signature bound to domain only - no widget key needed.
      */
-    public function generateEmbedScript(Project $project, string $widgetKey): string
+    public function generateEmbedScript(Project $project): string
     {
-        $signed = $this->signEmbed($project, $widgetKey);
+        $signed = $this->signEmbed($project);
         $appUrl = rtrim(config('app.url'), '/');
 
         // Build query string with HMAC credentials
         $queryParams = http_build_query([
-            'widget_key' => $signed['widget_key'],
             'project_id' => $signed['project_id'],
             'domain' => $signed['domain'],
             'expires' => $signed['expires_at'],

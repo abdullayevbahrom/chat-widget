@@ -101,7 +101,6 @@ class ValidateWidgetKey
      * Resolve project from HMAC-signed embed script data attributes.
      *
      * Expects query parameters or headers:
-     * - widget_key: The plaintext widget key
      * - project_id: The project ID
      * - domain: The domain the widget is embedded on
      * - expires: Unix timestamp when the signature expires
@@ -109,13 +108,12 @@ class ValidateWidgetKey
      */
     protected function resolveFromEmbedData(Request $request): ?Project
     {
-        $widgetKey = $request->input('widget_key') ?? $request->header('X-Widget-Key-Embed');
         $projectId = $request->input('project_id') ?? $request->header('X-Project-Id');
         $domain = $request->input('domain') ?? $request->header('X-Widget-Domain');
         $expires = $request->input('expires') ?? $request->header('X-Widget-Expires');
         $signature = $request->input('signature') ?? $request->header('X-Widget-Signature');
 
-        if (blank($widgetKey) || blank($projectId) || blank($domain) || blank($expires) || blank($signature)) {
+        if (blank($projectId) || blank($domain) || blank($expires) || blank($signature)) {
             return null;
         }
 
@@ -123,7 +121,6 @@ class ValidateWidgetKey
         if (! $this->embedService->verifyEmbed(
             (int) $projectId,
             (string) $domain,
-            (string) $widgetKey,
             (int) $expires,
             (string) $signature,
         )) {

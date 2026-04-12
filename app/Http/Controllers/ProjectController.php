@@ -100,16 +100,12 @@ class ProjectController extends Controller
 
         $project->save();
 
-        // Generate widget key
-        $plaintextKey = $project->generateWidgetKey();
-
-        // Generate embed script
-        $embedScript = $this->embedService->generateEmbedScript($project, $plaintextKey);
+        // Generate embed script (domain + HMAC only, no widget key)
+        $embedScript = $this->embedService->generateEmbedScript($project);
 
         return redirect()
             ->route('dashboard.projects.edit', $project)
             ->with('success', 'Project created successfully.')
-            ->with('widget_key', $plaintextKey)
             ->with('embed_script', $embedScript);
     }
 
@@ -118,16 +114,10 @@ class ProjectController extends Controller
      */
     public function edit(Project $project): View
     {
-        $embedScript = null;
-        $widgetKey = null;
+        // Generate embed script for display (domain + HMAC only)
+        $embedScript = $this->embedService->generateEmbedScript($project);
 
-        if ($project->hasWidgetKey()) {
-            // Get existing key prefix - we can't retrieve the plaintext key
-            // So we show a "regenerate" option or the embed script template
-            $widgetKey = $project->widget_key_prefix . '... (regenerate to get full key)';
-        }
-
-        return view('tenant.projects.form', compact('project', 'embedScript', 'widgetKey'));
+        return view('tenant.projects.form', compact('project', 'embedScript'));
     }
 
     /**
@@ -206,13 +196,12 @@ class ProjectController extends Controller
     {
         $plaintextKey = $project->regenerateWidgetKey();
 
-        // Generate fresh embed script with new key
-        $embedScript = $this->embedService->generateEmbedScript($project, $plaintextKey);
+        // Generate fresh embed script (domain + HMAC only)
+        $embedScript = $this->embedService->generateEmbedScript($project);
 
         return redirect()
             ->route('dashboard.projects.edit', $project)
             ->with('success', 'Widget key regenerated successfully.')
-            ->with('widget_key', $plaintextKey)
             ->with('embed_script', $embedScript);
     }
 

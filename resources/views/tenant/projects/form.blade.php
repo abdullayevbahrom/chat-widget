@@ -52,8 +52,8 @@
         </div>
     @endif
 
-    {{-- Embed Script (shown after create or when project has widget key) --}}
-    @if(session('embed_script'))
+    {{-- Embed Script Section --}}
+    @if($project->exists)
         <div x-data="{ copied: false }" class="glass rounded-2xl p-6 border-2 border-brand-200">
             <div class="flex items-start justify-between mb-3">
                 <div class="flex items-center gap-3">
@@ -63,11 +63,11 @@
                         </svg>
                     </div>
                     <div>
-                        <h3 class="text-sm font-semibold text-brand-900">Embed Script</h3>
-                        <p class="text-xs text-brand-600">Copy this script and paste it into your website's HTML before </p>
+                        <h3 class="text-sm font-semibold text-gray-900">Embed Script</h3>
+                        <p class="text-xs text-gray-500">Copy this script and paste it into your website's HTML before </p>
                     </div>
                 </div>
-                <button @click="navigator.clipboard.writeText(`{{ session('embed_script') }}`); copied = true; setTimeout(() => copied = false, 2000)"
+                <button @click="navigator.clipboard.writeText(`{{ $embedScript }}`); copied = true; setTimeout(() => copied = false, 2000)"
                         class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-gradient-to-r from-brand-500 to-brand-700 hover:opacity-95 transition-all">
                     <svg x-show="!copied" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
@@ -79,37 +79,10 @@
                 </button>
             </div>
             <div class="relative">
-                <pre class="bg-gray-900 text-green-400 p-4 rounded-xl text-xs font-mono overflow-x-auto whitespace-pre-wrap break-all"><code>{{ session('embed_script') }}</code></pre>
+                <pre class="bg-gray-900 text-green-400 p-4 rounded-xl text-xs font-mono overflow-x-auto whitespace-pre-wrap break-all"><code>{{ $embedScript }}</code></pre>
             </div>
-        </div>
-    @endif
-
-    @if($project->exists && $project->hasWidgetKey() && !session('embed_script'))
-        <div x-data="{ showEmbed: false, copied: false }" class="glass rounded-2xl p-6 border-2 border-brand-200">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl bg-brand-100 flex items-center justify-center flex-shrink-0">
-                        <svg class="w-5 h-5 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
-                        </svg>
-                    </div>
-                    <div>
-                        <h3 class="text-sm font-semibold text-gray-900">Widget Embed Script</h3>
-                        <p class="text-xs text-gray-500">Get the script to embed on your website</p>
-                    </div>
-                </div>
-                <button @click="showEmbed = !showEmbed"
-                        class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-brand-700 bg-brand-50 hover:bg-brand-100 transition-all">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
-                    </svg>
-                    <span x-text="showEmbed ? 'Hide' : 'Show Embed Script'"></span>
-                </button>
-            </div>
-            <div x-show="showEmbed" x-cloak class="mt-4">
-                <p class="text-xs text-gray-600 mb-3">To get a fresh embed script with a new widget key, click "Regenerate Key" below.</p>
-                <p class="text-xs text-gray-500">Current widget key prefix: <code class="bg-gray-100 px-2 py-0.5 rounded font-mono">{{ $widgetKey }}</code></p>
+            <div class="mt-3 flex items-center gap-2">
+                <p class="text-xs text-gray-500">This script is secured with HMAC signature for domain: <code class="bg-gray-100 px-2 py-0.5 rounded font-mono">{{ $project->domain }}</code></p>
             </div>
         </div>
     @endif
