@@ -142,7 +142,8 @@ class WidgetBootstrapController extends Controller
                     'app_key' => config('broadcasting.connections.reverb.key'),
                     'channel' => 'private-conversation.'.$conversation->public_id,
                     'endpoint' => route('widget.ws.connect', [], false),
-                    'host' => env('REVERB_PUBLIC_HOST', config('broadcasting.connections.reverb.options.host', parse_url(config('app.url'), PHP_URL_HOST))),
+                    // Use request host for browser compatibility, not internal Docker hostname
+                    'host' => env('REVERB_PUBLIC_HOST', $request->getHost()),
                     'port' => env('REVERB_PUBLIC_PORT', request()->secure() ? 443 : (config('broadcasting.connections.reverb.options.port', 6001))),
                     'use_path' => env('REVERB_USE_PROXY', false) ? '/reverb' : null,
                 ],
