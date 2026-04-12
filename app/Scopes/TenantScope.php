@@ -49,10 +49,13 @@ class TenantScope implements Scope
             $user = Auth::user();
 
             if ($user !== null && $user->isSuperAdmin()) {
-                Log::debug('TenantScope bypassed for super admin.', [
-                    'model' => get_class($model),
-                    'user_id' => $user->id,
-                ]);
+                // Production da debug loglarni o'tkazib yuboramiz (log spam)
+                if (app()->environment('local', 'testing')) {
+                    Log::debug('TenantScope bypassed for super admin.', [
+                        'model' => get_class($model),
+                        'user_id' => $user->id,
+                    ]);
+                }
 
                 return;
             }
@@ -67,26 +70,32 @@ class TenantScope implements Scope
             // Uses Tenant::withoutTenantContext() static property as an explicit
             // bypass signal for intentional context-free queries (e.g. widget key validation).
             if (Tenant::isBypassingContext()) {
-                Log::debug('TenantScope skipped: tenant context bypass is active.', [
-                    'model' => get_class($model),
-                ]);
+                if (app()->environment('local', 'testing')) {
+                    Log::debug('TenantScope skipped: tenant context bypass is active.', [
+                        'model' => get_class($model),
+                    ]);
+                }
 
                 return;
             }
 
-            Log::debug('TenantScope applied: no tenant context, returning empty result.', [
-                'model' => get_class($model),
-            ]);
+            if (app()->environment('local', 'testing')) {
+                Log::debug('TenantScope applied: no tenant context, returning empty result.', [
+                    'model' => get_class($model),
+                ]);
+            }
 
             $builder->whereRaw('1 = 0');
 
             return;
         }
 
-        Log::debug('TenantScope applied.', [
-            'model' => get_class($model),
-            'tenant_id' => $currentTenant->id,
-        ]);
+        if (app()->environment('local', 'testing')) {
+            Log::debug('TenantScope applied.', [
+                'model' => get_class($model),
+                'tenant_id' => $currentTenant->id,
+            ]);
+        }
 
         // Agar model da to'g'ridan-to'g'ri `tenant_id` ustuni mavjud bo'lsa,
         // whereHas o'rniga oddiy where() ishlatamiz — bu ancha samarali.
