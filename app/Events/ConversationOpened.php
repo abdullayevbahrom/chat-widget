@@ -50,11 +50,11 @@ class ConversationOpened implements ShouldBroadcastNow
     {
         return [
             'conversation' => [
-                'id' => $this->conversation->id,
+                'id' => $this->conversation->public_id,
                 'status' => $this->conversation->status,
                 'subject' => $this->conversation->subject,
-                'project_id' => $this->conversation->project_id,
-                'visitor_id' => $this->conversation->visitor_id,
+                'project_id' => $this->conversation->project?->public_id,
+                'visitor_id' => $this->conversation->visitor?->public_id,
                 'last_message_at' => $this->conversation->last_message_at?->toISOString(),
             ],
         ];
@@ -68,7 +68,7 @@ class ConversationOpened implements ShouldBroadcastNow
         Log::error('WebSocket broadcast failed', [
             'channel' => 'websocket',
             'event' => self::class,
-            'conversation_id' => $this->conversation->id,
+            'conversation_id' => $this->conversation->public_id,
             'error' => $exception->getMessage(),
             'error_type' => get_class($exception),
         ]);

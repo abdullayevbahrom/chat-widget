@@ -50,7 +50,7 @@ class ConversationArchived implements ShouldBroadcastNow
     {
         return [
             'conversation' => [
-                'id' => $this->conversation->id,
+                'id' => $this->conversation->public_id,
                 'status' => $this->conversation->status,
                 'closed_at' => $this->conversation->closed_at?->toISOString(),
             ],
@@ -65,7 +65,7 @@ class ConversationArchived implements ShouldBroadcastNow
         Log::error('WebSocket broadcast failed', [
             'channel' => 'websocket',
             'event' => self::class,
-            'conversation_id' => $this->conversation->id,
+            'conversation_id' => $this->conversation->public_id,
             'error' => $exception->getMessage(),
             'error_type' => get_class($exception),
         ]);

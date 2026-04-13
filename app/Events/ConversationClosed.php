@@ -29,8 +29,8 @@ class ConversationClosed implements ShouldBroadcastNow
     public function broadcastOn(): array
     {
         return [
-            new PrivateChannel('tenant.' . $this->conversation->tenant_id . '.conversations'),
-            new PrivateChannel('widget.conversation.' . $this->conversation->id),
+            new PrivateChannel('tenant.'.$this->conversation->tenant_id.'.conversations'),
+            new PrivateChannel('private-conversation.'.$this->conversation->public_id),
         ];
     }
 
@@ -51,7 +51,7 @@ class ConversationClosed implements ShouldBroadcastNow
     {
         return [
             'conversation' => [
-                'id' => $this->conversation->id,
+                'id' => $this->conversation->public_id,
                 'status' => $this->conversation->status,
                 'closed_at' => $this->conversation->closed_at?->toISOString(),
             ],
@@ -66,7 +66,7 @@ class ConversationClosed implements ShouldBroadcastNow
         Log::error('WebSocket broadcast failed', [
             'channel' => 'websocket',
             'event' => self::class,
-            'conversation_id' => $this->conversation->id,
+            'conversation_id' => $this->conversation->public_id,
             'error' => $exception->getMessage(),
             'error_type' => get_class($exception),
         ]);

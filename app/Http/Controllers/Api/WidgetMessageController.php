@@ -540,25 +540,28 @@ class WidgetMessageController extends Controller
      */
     public function reverbAuth(Request $request): JsonResponse
     {
-        $sessionId = $request->input('session_id') ?: $request->header('X-Socket-ID');
-        $channel = $request->input('channel_name');
-        $socketId = $request->input('socket_id');
+        // Accept session_id from query parameter (avoids CORS preflight with custom headers)
+        $sessionId = $request->query('session_id');
 
-        if (blank($sessionId) || blank($channel) || blank($socketId)) {
-            Log::warning('Reverb auth rejected: missing parameters.', [
-                'has_session_id' => filled($sessionId),
-                'has_channel' => filled($channel),
-                'has_socket_id' => filled($socketId),
+        if (blank($sessionId)) {
+            Log::warning('Reverb auth rejected: missing session_id.', [
+                'channel' => $request->input('channel_name'),
             ]);
 
-            return response()->json(['error' => 'Missing auth parameters'], 403);
+            return response()->json(['error' => 'Missing session_id'], 403);
         }
 
         /** @var Project|null $project */
         $project = $request->get('project');
+        $channel = $request->input('channel_name');
+        $socketId = $request->input('socket_id');
 
         if ($project === null) {
             return response()->json(['error' => 'Invalid widget domain'], 403);
+        }
+
+        if (blank($channel) || blank($socketId)) {
+            return response()->json(['error' => 'Missing channel or socket_id'], 403);
         }
 
         $this->initializeTenantContext($project);

@@ -35,7 +35,7 @@ class MessageCreated implements ShouldBroadcast
             'id' => $this->message->public_id,
             'conversation_id' => $this->message->conversation?->public_id,
             'body' => $this->message->body,
-            'sender_id' => $this->message->sender->id,
+            'sender_id' => $this->message->sender?->public_id,
             'direction' => $this->message->direction,
             'message_type' => $this->message->message_type,
             'created_at' => $this->message->created_at->toISOString(),

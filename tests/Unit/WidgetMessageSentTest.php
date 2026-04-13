@@ -149,8 +149,8 @@ class WidgetMessageSentTest extends TestCase
         $channels = $event->broadcastOn();
 
         $this->assertCount(2, $channels);
-        $this->assertEquals('private-tenant.'.$tenant->id.'.conversations', $channels[0]->name);
-        $this->assertEquals('private-widget.conversation.'.$conversation->id, $channels[1]->name);
+        $this->assertEquals('tenant.'.$tenant->id.'.conversations', $channels[0]->name);
+        $this->assertEquals('private-conversation.'.$conversation->public_id, $channels[1]->name);
     }
 
     public function test_broadcast_with_includes_agent_name_when_provided(): void

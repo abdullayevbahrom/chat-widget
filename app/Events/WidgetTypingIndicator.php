@@ -38,7 +38,7 @@ class WidgetTypingIndicator implements ShouldBroadcastNow
     public function broadcastOn(): array
     {
         return [
-            new PrivateChannel('widget.conversation.' . $this->conversation->id),
+            new PrivateChannel('private-conversation.'.$this->conversation->public_id),
         ];
     }
 
@@ -58,7 +58,7 @@ class WidgetTypingIndicator implements ShouldBroadcastNow
     public function broadcastWith(): array
     {
         return [
-            'conversation_id' => $this->conversation->id,
+            'conversation_id' => $this->conversation->public_id,
             'typing' => $this->isTyping,
             'agent_name' => $this->agentName ? Str::limit($this->agentName, 100) : null,
         ];
@@ -72,7 +72,7 @@ class WidgetTypingIndicator implements ShouldBroadcastNow
         Log::error('WebSocket broadcast failed', [
             'channel' => 'websocket',
             'event' => self::class,
-            'conversation_id' => $this->conversation->id,
+            'conversation_id' => $this->conversation->public_id,
             'error' => $exception->getMessage(),
             'error_type' => get_class($exception),
         ]);

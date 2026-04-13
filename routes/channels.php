@@ -106,7 +106,8 @@ Broadcast::channel('tenant.{tenantId}.conversations', function (Request $request
 //
 // Authorization validates that the requesting token/key belongs to the
 // conversation being accessed, preventing unauthorized cross-conversation listening.
-Broadcast::channel('widget.conversation.{conversationId}', function (Request $request, int $conversationId) {
+// Supports both integer IDs and UUID (public_id) for conversation identification.
+Broadcast::channel('widget.conversation.{conversationId}', function (Request $request, string $conversationId) {
     $origin = $request->header('Origin');
 
     if ($origin && !isTrustedOrigin($origin)) {
@@ -166,7 +167,13 @@ Broadcast::channel('widget.conversation.{conversationId}', function (Request $re
     // Validate the conversation exists and belongs to an active project
     // Use withoutGlobalScopes() because TenantScope would prevent finding
     // the conversation when no tenant context is set during WebSocket auth.
-    $conversation = Conversation::withoutGlobalScopes()->with('project')->find($conversationId);
+    // Support both integer ID and UUID (public_id) for conversation lookup.
+    $conversation = Conversation::withoutGlobalScopes()->with('project')
+        ->where(function ($query) use ($conversationId) {
+            $query->where('id', $conversationId)
+                  ->orWhere('public_id', $conversationId);
+        })
+        ->first();
 
     if (!$conversation || !$conversation->project) {
         Log::warning('Widget broadcast auth rejected: conversation or project not found.', [
