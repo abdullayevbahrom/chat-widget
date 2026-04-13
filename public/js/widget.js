@@ -560,11 +560,16 @@
 
     if (!body) return;
 
+    console.log('[Widget] 📤 Sending message, conversationId:', state.conversationId);
+
     // If no conversation ID, bootstrap first to get one
     if (!state.conversationId) {
+      console.log('[Widget] 🔄 No conversationId, bootstrapping first...');
       try {
         const data = await bootstrap();
         if (!data.success) throw new Error(data.error);
+        
+        const oldConversationId = state.conversationId;
         state.conversationId = data.conversation_id;
         state.visitorId = data.visitor_id;
 
@@ -572,9 +577,13 @@
         if (data.conversation_id) localStorage.setItem('widget_conversation_id', data.conversation_id);
         if (data.visitor_id) localStorage.setItem('widget_visitor_id', data.visitor_id);
 
-        // Reconnect WebSocket with new conversation
-        disconnectWebSocket();
-        if (state.config?.websocket?.enabled) {
+        console.log('[Widget] 🔄 Bootstrap returned new conversationId:', data.conversation_id);
+        console.log('[Widget] 🔄 Old conversationId:', oldConversationId);
+
+        // Reconnect WebSocket with new conversation if it changed
+        if (oldConversationId !== data.conversation_id && state.config?.websocket?.enabled) {
+          console.log('[Widget] 🔄 Reconnecting WebSocket to new conversation...');
+          disconnectWebSocket();
           connectWebSocket({
             ...state.config.websocket,
             channel: `private-conversation.${state.conversationId}`,
@@ -615,6 +624,22 @@
         const exists = state.messages.some((m) => m.id === result.message.id);
         if (!exists) {
           state.messages.push(result.message);
+        }
+      }
+      
+      // If server returns a different conversation_id, reconnect WebSocket
+      if (result.conversation_id && result.conversation_id !== state.conversationId) {
+        console.log('[Widget] 🔄 Server returned different conversationId:', result.conversation_id);
+        state.conversationId = result.conversation_id;
+        localStorage.setItem('widget_conversation_id', result.conversation_id);
+        
+        if (state.config?.websocket?.enabled) {
+          console.log('[Widget] 🔄 Reconnecting WebSocket to server conversation...');
+          disconnectWebSocket();
+          connectWebSocket({
+            ...state.config.websocket,
+            channel: `private-conversation.${state.conversationId}`,
+          });
         }
       }
     } catch (err) {
@@ -809,8 +834,15 @@
 
       // Listen for ALL events (debugging)
       channel.bind_global((eventName, data) => {
-        console.log('[Widget] 🌐 Global event received:', eventName);
-        console.log('[Widget] 📦 Event data:', JSON.stringify(data, null, 2));
+        console.log('[Widget] 🌐🌐 GLOBAL EVENT TRIGGERED!');
+        console.log('[Widget] 📛 Event name:', eventName);
+        console.log('[Widget] 📦 Event data type:', typeof data);
+        console.log('[Widget] 📦 Event data:', data);
+        try {
+          console.log('[Widget] 📦 Event data JSON:', JSON.stringify(data, null, 2));
+        } catch (e) {
+          console.log('[Widget] 📦 Event data (not JSON):', data);
+        }
       });
 
       // Handle MessageCreated events
