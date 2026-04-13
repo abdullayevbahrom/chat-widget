@@ -674,178 +674,235 @@
     messagesDiv.appendChild(div);
   }
 
-  // ===== WebSocket (Raw WebSocket - No Pusher) =====
+  // ===== WebSocket (Pusher with detailed logging) =====
   function connectWebSocket(config) {
+    console.log('[Widget] 🔌 WebSocket connect called');
+    console.log('[Widget] 📦 Config:', JSON.stringify(config, null, 2));
+
+    // Load Pusher if not already loaded
+    if (typeof Pusher === 'undefined') {
+      console.log('[Widget] 📦 Loading Pusher library...');
+      loadScript('https://cdn.jsdelivr.net/npm/pusher-js@8.4.0-rc2/dist/web/pusher.min.js')
+        .then(() => {
+          console.log('[Widget] ✅ Pusher loaded successfully');
+          initPusher(config);
+        })
+        .catch((err) => {
+          console.error('[Widget] ❌ Failed to load Pusher:', err);
+          showError('Failed to load WebSocket library');
+        });
+    } else {
+      console.log('[Widget] ✅ Pusher already loaded');
+      initPusher(config);
+    }
+  }
+
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      if (document.querySelector(`script[src="${src}"]`)) {
+        console.log('[Widget] ℹ️ Script already loaded:', src);
+        resolve();
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = src;
+      script.onload = () => {
+        console.log('[Widget] ✅ Script loaded:', src);
+        resolve();
+      };
+      script.onerror = (err) => {
+        console.error('[Widget] ❌ Script load failed:', src, err);
+        reject(err);
+      };
+      document.head.appendChild(script);
+    });
+  }
+
+  function initPusher(config) {
     try {
-      // Build WebSocket URL
+      console.log('[Widget] 🔧 Initializing Pusher...');
+
+      // Build WebSocket connection parameters
       const rawHost = config.host || '127.0.0.1';
       const wsHost = rawHost.replace(/^https?:\/\//, '');
       const wsPort = config.port || (window.location.protocol === 'https:' ? 443 : 6001);
       const wsPath = config.ws_path || config.use_path || `/app/${config.app_id || 'app-key'}`;
-      const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-      const wsUrl = `${scheme}://${wsHost}:${wsPort}${wsPath}`;
       const channelName = config.channel || `private-conversation.${state.conversationId}`;
 
-      console.log('[Widget] 🔌 Connecting to WebSocket:', wsUrl);
-      console.log('[Widget] 📡 Channel:', channelName);
+      console.log('[Widget] 📡 Connection details:');
+      console.log('  - Host:', wsHost);
+      console.log('  - Port:', wsPort);
+      console.log('  - Path:', wsPath);
+      console.log('  - Channel:', channelName);
+      console.log('  - App Key:', config.app_key);
+      console.log('  - Session ID:', state.sessionId);
 
-      // Authenticate and connect
-      authenticateAndConnect(wsUrl, channelName);
-    } catch (err) {
-      console.error('[Widget] ❌ WebSocket connection error:', err);
-    }
-  }
-
-  async function authenticateAndConnect(wsUrl, channelName) {
-    try {
-      // Generate a unique socket_id
-      const socketId = `${Math.random().toString(36).substr(2, 9)}.${Date.now()}`;
-
-      // Get auth signature from backend BEFORE connecting WebSocket
-      const authResponse = await fetch(`${API_BASE}/api/broadcasting/auth`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      // Initialize Pusher
+      const pusher = new Pusher(config.app_key || 'app-key', {
+        cluster: 'mt1',
+        wsHost: wsHost,
+        wsPort: wsPort,
+        wssPort: wsPort,
+        forceTLS: window.location.protocol === 'https:',
+        disableStats: true,
+        enabledTransports: ['ws', 'wss'],
+        path: wsPath,
+        authEndpoint: `${API_BASE}/api/broadcasting/auth`,
+        auth: {
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          params: {
+            session_id: state.sessionId,
+          },
         },
-        body: JSON.stringify({
-          channel_name: channelName,
-          socket_id: socketId,
-          session_id: state.sessionId,
-        }),
       });
 
-      const authData = await authResponse.json();
+      console.log('[Widget] ✅ Pusher instance created');
 
-      if (!authResponse.ok) {
-        console.error('[Widget] ❌ Auth failed:', authData);
-        showError('WebSocket authentication failed');
-        return;
-      }
+      // Connection state logging
+      pusher.connection.bind('state_change', (states) => {
+        console.log(`[Widget] 🔌 Connection: ${states.previous} -> ${states.current}`);
+      });
 
-      console.log('[Widget] ✅ Auth successful, connecting WebSocket...');
-      connectRawWebSocket(wsUrl, channelName, authData.auth);
-    } catch (err) {
-      console.error('[Widget] ❌ Auth error:', err);
-      showError('Failed to authenticate WebSocket');
-    }
-  }
+      pusher.connection.bind('connected', () => {
+        console.log('[Widget] ✅ Pusher connected to server');
+      });
 
-  function connectRawWebSocket(wsUrl, channelName, authToken) {
-    try {
-      const ws = new WebSocket(wsUrl);
+      pusher.connection.bind('disconnected', () => {
+        console.log('[Widget] 🔌 Pusher disconnected');
+      });
 
-      ws.onopen = () => {
-        console.log('[Widget] ✅ WebSocket connected');
+      pusher.connection.bind('failed', (err) => {
+        console.error('[Widget] ❌ Pusher connection failed:', err);
+      });
 
-        // Send ping event first (Reverb expects this)
-        const pingEvent = {
-          event: 'pusher:ping',
-          data: {},
-        };
-        ws.send(JSON.stringify(pingEvent));
+      pusher.connection.bind('error', (err) => {
+        console.error('[Widget] ❌ Pusher connection error:', err);
+      });
 
-        // Subscribe to channel with auth token
-        const subscribeEvent = {
-          event: 'pusher:subscribe',
-          data: {
-            channel: channelName,
-            auth: authToken,
-          },
-        };
-        ws.send(JSON.stringify(subscribeEvent));
-        console.log('[Widget] 📡 Subscribing to:', channelName);
-      };
+      // Subscribe to private channel
+      console.log('[Widget] 📡 Subscribing to channel:', channelName);
+      const channel = pusher.subscribe(channelName);
 
-      ws.onmessage = (event) => {
-        try {
-          const message = JSON.parse(event.data);
-          console.log('[Widget] 📨 WebSocket message:', message.event);
+      // Channel subscription events
+      channel.bind('pusher:subscription_succeeded', () => {
+        console.log('[Widget] ✅ Successfully subscribed to', channelName);
+        state.wsConnected = true;
+        state.pusher = pusher;
+        state.wsChannel = channelName;
+      });
 
-          // Handle pong response
-          if (message.event === 'pusher:pong') {
-            console.log('[Widget] 🏓 Pong received');
-            return;
-          }
+      channel.bind('pusher:subscription_error', (err) => {
+        console.error('[Widget] ❌ Subscription error:', err);
+        showError('Failed to subscribe to chat channel');
+      });
 
-          // Handle subscription succeeded
-          if (message.event === 'pusher_internal:subscription_succeeded') {
-            console.log('[Widget] ✅ WebSocket subscribed to', channelName);
-            state.wsConnected = true;
-            return;
-          }
+      channel.bind('pusher:subscription_count', (data) => {
+        console.log('[Widget] 👥 Subscription count:', data);
+      });
 
-          // Handle subscription error
-          if (message.event === 'pusher_internal:subscription_error') {
-            console.error('[Widget] ❌ Subscription error:', message.data);
-            showError('Failed to subscribe to channel');
-            return;
-          }
+      // Listen for ALL events (debugging)
+      channel.bind_global((eventName, data) => {
+        console.log('[Widget] 🌐 Global event received:', eventName);
+        console.log('[Widget] 📦 Event data:', JSON.stringify(data, null, 2));
+      });
 
-          // Handle MessageCreated events (visitor messages)
-          if (message.event === '.MessageCreated' || message.event === 'MessageCreated') {
-            console.log('[Widget] 📨 MessageCreated event received');
-            const data = message.data;
-            if (!data) return;
-            
-            const exists = state.messages.some((m) => m.id === data.id);
-            if (!exists) {
-              state.messages.push(data);
-              addMessage(data);
-            }
-            return;
-          }
-
-          // Handle WidgetMessageSent events (admin replies via Telegram)
-          if (message.event === '.widget.message-sent' || message.event === 'widget.message-sent') {
-            console.log('[Widget] 📨 widget.message-sent event received');
-            const data = message.data;
-            if (!data) return;
-            
-            const msg = data.message || data;
-            if (!msg) return;
-            
-            const exists = state.messages.some((m) => m.id === msg.id);
-            if (!exists) {
-              state.messages.push(msg);
-              addMessage(msg);
-            }
-            return;
-          }
-
-          // Log any other events for debugging
-          console.log('[Widget] 🌐 Event:', message.event);
-        } catch (err) {
-          console.error('[Widget] ❌ Message parse error:', err);
+      // Handle MessageCreated events
+      channel.bind('.MessageCreated', (data) => {
+        console.log('[Widget] 📨 .MessageCreated event received');
+        console.log('[Widget] 📦 Message data:', JSON.stringify(data, null, 2));
+        
+        if (!data || !data.id) {
+          console.warn('[Widget] ⚠️ Invalid message data:', data);
+          return;
         }
-      };
 
-      ws.onerror = (error) => {
-        console.error('[Widget] ❌ WebSocket error:', error);
-      };
+        const exists = state.messages.some((m) => m.id === data.id);
+        if (!exists) {
+          console.log('[Widget] ✅ Adding new message to UI');
+          state.messages.push(data);
+          addMessage(data);
+        } else {
+          console.log('[Widget] ℹ️ Message already exists, skipping');
+        }
+      });
 
-      ws.onclose = (event) => {
-        console.log('[Widget] 🔌 WebSocket closed:', event.code, event.reason);
-        state.wsConnected = false;
-      };
+      // Handle WidgetMessageSent events (admin replies)
+      channel.bind('.widget.message-sent', (data) => {
+        console.log('[Widget] 📨 .widget.message-sent event received');
+        console.log('[Widget] 📦 Event data:', JSON.stringify(data, null, 2));
+        
+        if (!data) {
+          console.warn('[Widget] ⚠️ Empty event data');
+          return;
+        }
 
-      state.ws = ws;
+        const msg = data.message || data;
+        if (!msg || !msg.id) {
+          console.warn('[Widget] ⚠️ Invalid message in event:', data);
+          return;
+        }
+
+        console.log('[Widget] 📨 Message from event:', msg);
+
+        const exists = state.messages.some((m) => m.id === msg.id);
+        if (!exists) {
+          console.log('[Widget] ✅ Adding admin message to UI');
+          state.messages.push(msg);
+          addMessage(msg);
+        } else {
+          console.log('[Widget] ℹ️ Admin message already exists, skipping');
+        }
+      });
+
+      // Also listen without dot prefix (some Reverb versions)
+      channel.bind('widget.message-sent', (data) => {
+        console.log('[Widget] 📨 widget.message-sent (no dot) received');
+        console.log('[Widget] 📦 Data:', JSON.stringify(data, null, 2));
+        
+        const msg = data.message || data;
+        if (!msg || !msg.id) return;
+
+        const exists = state.messages.some((m) => m.id === msg.id);
+        if (!exists) {
+          console.log('[Widget] ✅ Adding message (no dot format)');
+          state.messages.push(msg);
+          addMessage(msg);
+        }
+      });
+
+      state.pusher = pusher;
       state.wsChannel = channelName;
-      console.log('[Widget] WebSocket channel subscribed:', channelName);
+      console.log('[Widget] ✅ WebSocket setup complete');
     } catch (err) {
-      console.error('[Widget] ❌ WebSocket init error:', err);
+      console.error('[Widget] ❌ Pusher init error:', err);
+      console.error('[Widget] 📦 Error stack:', err.stack);
+      showError('Failed to initialize WebSocket');
     }
   }
 
   function disconnectWebSocket() {
-    if (state.ws) {
+    console.log('[Widget] 🔌 Disconnecting WebSocket...');
+    
+    if (state.pusher) {
       try {
-        state.ws.close(1000, 'Client disconnecting');
+        if (state.wsChannel) {
+          console.log('[Widget] 📡 Unsubscribing from:', state.wsChannel);
+          state.pusher.unsubscribe(state.wsChannel);
+        }
+        console.log('[Widget] 🔌 Disconnecting Pusher');
+        state.pusher.disconnect();
       } catch (err) {
-        console.error('[Widget] Error closing WebSocket:', err);
+        console.error('[Widget] ❌ Error during disconnect:', err);
       }
-      state.ws = null;
+      state.pusher = null;
       state.wsChannel = null;
       state.wsConnected = false;
+      console.log('[Widget] ✅ WebSocket disconnected');
+    } else {
+      console.log('[Widget] ℹ️ WebSocket already disconnected');
     }
   }
 
