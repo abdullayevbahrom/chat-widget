@@ -743,6 +743,17 @@
         }
       });
 
+      // Also listen for WidgetMessageSent events (admin replies via Telegram)
+      channel.bind('.widget.message-sent', (data) => {
+        const msg = data.message;
+        if (!msg) return;
+        const exists = state.messages.some((m) => m.id === msg.id);
+        if (!exists) {
+          state.messages.push(msg);
+          addMessage(msg);
+        }
+      });
+
       state.pusher = pusher;
       state.wsChannel = channelName;
     } catch (err) {

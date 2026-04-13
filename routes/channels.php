@@ -261,7 +261,7 @@ Broadcast::channel('widget.conversation.{conversationId}', function (Request $re
 });
 
 // Simple private conversation channel for widget visitors.
-// Authorizes via visitor ID matching the conversation's visitor.
+// Authorizes via session_id header matching the conversation's visitor.
 // Supports both integer IDs and UUID (public_id) for conversation identification.
 Broadcast::channel('private-conversation.{conversationId}', function (Request $request, string $conversationId) {
     $origin = $request->header('Origin');
@@ -273,20 +273,6 @@ Broadcast::channel('private-conversation.{conversationId}', function (Request $r
             'error_type' => 'untrusted_origin',
             'conversation_id' => $conversationId,
             'origin' => $origin,
-        ]);
-
-        return false;
-    }
-
-    $visitorId = $request->input('visitor_id');
-
-    if ($visitorId === null || !is_numeric($visitorId)) {
-        Log::warning('Private conversation channel auth rejected: invalid visitor_id.', [
-            'channel' => 'websocket',
-            'action' => 'broadcast_auth',
-            'error_type' => 'invalid_visitor_id',
-            'conversation_id' => $conversationId,
-            'visitor_id' => $visitorId,
         ]);
 
         return false;
@@ -311,14 +297,54 @@ Broadcast::channel('private-conversation.{conversationId}', function (Request $r
         return false;
     }
 
-    if ((int) $visitorId !== (int) $conversation->visitor_id) {
-        Log::warning('Private conversation channel auth rejected: visitor ID mismatch.', [
+    // Authorize via session_id header (set by widget SDK in Pusher auth headers)
+    $sessionId = $request->header('X-Session-Id');
+
+    if ($sessionId === null) {
+        // Fallback: try visitor_id from request body (Pusher auth params)
+        $visitorId = $request->input('visitor_id');
+
+        if ($visitorId === null || !is_numeric($visitorId)) {
+            Log::warning('Private conversation channel auth rejected: no session_id or visitor_id.', [
+                'channel' => 'websocket',
+                'action' => 'broadcast_auth',
+                'error_type' => 'missing_auth',
+                'conversation_id' => $conversationId,
+            ]);
+
+            return false;
+        }
+
+        if ((int) $visitorId !== (int) $conversation->visitor_id) {
+            Log::warning('Private conversation channel auth rejected: visitor ID mismatch.', [
+                'channel' => 'websocket',
+                'action' => 'broadcast_auth',
+                'error_type' => 'visitor_id_mismatch',
+                'conversation_id' => $conversationId,
+                'provided_visitor_id' => $visitorId,
+                'conversation_visitor_id' => $conversation->visitor_id,
+            ]);
+
+            return false;
+        }
+
+        return true;
+    }
+
+    // Validate session_id matches the conversation's visitor
+    $visitor = \App\Models\Visitor::withoutGlobalScopes()
+        ->where('tenant_id', $conversation->tenant_id)
+        ->where('session_id', $sessionId)
+        ->first();
+
+    if ($visitor === null || (int) $visitor->id !== (int) $conversation->visitor_id) {
+        Log::warning('Private conversation channel auth rejected: session_id mismatch.', [
             'channel' => 'websocket',
             'action' => 'broadcast_auth',
-            'error_type' => 'visitor_id_mismatch',
+            'error_type' => 'session_id_mismatch',
             'conversation_id' => $conversationId,
-            'provided_visitor_id' => $visitorId,
             'conversation_visitor_id' => $conversation->visitor_id,
+            'session_visitor_id' => $visitor?->id,
         ]);
 
         return false;
