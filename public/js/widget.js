@@ -661,14 +661,13 @@
     if (!messagesDiv) return;
 
     const div = document.createElement('div');
-    const isInbound =
-      msg.direction === 'inbound' ||
-      msg.sender_type !== 'App\\Models\\Visitor';
 
-    div.className = `widget-message ${isInbound ? 'inbound' : 'outbound'}`;
+    const isOutbound = msg.direction === 'outbound';
+
+    div.className = `widget-message ${isOutbound ? 'outbound' : 'inbound'}`;
 
     const textSpan = document.createElement('span');
-    textSpan.textContent = msg.body;
+    textSpan.textContent = msg.body || '';
     div.appendChild(textSpan);
 
     const timeDiv = document.createElement('div');
