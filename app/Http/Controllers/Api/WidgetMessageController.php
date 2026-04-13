@@ -64,6 +64,8 @@ class WidgetMessageController extends Controller
                 ],
                 'visitor_name' => ['nullable', 'string', 'max:100'],
                 'visitor_email' => ['nullable', 'email', 'max:255'],
+                'visitor_id' => ['required', 'string', 'max:255'],
+                'conversation_id' => ['required', 'string', 'max:255'],
                 'attachments' => ['sometimes', 'array', 'max:' . MessageAttachmentService::MAX_ATTACHMENTS],
                 'attachments.*' => [
                     'file',
@@ -87,12 +89,53 @@ class WidgetMessageController extends Controller
 
             Log::info('Handling widget message create request.', [
                 'project_id' => $project->id,
+                'visitor_public_id' => $validated['visitor_id'],
+                'conversation_public_id' => $validated['conversation_id'],
                 'has_body' => filled($validated['message'] ?? null),
                 'attachment_count' => count($request->file('attachments', [])),
             ]);
 
-            $visitor = $this->resolveVisitor($request, $project);
-            $conversation = $this->conversationService->openConversation($visitor, $project);
+            // Resolve visitor by public_id from request
+            $visitor = Visitor::withoutGlobalScopes()
+                ->where('public_id', $validated['visitor_id'])
+                ->where('tenant_id', $project->tenant_id)
+                ->first();
+
+            if ($visitor === null) {
+                Log::warning('Visitor not found by public_id, creating new visitor.', [
+                    'project_id' => $project->id,
+                    'visitor_public_id' => $validated['visitor_id'],
+                ]);
+
+                $sessionId = Str::uuid()->toString();
+                $visitor = Visitor::create(
+                    $this->visitorTrackingService->buildWidgetVisitorData($request, $project->tenant_id, $sessionId, $project->id)
+                );
+            } else {
+                $visitor->increment('visit_count');
+                $visitor->forceFill(
+                    $this->visitorTrackingService->buildWidgetVisitorRefreshData($request)
+                )->saveQuietly();
+            }
+
+            // Resolve conversation by public_id from request
+            $conversation = Conversation::withoutGlobalScopes()
+                ->where('public_id', $validated['conversation_id'])
+                ->where('tenant_id', $project->tenant_id)
+                ->where('project_id', $project->id)
+                ->where('visitor_id', $visitor->id)
+                ->first();
+
+            // If conversation not found, try to resolve or create one
+            if ($conversation === null) {
+                Log::warning('Conversation not found by public_id, resolving via service.', [
+                    'project_id' => $project->id,
+                    'conversation_public_id' => $validated['conversation_id'],
+                    'visitor_id' => $visitor->id,
+                ]);
+
+                $conversation = $this->conversationService->openConversation($visitor, $project);
+            }
 
             // Reject messages on closed conversations
             if ($conversation->isClosed() || $conversation->isArchived()) {
@@ -162,6 +205,9 @@ class WidgetMessageController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => $this->serializeMessage($message->fresh()),
+                'visitor_id' => $visitor->public_id,
+                'conversation_id' => $conversation->public_id,
+                'channel' => 'private-conversation.'.$conversation->public_id,
             ]);
         } finally {
             Tenant::clearCurrent();

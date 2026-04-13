@@ -632,7 +632,7 @@
         console.log('[Widget] 🔄 Server returned different conversationId:', result.conversation_id);
         state.conversationId = result.conversation_id;
         localStorage.setItem('widget_conversation_id', result.conversation_id);
-        
+
         if (state.config?.websocket?.enabled) {
           console.log('[Widget] 🔄 Reconnecting WebSocket to server conversation...');
           disconnectWebSocket();
@@ -641,6 +641,13 @@
             channel: `private-conversation.${state.conversationId}`,
           });
         }
+      }
+
+      // Update visitor_id if server returns a new one
+      if (result.visitor_id && result.visitor_id !== state.visitorId) {
+        console.log('[Widget] 🔄 Server returned new visitorId:', result.visitor_id);
+        state.visitorId = result.visitor_id;
+        localStorage.setItem('widget_visitor_id', result.visitor_id);
       }
     } catch (err) {
       console.error('[Widget] Send error:', err);
