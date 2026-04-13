@@ -95,29 +95,6 @@
                                     </div>
                                 </td>
 
-                                {{-- Widget Key --}}
-                                <td class="px-6 py-4">
-                                    @if($project->hasWidgetKey())
-                                        <div x-data="{ copied: false }" class="flex items-center gap-2">
-                                            <code class="text-xs bg-gray-100 px-2 py-1 rounded-md font-mono text-gray-600">
-                                                {{ $project->widget_key_prefix }}...
-                                            </code>
-                                            <button @click="navigator.clipboard.writeText('{{ $project->widget_key_prefix }}'); copied = true; setTimeout(() => copied = false, 2000)"
-                                                    class="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
-                                                    title="Copy prefix">
-                                                <svg x-show="!copied" class="w-4 h-4 text-gray-400 hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
-                                                </svg>
-                                                <svg x-show="copied" x-cloak class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    @else
-                                        <span class="text-xs text-gray-400 italic">No key</span>
-                                    @endif
-                                </td>
-
                                 {{-- Theme --}}
                                 <td class="px-6 py-4">
                                     <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium
