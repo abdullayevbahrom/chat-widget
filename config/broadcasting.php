@@ -15,7 +15,11 @@ return [
                 'scheme' => env('REVERB_SCHEME', 'http'),
                 'useTLS' => env('REVERB_SCHEME', 'http') === 'https',
             ],
-            'client_options' => [],
+            'client_options' => [
+                'host' => env('REVERB_HOST', 'localhost'),
+                'port' => (int) env('REVERB_PORT', 6001),
+                'scheme' => env('REVERB_SCHEME', 'http'),
+            ],
         ],
 
         'log' => [

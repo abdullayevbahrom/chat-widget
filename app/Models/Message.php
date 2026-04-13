@@ -71,7 +71,12 @@ class Message extends Model
             }
         });
         static::created(function (Message $message): void {
-            if ($message->conversation === null) {
+            // Load conversation relation if not already loaded (uses withoutGlobalScopes to bypass tenant scope)
+            $conversation = $message->relationLoaded('conversation')
+                ? $message->conversation
+                : $message->conversation()->withoutGlobalScopes()->find($message->conversation_id);
+
+            if ($conversation === null) {
                 Log::warning('Skipping conversation last_message_at sync because conversation is missing.', [
                     'message_id' => $message->id,
                 ]);
@@ -85,15 +90,15 @@ class Message extends Model
                 'created_at' => optional($message->created_at)?->toISOString(),
             ]);
 
-            $message->conversation()->update([
+            $conversation->update([
                 'last_message_at' => $message->created_at,
             ]);
 
             // Invalidate unread count cache for this conversation
             try {
-                $message->conversation?->invalidateUnreadCountCache();
+                $conversation->invalidateUnreadCountCache();
             } catch (\Throwable) {
-                // Skip cache invalidation if conversation relation is not loaded
+                // Skip cache invalidation if something goes wrong
             }
         });
 

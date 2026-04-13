@@ -138,16 +138,16 @@ class AppServiceProvider extends ServiceProvider
             // Use the real client IP, accounting for trusted proxies
             $clientIp = $request->ip();
 
-            // Also rate limit by tenant slug to prevent abuse targeting a specific tenant
-            $tenantSlug = $request->route('tenantSlug');
-            $tenantKey = $tenantSlug !== null ? "tenant:{$tenantSlug}" : 'unknown';
+            // Also rate limit by project/tenant to prevent abuse targeting a specific tenant
+            $project = $request->route('project');
+            $tenantKey = $project !== null ? "project:{$project}" : 'unknown';
 
             return [
                 // Burst protection: 10 requests per 10 seconds
-                Limit::perSecond(1)->by("telegram-burst-ip:{$clientIp}"),
+                Limit::perSecond(10)->by("telegram-burst-ip:{$clientIp}"),
                 // Global IP-based limit: 120 requests per minute
                 Limit::perMinute(120)->by("telegram-ip:{$clientIp}"),
-                // Per-tenant limit: 60 requests per minute
+                // Per-project limit: 60 requests per minute
                 Limit::perMinute(60)->by("telegram-{$tenantKey}"),
             ];
         });

@@ -11,17 +11,12 @@ services:
     working_dir: /var/www/html
     volumes:
       - .:/var/www/html:rw
-      # - /var/www/html/vendor
-      # - /var/www/html/node_modules
-      # - ./storage:/var/www/html/storage:delegated
-      # - ./bootstrap/cache:/var/www/html/bootstrap/cache:delegated
+      - ./.env:/var/www/html/.env
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
-    env_file:
-      - ./.env
 
   nginx:
     image: nginx:1.27-alpine
@@ -78,8 +73,6 @@ services:
     command: php artisan reverb:start --host=0.0.0.0 --port=6001
     ports:
       - "127.0.0.1:6001:6001"
-    env_file:
-      - ./.env
     depends_on:
       redis:
         condition: service_healthy
