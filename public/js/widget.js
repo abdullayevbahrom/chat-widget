@@ -886,6 +886,12 @@
     const messagesDiv = document.getElementById('widget-messages');
     if (!messagesDiv) return;
 
+    // If no messages in state but we have a conversation, fetch messages from backend
+    // This handles page refresh scenario where state.messages is empty
+    if ((!state.messages || state.messages.length === 0) && state.conversationId) {
+      fetchMessagesForConversation(state.conversationId);
+    }
+
     // Clear and re-render messages
     messagesDiv.innerHTML = '';
     state.messages.forEach(msg => addMessage(msg));
@@ -914,6 +920,38 @@
     if (messageInput) {
       messageInput.focus();
       updateSendButtonState();
+    }
+  }
+
+  async function fetchMessagesForConversation(conversationId) {
+    try {
+      const url = `${API_BASE}/api/widget/messages?conversation_id=${encodeURIComponent(conversationId)}`;
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Origin': window.location.origin,
+        },
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || data.message || 'Failed to load messages');
+      }
+
+      state.messages = data.messages || [];
+      
+      // Re-render messages
+      const messagesDiv = document.getElementById('widget-messages');
+      if (messagesDiv && state.messages.length > 0) {
+        messagesDiv.innerHTML = '';
+        state.messages.forEach(msg => addMessage(msg));
+      }
+
+      console.log(`[Widget] 📬 Loaded ${state.messages.length} messages for conversation`);
+    } catch (err) {
+      console.error('[Widget] Fetch messages error:', err);
     }
   }
 
