@@ -1399,7 +1399,7 @@
     const bubble = document.getElementById('widget-bubble');
     if (bubble) bubble.innerHTML = ICONS.chat;
 
-    disconnectWebSocket();
+    // disconnectWebSocket();
   }
 
   function toggleChat() {
