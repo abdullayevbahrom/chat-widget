@@ -277,7 +277,7 @@ class WidgetMessageController extends Controller
 
         $sessionId = Str::uuid()->toString();
         $visitor = Visitor::create(
-            $this->visitorTrackingService->buildWidgetVisitorData($request, $project->tenant_id, $sessionId)
+            $this->visitorTrackingService->buildWidgetVisitorData($request, $project->tenant_id, $sessionId, $project->id)
         );
 
         Log::info('Created new widget visitor binding.', [
@@ -556,7 +556,6 @@ class WidgetMessageController extends Controller
         // Resolve project from session_id (no ValidateWidgetDomain middleware)
         $visitor = Visitor::withoutGlobalScopes()
             ->where('session_id', $sessionId)
-            ->with('project')
             ->first();
 
         if ($visitor === null) {
@@ -567,12 +566,22 @@ class WidgetMessageController extends Controller
             return response()->json(['error' => 'Invalid session'], 403);
         }
 
+        // Resolve project from visitor's project_id or tenant
         $project = $visitor->project;
+
+        if ($project === null && $visitor->tenant_id !== null) {
+            // Fallback: find first active project for this tenant
+            $project = Project::withoutGlobalScopes()
+                ->where('tenant_id', $visitor->tenant_id)
+                ->where('is_active', true)
+                ->first();
+        }
 
         if ($project === null || !$project->is_active) {
             Log::warning('Reverb auth rejected: project not found or inactive.', [
                 'visitor_id' => $visitor->id,
                 'project_id' => $project?->id,
+                'tenant_id' => $visitor->tenant_id,
             ]);
 
             return response()->json(['error' => 'Invalid project'], 403);

@@ -160,13 +160,14 @@ class VisitorTrackingService
      *
      * @return array<string, mixed>
      */
-    public function buildWidgetVisitorData(Request $request, ?int $tenantId, string $sessionId): array
+    public function buildWidgetVisitorData(Request $request, ?int $tenantId, string $sessionId, ?int $projectId = null): array
     {
         $agent = $this->createAgent($request);
         $now = now();
 
         return [
             'tenant_id' => $tenantId,
+            'project_id' => $projectId,
             'session_id' => $sessionId,
             'ip_address_encrypted' => $this->encryptIpAddress($this->resolveIpAddress($request)),
             'user_agent' => $this->sanitizeTextField($request->userAgent(), self::MAX_USER_AGENT_LENGTH),
