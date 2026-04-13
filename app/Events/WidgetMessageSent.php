@@ -38,7 +38,7 @@ class WidgetMessageSent implements ShouldBroadcastNow
     {
         return [
             new PrivateChannel('tenant.'.$this->conversation->tenant_id.'.conversations'),
-            new PrivateChannel('widget.conversation.'.$this->conversation->id),
+            new PrivateChannel('private-conversation.'.$this->conversation->public_id),
         ];
     }
 
@@ -78,14 +78,14 @@ class WidgetMessageSent implements ShouldBroadcastNow
 
         return [
             'message' => [
-                'id' => $this->message->id,
-                'conversation_id' => $this->conversation->id,
+                'id' => $this->message->public_id,
+                'conversation_id' => $this->conversation->public_id,
                 'type' => $this->message->isInbound() ? 'visitor' : 'admin',
                 'body' => $body,
                 'attachments' => $attachments,
                 'created_at' => $this->message->created_at->toISOString(),
             ],
-            'conversation_id' => $this->conversation->id,
+            'conversation_id' => $this->conversation->public_id,
             'status' => $this->conversation->status,
             'agent_name' => $this->agentName,
         ];

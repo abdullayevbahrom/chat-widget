@@ -20,7 +20,7 @@ class MessageCreated implements ShouldBroadcast
     public function broadcastOn(): array
     {
         return [
-            new PrivateChannel('private-conversation.'.$this->message->conversation_id),
+            new PrivateChannel('private-conversation.'.$this->message->conversation?->public_id),
         ];
     }
 
@@ -32,8 +32,8 @@ class MessageCreated implements ShouldBroadcast
     public function broadcastWith(): array
     {
         return [
-            'id' => $this->message->id,
-            'conversation_id' => $this->message->conversation_id,
+            'id' => $this->message->public_id,
+            'conversation_id' => $this->message->conversation?->public_id,
             'body' => $this->message->body,
             'sender_id' => $this->message->sender->id,
             'direction' => $this->message->direction,
