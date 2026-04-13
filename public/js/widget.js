@@ -753,10 +753,10 @@
       });
 
       // Also listen for WidgetMessageSent events (admin replies via Telegram)
-      // Note: Pusher events with broadcastAs() get prefixed with 'client-' for client events
-      // or with '.' for server events
-      channel.bind('widget.message-sent', (data) => {
-        console.log('[Widget] 📨 widget.message-sent event received:', data);
+      // IMPORTANT: Server events with broadcastAs() MUST be prefixed with '.'
+      // See: https://pusher.com/docs/channels/using_channels/events/#receiving-events
+      channel.bind('.widget.message-sent', (data) => {
+        console.log('[Widget] 📨 .widget.message-sent event received:', data);
         const msg = data.message || data;
         if (!msg) return;
         const exists = state.messages.some((m) => m.id === msg.id);
