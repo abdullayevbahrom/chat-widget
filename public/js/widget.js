@@ -703,7 +703,7 @@
       const rawHost = config.host || '127.0.0.1';
       const wsHost = rawHost.replace(/^https?:\/\//, '');
       const wsPort = config.port || (window.location.protocol === 'https:' ? 443 : 6001);
-      const wsPath = config.use_path || '/app';
+      const wsPath = config.use_path || '/reverb';
 
       const pusher = new Pusher(config.app_key || 'app-key', {
         cluster: 'mt1',
@@ -714,9 +714,15 @@
         disableStats: true,
         enabledTransports: ['ws', 'wss'],
         path: wsPath,
-        authEndpoint: `${API_BASE}/api/widget/ws/auth?session_id=${encodeURIComponent(state.sessionId)}`,
+        authEndpoint: `${API_BASE}/broadcasting/auth`,
         auth: {
-          headers: {},
+          headers: {
+            'X-Socket-ID': '', // Will be set by Pusher
+          },
+          params: {
+            session_id: state.sessionId,
+            visitor_id: state.visitorId,
+          },
         },
       });
 

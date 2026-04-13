@@ -535,6 +535,90 @@ class WidgetMessageController extends Controller
     }
 
     /**
+     * Reverb broadcasting auth endpoint for widget private channels.
+     * Returns proper auth response format for Pusher-JS private channel subscription.
+     */
+    public function reverbAuth(Request $request): JsonResponse
+    {
+        $sessionId = $request->input('session_id') ?: $request->header('X-Socket-ID');
+        $channel = $request->input('channel_name');
+        $socketId = $request->input('socket_id');
+
+        if (blank($sessionId) || blank($channel) || blank($socketId)) {
+            Log::warning('Reverb auth rejected: missing parameters.', [
+                'has_session_id' => filled($sessionId),
+                'has_channel' => filled($channel),
+                'has_socket_id' => filled($socketId),
+            ]);
+
+            return response()->json(['error' => 'Missing auth parameters'], 403);
+        }
+
+        /** @var Project|null $project */
+        $project = $request->get('project');
+
+        if ($project === null) {
+            return response()->json(['error' => 'Invalid widget domain'], 403);
+        }
+
+        $this->initializeTenantContext($project);
+
+        try {
+            $visitor = Visitor::withoutGlobalScopes()
+                ->where('tenant_id', $project->tenant_id)
+                ->where('session_id', $sessionId)
+                ->first();
+
+            if ($visitor === null) {
+                Log::warning('Reverb auth rejected: visitor not found.', [
+                    'project_id' => $project->id,
+                    'session_id' => $sessionId,
+                ]);
+
+                return response()->json(['error' => 'Invalid session'], 403);
+            }
+
+            // Extract conversation ID from channel name (e.g., "private-conversation.uuid")
+            $conversationId = str_replace('private-conversation.', '', $channel);
+
+            $conversation = Conversation::withoutGlobalScopes()
+                ->where(function ($query) use ($conversationId) {
+                    $query->where('id', $conversationId)
+                          ->orWhere('public_id', $conversationId);
+                })
+                ->first();
+
+            if ($conversation === null || (int) $conversation->visitor_id !== (int) $visitor->id) {
+                Log::warning('Reverb auth rejected: conversation mismatch.', [
+                    'project_id' => $project->id,
+                    'conversation_id' => $conversationId,
+                    'visitor_id' => $visitor->id,
+                ]);
+
+                return response()->json(['error' => 'Unauthorized'], 403);
+            }
+
+            Log::info('Reverb auth successful.', [
+                'project_id' => $project->id,
+                'visitor_id' => $visitor->id,
+                'channel' => $channel,
+            ]);
+
+            // Generate auth signature for Reverb
+            $reverbSecret = config('broadcasting.connections.reverb.secret');
+            $reverbKey = config('broadcasting.connections.reverb.key');
+            $stringToSign = "{$socketId}:{$channel}";
+            $signature = hash_hmac('sha256', $stringToSign, $reverbSecret);
+
+            return response()->json([
+                'auth' => "{$reverbKey}:{$signature}",
+            ]);
+        } finally {
+            Tenant::clearCurrent();
+        }
+    }
+
+    /**
      * @return array<string, mixed>
      */
     protected function serializeMessage(Message $message): array

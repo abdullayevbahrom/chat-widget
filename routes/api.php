@@ -69,6 +69,11 @@ Route::middleware(['throttle:widget-config', ValidateWidgetDomain::class, Valida
     ->post('widget/ws/auth', [WidgetMessageController::class, 'wsAuth'])
     ->name('widget.ws.auth');
 
+// Reverb broadcasting auth endpoint for widget private channels
+Route::middleware([ValidateWidgetDomain::class, ValidateCorsOrigins::class])
+    ->post('broadcasting/auth', [WidgetMessageController::class, 'reverbAuth'])
+    ->name('widget.reverb.auth');
+
 Route::middleware(['throttle:1,1', RestrictHealthEndpoint::class])
     ->get('health', [HealthController::class, 'index'])
     ->name('api.health');
