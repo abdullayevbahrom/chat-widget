@@ -99,6 +99,7 @@ class WidgetBootstrapController extends Controller
 
             // Load recent messages (last 20)
             $messages = $conversation->messages()
+                ->withoutGlobalScopes()
                 ->orderBy('created_at', 'asc')
                 ->limit(20)
                 ->get()
