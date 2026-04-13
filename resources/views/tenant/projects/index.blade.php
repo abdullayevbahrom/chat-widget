@@ -72,7 +72,6 @@
                     <thead>
                         <tr class="border-b border-gray-200 bg-gray-50/80">
                             <th class="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Domain</th>
-                            <th class="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Widget Key</th>
                             <th class="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Theme</th>
                             <th class="text-center px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                             <th class="text-right px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
