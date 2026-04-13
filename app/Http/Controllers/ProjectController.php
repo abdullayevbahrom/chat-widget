@@ -79,10 +79,10 @@ class ProjectController extends Controller
         $chatName = trim($validated['chat_name'] ?? '');
 
         $project = new Project();
-        $project->tenant_id = $user->tenant_id;
+        $project->tenant_id = $user->tenant->id;
         $project->domain = $domain;
         $project->name = $domain; // name is same as domain
-        $project->slug = $this->generateUniqueSlug($domain, (int) $user->tenant_id);
+        $project->slug = $this->generateUniqueSlug($domain, (int) $user->tenant->id);
         $project->is_active = $request->boolean('is_active', true);
         $project->greeting_message = $validated['greeting_message'] ?? null;
         $project->settings = [
