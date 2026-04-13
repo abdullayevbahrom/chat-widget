@@ -165,7 +165,7 @@ class WidgetMessageController extends Controller
                 'message_type' => $this->resolveMessageType($attachments),
                 'body' => $body,
                 'attachments' => $attachments !== [] ? $attachments : null,
-                'direction' => Message::DIRECTION_INBOUND,
+                'direction' => Message::DIRECTION_OUTBOUND,
                 'metadata' => array_filter([
                     'visitor_name' => $validated['visitor_name'] ?? null,
                     'visitor_email' => $validated['visitor_email'] ?? null,

@@ -241,7 +241,7 @@ class TelegramWebhookController extends Controller
             'message_type' => $this->resolveMessageType($attachments),
             'body' => $body,
             'attachments' => $attachments !== [] ? $attachments : null,
-            'direction' => Message::DIRECTION_OUTBOUND,
+            'direction' => Message::DIRECTION_INBOUND,
             'is_read' => false,
             'metadata' => [
                 'telegram_update_id' => $payload['update_id'] ?? null,
