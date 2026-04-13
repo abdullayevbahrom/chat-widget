@@ -21,7 +21,7 @@ class MessageCreated implements ShouldBroadcastNow
     public function broadcastOn(): array
     {
         return [
-            new PrivateChannel('private-conversation.' . $this->message->conversation?->public_id),
+            new PrivateChannel('conversation.' . $this->message->conversation?->public_id),
             new PrivateChannel('tenant.' . $this->message->conversation?->tenant_id . '.conversations'),
         ];
     }

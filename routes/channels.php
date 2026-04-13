@@ -107,6 +107,7 @@ Broadcast::channel('tenant.{tenantId}.conversations', function (Request $request
 // Authorization validates that the requesting token/key belongs to the
 // conversation being accessed, preventing unauthorized cross-conversation listening.
 // Supports both integer IDs and UUID (public_id) for conversation identification.
+
 Broadcast::channel('widget.conversation.{conversationId}', function (Request $request, string $conversationId) {
     $origin = $request->header('Origin');
 
@@ -275,7 +276,8 @@ Broadcast::channel('widget.conversation.{conversationId}', function (Request $re
 // Simple private conversation channel for widget visitors.
 // Authorizes via session_id header matching the conversation's visitor.
 // Supports both integer IDs and UUID (public_id) for conversation identification.
-Broadcast::channel('private-conversation.{conversationId}', function (Request $request, string $conversationId) {
+
+Broadcast::channel('conversation.{conversationId}', function (Request $request, string $conversationId) {
     $origin = $request->header('Origin');
 
     if ($origin && !isTrustedOrigin($origin)) {
