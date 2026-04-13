@@ -29,7 +29,8 @@ class TelegramWebhookController extends Controller
         protected TelegramBotService $telegramBotService,
         protected MessageAttachmentService $messageAttachmentService,
         protected ConversationService $conversationService,
-    ) {}
+    ) {
+    }
 
     /**
      * Handle incoming Telegram webhook updates.
@@ -71,7 +72,7 @@ class TelegramWebhookController extends Controller
             return response()->json(['ok' => false, 'error' => 'Tenant or bot not found'], 404);
         }
 
-        if (! $setting->is_active) {
+        if (!$setting->is_active) {
             Log::info('Telegram webhook received for inactive bot.', [
                 'tenant_id' => $setting->tenant_id,
                 'setting_id' => $setting->id,
@@ -118,7 +119,7 @@ class TelegramWebhookController extends Controller
             return $this->handleCallbackQuery($payload['callback_query'], $setting);
         }
 
-        if (! isset($payload['message']) || ! is_array($payload['message'])) {
+        if (!isset($payload['message']) || !is_array($payload['message'])) {
             return response()->json(['ok' => true, 'result' => true]);
         }
 
@@ -157,7 +158,7 @@ class TelegramWebhookController extends Controller
 
         $replyToTelegramId = $messagePayload['reply_to_message']['message_id'] ?? null;
 
-        if (! is_int($replyToTelegramId)) {
+        if (!is_int($replyToTelegramId)) {
             Log::info('Ignoring Telegram message because it is not a reply to a widget notification.', [
                 'tenant_id' => $setting->tenant_id,
                 'telegram_message_id' => $messagePayload['message_id'] ?? null,
@@ -278,7 +279,7 @@ class TelegramWebhookController extends Controller
             'event' => 'WidgetMessageSent',
             'conversation_db_id' => $conversation->id,
             'conversation_public_id' => $conversation->public_id ?? 'NULL',
-            'channel' => 'private-conversation.'.($conversation->public_id ?? 'NULL'),
+            'channel' => 'private-conversation.' . ($conversation->public_id ?? 'NULL'),
             'message_db_id' => $adminMessage->id,
             'message_public_id' => $adminMessage->public_id ?? 'NULL',
             'body_preview' => mb_substr($adminMessage->body ?? '', 0, 50),
@@ -364,7 +365,7 @@ class TelegramWebhookController extends Controller
             return response()->json(['ok' => false, 'error' => 'Unauthorized'], 401);
         }
 
-        if (! hash_equals($setting->webhook_secret, $secretToken)) {
+        if (!hash_equals($setting->webhook_secret, $secretToken)) {
             Log::warning('Telegram webhook received with invalid secret token (legacy).', [
                 'tenant_id' => $setting->tenant_id,
                 'setting_id' => $setting->id,
@@ -374,7 +375,7 @@ class TelegramWebhookController extends Controller
             return response()->json(['ok' => false, 'error' => 'Unauthorized'], 401);
         }
 
-        if (! $setting->is_active) {
+        if (!$setting->is_active) {
             Log::info('Telegram webhook received for inactive bot (legacy).', [
                 'tenant_id' => $setting->tenant_id,
                 'setting_id' => $setting->id,
@@ -386,7 +387,7 @@ class TelegramWebhookController extends Controller
         $payload = $request->all();
 
         // Verify the request originates from Telegram's IP range
-        if (! $this->isTelegramIp($clientIp)) {
+        if (!$this->isTelegramIp($clientIp)) {
             Log::warning('Telegram webhook received from untrusted IP (legacy).', [
                 'tenant_id' => $setting->tenant_id,
                 'setting_id' => $setting->id,
@@ -414,7 +415,7 @@ class TelegramWebhookController extends Controller
             return $this->handleCallbackQuery($payload['callback_query'], $setting);
         }
 
-        if (! isset($payload['message']) || ! is_array($payload['message'])) {
+        if (!isset($payload['message']) || !is_array($payload['message'])) {
             return response()->json(['ok' => true, 'result' => true]);
         }
 
@@ -442,7 +443,7 @@ class TelegramWebhookController extends Controller
 
         $replyToTelegramId = $messagePayload['reply_to_message']['message_id'] ?? null;
 
-        if (! is_int($replyToTelegramId)) {
+        if (!is_int($replyToTelegramId)) {
             return response()->json(['ok' => true, 'result' => true]);
         }
 
@@ -630,7 +631,7 @@ class TelegramWebhookController extends Controller
         // Authorization: Verify the Telegram user is an allowed admin
         $fromUserId = $from['id'] ?? null;
 
-        if ($fromUserId === null || ! $this->isTelegramAdminAllowed($setting, (string) $fromUserId)) {
+        if ($fromUserId === null || !$this->isTelegramAdminAllowed($setting, (string) $fromUserId)) {
             Log::warning('Callback query from unauthorized Telegram user.', [
                 'tenant_id' => $setting->tenant_id,
                 'callback_query_id' => $callbackQueryId,
@@ -685,11 +686,13 @@ class TelegramWebhookController extends Controller
         }
 
         // Verify HMAC signature to prevent callback forgery
-        if (! TelegramInlineKeyboard::verifyCallbackSignature(
-            $parsed['tenant_id'],
-            $parsed['conversation_id'],
-            $parsed['signature']
-        )) {
+        if (
+            !TelegramInlineKeyboard::verifyCallbackSignature(
+                $parsed['tenant_id'],
+                $parsed['conversation_id'],
+                $parsed['signature']
+            )
+        ) {
             Log::warning('Invalid callback data signature.', [
                 'tenant_id' => $setting->tenant_id,
                 'data' => $data,
@@ -815,14 +818,14 @@ class TelegramWebhookController extends Controller
                 ->where('tenant_id', $setting->tenant_id)
                 ->exists();
 
-            if (! $mappedUser) {
+            if (!$mappedUser) {
                 Log::warning('Telegram close callback from unmapped user.', [
                     'tenant_id' => $setting->tenant_id,
                     'telegram_user_id' => $telegramUserId,
                 ]);
 
                 // Still allow close if the user is in the admin whitelist
-                if (! $this->isTelegramAdminAllowed($setting, (string) $telegramUserId)) {
+                if (!$this->isTelegramAdminAllowed($setting, (string) $telegramUserId)) {
                     $this->answerCallbackWithError($setting, $callbackQueryId, 'Ruxsat berilmagan');
 
                     return response()->json(['ok' => true, 'result' => true]);
@@ -840,7 +843,7 @@ class TelegramWebhookController extends Controller
             return response()->json(['ok' => true, 'result' => true]);
         }
 
-        if (! $conversation->canTransitionTo(Conversation::STATUS_CLOSED)) {
+        if (!$conversation->canTransitionTo(Conversation::STATUS_CLOSED)) {
             $this->answerCallbackWithError(
                 $setting,
                 $callbackQueryId,
@@ -924,7 +927,7 @@ class TelegramWebhookController extends Controller
             ->whereNotNull('email_verified_at')
             ->first();
 
-        if ($user === null || ! $user->isSuperAdmin()) {
+        if ($user === null || !$user->isSuperAdmin()) {
             Log::warning('Telegram assign callback from non-super-admin user.', [
                 'tenant_id' => $setting->tenant_id,
                 'telegram_user_id' => $telegramUserId,
@@ -1022,7 +1025,7 @@ class TelegramWebhookController extends Controller
 
         // Priority 1: Use username if available
         if (is_string($username) && trim($username) !== '') {
-            return '@'.trim($username);
+            return '@' . trim($username);
         }
 
         // Priority 2: Use full name (first + last)
@@ -1030,7 +1033,7 @@ class TelegramWebhookController extends Controller
             $name = trim($firstName);
 
             if (is_string($lastName) && trim($lastName) !== '') {
-                $name .= ' '.trim($lastName);
+                $name .= ' ' . trim($lastName);
             }
 
             return $name;

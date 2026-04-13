@@ -584,12 +584,18 @@ class WidgetMessageController extends Controller
             // Extract conversation ID from channel name (e.g., "private-conversation.uuid")
             $conversationId = str_replace('private-conversation.', '', $channel);
 
-            $conversation = Conversation::withoutGlobalScopes()
-                ->where(function ($query) use ($conversationId) {
-                    $query->where('id', $conversationId)
-                          ->orWhere('public_id', $conversationId);
-                })
-                ->first();
+            // Determine if conversationId is a UUID or integer ID
+            $isUuid = preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $conversationId);
+
+            $conversationQuery = Conversation::withoutGlobalScopes();
+
+            if ($isUuid) {
+                // UUID: search only by public_id to avoid bigint cast error
+                $conversation = $conversationQuery->where('public_id', $conversationId)->first();
+            } else {
+                // Integer ID: search by id
+                $conversation = $conversationQuery->where('id', $conversationId)->first();
+            }
 
             if ($conversation === null || (int) $conversation->visitor_id !== (int) $visitor->id) {
                 Log::warning('Reverb auth rejected: conversation mismatch.', [

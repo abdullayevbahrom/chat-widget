@@ -714,7 +714,7 @@
         disableStats: true,
         enabledTransports: ['ws', 'wss'],
         path: wsPath,
-        authEndpoint: `${API_BASE}/broadcasting/auth`,
+        authEndpoint: `${API_BASE}/api/broadcasting/auth`,
         auth: {
           headers: {
             'X-Socket-ID': '', // Will be set by Pusher

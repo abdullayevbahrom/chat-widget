@@ -15,13 +15,14 @@ class MessageCreated implements ShouldBroadcastNow
 
     public function __construct(
         public Message $message,
-    ) {}
+    ) {
+    }
 
     public function broadcastOn(): array
     {
         return [
-            new PrivateChannel('private-conversation.'.$this->message->conversation?->public_id),
-            new PrivateChannel('tenant.'.$this->message->conversation?->tenant_id.'.conversations'),
+            new PrivateChannel('private-conversation.' . $this->message->conversation?->public_id),
+            new PrivateChannel('tenant.' . $this->message->conversation?->tenant_id . '.conversations'),
         ];
     }
 
@@ -38,7 +39,7 @@ class MessageCreated implements ShouldBroadcastNow
             'conversation_id' => $this->message->conversation?->public_id,
             'body' => $this->message->body,
             'sender' => [
-                'id' => match(true) {
+                'id' => match (true) {
                     $sender instanceof \App\Models\Visitor => $sender->public_id,
                     $sender instanceof \App\Models\User => $sender->public_id ?? $sender->id,
                     $sender instanceof \App\Models\Tenant => $sender->id,

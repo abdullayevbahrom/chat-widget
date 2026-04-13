@@ -168,12 +168,17 @@ Broadcast::channel('widget.conversation.{conversationId}', function (Request $re
     // Use withoutGlobalScopes() because TenantScope would prevent finding
     // the conversation when no tenant context is set during WebSocket auth.
     // Support both integer ID and UUID (public_id) for conversation lookup.
-    $conversation = Conversation::withoutGlobalScopes()->with('project')
-        ->where(function ($query) use ($conversationId) {
-            $query->where('id', $conversationId)
-                  ->orWhere('public_id', $conversationId);
-        })
-        ->first();
+    $isUuid = preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $conversationId);
+
+    $conversationQuery = Conversation::withoutGlobalScopes()->with('project');
+
+    if ($isUuid) {
+        // UUID: search only by public_id to avoid bigint cast error
+        $conversation = $conversationQuery->where('public_id', $conversationId)->first();
+    } else {
+        // Integer ID: search by id
+        $conversation = $conversationQuery->where('id', $conversationId)->first();
+    }
 
     if (!$conversation || !$conversation->project) {
         Log::warning('Widget broadcast auth rejected: conversation or project not found.', [
@@ -286,12 +291,17 @@ Broadcast::channel('private-conversation.{conversationId}', function (Request $r
     }
 
     // Support both integer ID and UUID (public_id) for conversation lookup
-    $conversation = Conversation::withoutGlobalScopes()
-        ->where(function ($query) use ($conversationId) {
-            $query->where('id', $conversationId)
-                  ->orWhere('public_id', $conversationId);
-        })
-        ->first();
+    $isUuid = preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $conversationId);
+
+    $conversationQuery = Conversation::withoutGlobalScopes();
+
+    if ($isUuid) {
+        // UUID: search only by public_id to avoid bigint cast error
+        $conversation = $conversationQuery->where('public_id', $conversationId)->first();
+    } else {
+        // Integer ID: search by id
+        $conversation = $conversationQuery->where('id', $conversationId)->first();
+    }
 
     if ($conversation === null) {
         Log::warning('Private conversation channel auth rejected: conversation not found.', [
