@@ -9,7 +9,6 @@ use App\Models\Visitor;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
-use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -123,9 +122,6 @@ class WidgetBootstrapController extends Controller
                 'message_count' => $messages->count(),
             ]);
 
-            // Build visitor token for subsequent authenticated requests
-            $visitorToken = $visitor !== null ? $this->buildVisitorToken($project, $visitor) : null;
-
             return response()->json([
                 'success' => true,
                 'project_id' => $project->public_id ?? $project->id,
@@ -141,7 +137,6 @@ class WidgetBootstrapController extends Controller
                 ],
                 'conversation_id' => $conversation->public_id,
                 'visitor_id' => $visitor?->public_id,
-                'visitor_token' => $visitorToken,
                 'messages' => $messages,
                 'websocket' => [
                     'enabled' => config('broadcasting.default') === 'reverb',
@@ -157,17 +152,5 @@ class WidgetBootstrapController extends Controller
         } finally {
             Tenant::clearCurrent();
         }
-    }
-
-    /**
-     * Build an encrypted visitor token for authenticated widget requests.
-     */
-    protected function buildVisitorToken(Project $project, Visitor $visitor): string
-    {
-        return Crypt::encryptString(json_encode([
-            'project_id' => $project->id,
-            'visitor_id' => $visitor->id,
-            'session_id' => $visitor->session_id,
-        ], JSON_THROW_ON_ERROR));
     }
 }
