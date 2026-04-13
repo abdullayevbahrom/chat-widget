@@ -269,10 +269,36 @@ class TelegramWebhookController extends Controller
         $agentName = $this->resolveAgentName($messagePayload['from'] ?? []);
 
         // Broadcast the admin reply to the widget in real time via Reverb
-        broadcast(new WidgetMessageSent($conversation, $adminMessage, $agentName))->toOthers();
+        Log::info('Broadcasting admin reply to WebSocket.', [
+            'event' => 'WidgetMessageSent',
+            'conversation_db_id' => $conversation->id,
+            'conversation_public_id' => $conversation->public_id ?? 'NULL',
+            'channel' => 'private-conversation.'.($conversation->public_id ?? 'NULL'),
+            'message_db_id' => $adminMessage->id,
+            'message_public_id' => $adminMessage->public_id ?? 'NULL',
+            'body_preview' => mb_substr($adminMessage->body ?? '', 0, 50),
+        ]);
+
+        try {
+            broadcast(new WidgetMessageSent($conversation, $adminMessage, $agentName))->toOthers();
+            Log::info('WidgetMessageSent broadcast completed.');
+        } catch (\Throwable $e) {
+            Log::error('WidgetMessageSent broadcast failed.', [
+                'error' => $e->getMessage(),
+                'error_type' => get_class($e),
+            ]);
+        }
 
         // Also broadcast via the simple MessageCreated event for the widget SDK
-        broadcast(new MessageCreated($adminMessage))->toOthers();
+        try {
+            broadcast(new MessageCreated($adminMessage))->toOthers();
+            Log::info('MessageCreated broadcast completed.');
+        } catch (\Throwable $e) {
+            Log::error('MessageCreated broadcast failed.', [
+                'error' => $e->getMessage(),
+                'error_type' => get_class($e),
+            ]);
+        }
 
         return response()->json(['ok' => true, 'result' => true]);
     }

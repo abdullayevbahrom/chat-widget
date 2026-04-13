@@ -261,8 +261,9 @@ Broadcast::channel('widget.conversation.{conversationId}', function (Request $re
 });
 
 // Simple private conversation channel for widget visitors.
-// Authorizes via visitor_id matching the conversation's visitor.
-Broadcast::channel('private-conversation.{conversationId}', function (Request $request, int $conversationId) {
+// Authorizes via visitor ID matching the conversation's visitor.
+// Supports both integer IDs and UUID (public_id) for conversation identification.
+Broadcast::channel('private-conversation.{conversationId}', function (Request $request, string $conversationId) {
     $origin = $request->header('Origin');
 
     if ($origin && !isTrustedOrigin($origin)) {
@@ -291,7 +292,13 @@ Broadcast::channel('private-conversation.{conversationId}', function (Request $r
         return false;
     }
 
-    $conversation = Conversation::withoutGlobalScopes()->find($conversationId);
+    // Support both integer ID and UUID (public_id) for conversation lookup
+    $conversation = Conversation::withoutGlobalScopes()
+        ->where(function ($query) use ($conversationId) {
+            $query->where('id', $conversationId)
+                  ->orWhere('public_id', $conversationId);
+        })
+        ->first();
 
     if ($conversation === null) {
         Log::warning('Private conversation channel auth rejected: conversation not found.', [
