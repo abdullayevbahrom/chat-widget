@@ -269,6 +269,11 @@ class TelegramWebhookController extends Controller
         $agentName = $this->resolveAgentName($messagePayload['from'] ?? []);
 
         // Broadcast the admin reply to the widget in real time via Reverb
+        if (!$conversation->public_id) {
+            $conversation->public_id = (string) Str::uuid();
+            $conversation->save();
+            Log::info('Assigned public_id to conversation.', ['conversation_id' => $conversation->id, 'public_id' => $conversation->public_id]);
+        }
         Log::info('Broadcasting admin reply to WebSocket.', [
             'event' => 'WidgetMessageSent',
             'conversation_db_id' => $conversation->id,
