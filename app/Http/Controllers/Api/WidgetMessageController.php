@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api;
 
 use App\Events\WidgetMessageSent;
 use App\Http\Controllers\Controller;
-use App\Jobs\SendTelegramNotificationJob;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\Project;
@@ -364,17 +363,6 @@ class WidgetMessageController extends Controller
 
             return;
         }
-
-        SendTelegramNotificationJob::dispatch(
-            $project->tenant_id,
-            $project->id,
-            $message->id,
-            $conversation->id,
-            [
-                'visitor_name' => $validated['visitor_name'] ?? null,
-                'visitor_email' => $validated['visitor_email'] ?? null,
-            ]
-        );
 
         Log::info('Queued Telegram notification with inline keyboard.', [
             'project_id' => $project->id,
