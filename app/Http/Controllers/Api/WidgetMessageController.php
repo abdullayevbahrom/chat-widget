@@ -176,7 +176,7 @@ class WidgetMessageController extends Controller
 
             // Broadcast the message to real-time listeners (ignore errors to avoid breaking message storage)
             try {
-                broadcast(new WidgetMessageSent($conversation, $message))->toOthers();
+                broadcast(new WidgetMessageSent($conversation, $message));
             } catch (\Throwable $e) {
                 Log::warning('Failed to broadcast WidgetMessageSent event.', [
                     'message_id' => $message->id,

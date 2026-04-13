@@ -281,7 +281,7 @@ class TelegramWebhookController extends Controller
         // Broadcast the admin reply to the widget in real time via Reverb
         // Only WidgetMessageSent is needed (widget.js listens to both widget.message-sent and MessageCreated)
         try {
-            broadcast(new WidgetMessageSent($conversation, $adminMessage, $agentName))->toOthers();
+            broadcast(new WidgetMessageSent($conversation, $adminMessage, $agentName));
 
             Log::info('Broadcast admin reply to WebSocket completed.', [
                 'conversation_public_id' => $conversation->public_id,
@@ -513,7 +513,7 @@ class TelegramWebhookController extends Controller
 
         // Broadcast the admin reply to the widget in real time via Reverb
         try {
-            broadcast(new WidgetMessageSent($conversation, $adminMessage, $agentName))->toOthers();
+            broadcast(new WidgetMessageSent($conversation, $adminMessage, $agentName));
 
             Log::info('Broadcast legacy admin reply to WebSocket completed.', [
                 'conversation_id' => $conversation->id,
