@@ -714,13 +714,9 @@
         disableStats: true,
         enabledTransports: ['ws', 'wss'],
         path: wsPath,
-        authEndpoint: `${API_BASE}/api/broadcasting/auth`,
+        authEndpoint: `${API_BASE}/api/broadcasting/auth?session_id=${encodeURIComponent(state.sessionId)}`,
         auth: {
-          headers: {
-            'X-Socket-ID': '', // Will be set by Pusher
-          },
           params: {
-            session_id: state.sessionId,
             visitor_id: state.visitorId,
           },
         },

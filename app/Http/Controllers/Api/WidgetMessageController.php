@@ -540,12 +540,14 @@ class WidgetMessageController extends Controller
      */
     public function reverbAuth(Request $request): JsonResponse
     {
-        // Accept session_id from query parameter (avoids CORS preflight with custom headers)
-        $sessionId = $request->query('session_id');
+        // Accept session_id from query parameter or request payload.
+        // Pusher may send auth params in the POST body rather than the query string.
+        $sessionId = $request->query('session_id') ?? $request->input('session_id');
 
         if (blank($sessionId)) {
             Log::warning('Reverb auth rejected: missing session_id.', [
                 'channel' => $request->input('channel_name'),
+                'body' => $request->all(),
             ]);
 
             return response()->json(['error' => 'Missing session_id'], 403);
