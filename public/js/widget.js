@@ -749,10 +749,6 @@
         path: wsPath,
         authEndpoint: `${API_BASE}/api/broadcasting/auth`,
         auth: {
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
           params: {
             session_id: state.sessionId,
           },
@@ -760,6 +756,7 @@
       });
 
       console.log('[Widget] ✅ Pusher instance created');
+      console.log('[Widget] 📝 Auth params will include: session_id=', state.sessionId);
 
       // Connection state logging
       pusher.connection.bind('state_change', (states) => {
