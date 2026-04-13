@@ -780,6 +780,13 @@
 
       pusher.connection.bind('error', (err) => {
         console.error('[Widget] ❌ Pusher connection error:', err);
+        console.error('[Widget] 📦 Error type:', err?.type);
+        console.error('[Widget] 📦 Error details:', JSON.stringify(err, null, 2));
+        if (err?.error) {
+          console.error('[Widget] 📦 Inner error:', err.error);
+          console.error('[Widget] 📦 Inner error type:', err.error?.type);
+          console.error('[Widget] 📦 Inner error data:', err.error?.data);
+        }
       });
 
       // Subscribe to private channel
