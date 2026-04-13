@@ -32,8 +32,8 @@
     isOpen: false,
     isInitialized: false,
     config: null,
-    conversationId: null,
-    visitorId: null,
+    conversationId: localStorage.getItem('widget_conversation_id') || null,
+    visitorId: localStorage.getItem('widget_visitor_id') || null,
     sessionId: localStorage.getItem('widget_session_id') || crypto.randomUUID(),
     messages: [],
     chatStarted: false,
@@ -542,7 +542,7 @@
       headers: {
         'Accept': 'application/json',
         'Origin': window.location.origin,
-      }
+      },
     });
 
     const data = await response.json().catch(() => ({}));
@@ -567,6 +567,11 @@
         if (!data.success) throw new Error(data.error);
         state.conversationId = data.conversation_id;
         state.visitorId = data.visitor_id;
+
+        // Persist to localStorage for page refresh recovery
+        if (data.conversation_id) localStorage.setItem('widget_conversation_id', data.conversation_id);
+        if (data.visitor_id) localStorage.setItem('widget_visitor_id', data.visitor_id);
+        if (data.visitor_token) localStorage.setItem('widget_visitor_token', data.visitor_token);
 
         // Reconnect WebSocket with new conversation
         disconnectWebSocket();
@@ -594,12 +599,18 @@
     updateSendButtonState();
 
     try {
+      // Build headers with visitor token if available
+      const headers = {};
+      const visitorToken = localStorage.getItem('widget_visitor_token');
+      if (visitorToken) headers['X-Visitor-Token'] = visitorToken;
+
       const result = await api('/api/widget/messages', {
         body: JSON.stringify({
           conversation_id: state.conversationId,
           visitor_id: state.visitorId,
           message: body,
         }),
+        headers,
       });
 
       if (!result.success) {
@@ -612,6 +623,11 @@
         if (!exists) {
           state.messages.push(result.message);
         }
+      }
+
+      // Persist visitor token for subsequent requests
+      if (result.visitor_token) {
+        localStorage.setItem('widget_visitor_token', result.visitor_token);
       }
     } catch (err) {
       console.error('[Widget] Send error:', err);
@@ -898,7 +914,7 @@
         headers: {
           'Accept': 'application/json',
           'Origin': window.location.origin,
-        }
+        },
       });
 
       const data = await response.json().catch(() => ({}));
@@ -931,6 +947,10 @@
     state.currentView = 'chat';
     state.messages = [];
     state.conversationId = null;
+
+    // Clear only conversation ID - visitor stays permanent, conversation will be recreated
+    localStorage.removeItem('widget_conversation_id');
+    // Keep visitor_token - it's tied to the visitor identity, not the conversation
 
     const inputArea = document.getElementById('widget-input-area');
     if (inputArea) inputArea.style.display = 'flex';
@@ -1096,6 +1116,12 @@
       state.conversationId = data.conversation_id;
       state.visitorId = data.visitor_id;
       state.chatStarted = true;
+
+      // Persist conversation and visitor IDs to localStorage for page refresh recovery
+      if (data.conversation_id) localStorage.setItem('widget_conversation_id', data.conversation_id);
+      if (data.visitor_id) localStorage.setItem('widget_visitor_id', data.visitor_id);
+      // Persist visitor token for authenticated API requests (avoids cookies/CORS)
+      if (data.visitor_token) localStorage.setItem('widget_visitor_token', data.visitor_token);
 
       const projectName = document.getElementById('widget-project-name');
       if (projectName) {

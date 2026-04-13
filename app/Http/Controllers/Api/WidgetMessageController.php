@@ -149,6 +149,7 @@ class WidgetMessageController extends Controller
             }
 
             $this->notifyTelegram($project, $message, $validated);
+            $visitorToken = $this->buildVisitorToken($project, $visitor);
             $this->issueVisitorBinding($request, $project, $visitor);
 
             Log::info('Stored widget visitor message.', [
@@ -161,6 +162,7 @@ class WidgetMessageController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => $this->serializeMessage($message->fresh()),
+                'visitor_token' => $visitorToken,
             ]);
         } finally {
             Tenant::clearCurrent();
@@ -415,6 +417,13 @@ class WidgetMessageController extends Controller
         /** @var Project|null $project */
         $project = $request->get('project');
 
+        // First, try the header (for cross-origin widget requests)
+        $headerToken = $request->header('X-Visitor-Token');
+        if (filled($headerToken)) {
+            return $headerToken;
+        }
+
+        // Fallback to cookie (for same-origin requests)
         return $project !== null ? $request->cookie($this->getVisitorCookieName($project)) : null;
     }
 

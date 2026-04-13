@@ -39,7 +39,7 @@ class ConversationService
                 ->where('tenant_id', $project->tenant_id)
                 ->where('project_id', $project->id)
                 ->where('visitor_id', $visitor->id)
-                ->where('open_token', Conversation::OPEN_TOKEN_ACTIVE)
+                ->where('open_token', 'open')
                 ->lockForUpdate()
                 ->latest('last_message_at')
                 ->first();
@@ -65,6 +65,7 @@ class ConversationService
                     'visitor_id' => $visitor->id,
                     'status' => Conversation::STATUS_OPEN,
                     'source' => Conversation::SOURCE_WIDGET,
+                    'open_token' => Conversation::OPEN_TOKEN_ACTIVE,
                     'last_message_at' => now(),
                 ]);
 
@@ -99,9 +100,9 @@ class ConversationService
                     ->where('tenant_id', $project->tenant_id)
                     ->where('project_id', $project->id)
                     ->where('visitor_id', $visitor->id)
-                    ->where('open_token', Conversation::OPEN_TOKEN_ACTIVE)
+                    ->where('open_token', 'open')
                     ->lockForUpdate()
-                    ->firstOrFail();
+                    ->first();
             }
         }, 3);
     }
