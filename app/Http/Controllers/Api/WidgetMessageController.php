@@ -7,7 +7,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\Project;
-use App\Models\TelegramBotSetting;
 use App\Models\Tenant;
 use App\Models\Visitor;
 use App\Services\ConversationService;
@@ -191,7 +190,6 @@ class WidgetMessageController extends Controller
                 $message->updateQuietly(['telegram_message_id' => $telegramMessageId]);
             }
 
-            $this->notifyTelegram($project, $message, $validated);
             $this->issueVisitorBinding($request, $project, $visitor);
 
             Log::info('Stored widget visitor message.', [
@@ -331,44 +329,6 @@ class WidgetMessageController extends Controller
         ]);
 
         return $visitor;
-    }
-
-    /**
-     * Send a notification to the project's Telegram bot via queue job.
-     *
-     * @param  array<string, mixed>  $validated
-     */
-    protected function notifyTelegram(Project $project, Message $message, array $validated): void
-    {
-        $telegramSetting = TelegramBotSetting::where('tenant_id', $project->tenant_id)->first();
-
-        if ($telegramSetting === null || blank($telegramSetting->bot_token) || blank($telegramSetting->chat_id)) {
-            Log::info('Skipping Telegram notification because the tenant chat binding is incomplete.', [
-                'project_id' => $project->id,
-                'tenant_id' => $project->tenant_id,
-                'has_setting' => $telegramSetting !== null,
-                'has_chat_id' => filled($telegramSetting?->chat_id),
-            ]);
-
-            return;
-        }
-
-        $conversation = $message->conversation;
-
-        if ($conversation === null) {
-            Log::warning('Skipping Telegram notification because conversation is missing.', [
-                'project_id' => $project->id,
-                'message_id' => $message->id,
-            ]);
-
-            return;
-        }
-
-        Log::info('Queued Telegram notification with inline keyboard.', [
-            'project_id' => $project->id,
-            'message_id' => $message->id,
-            'conversation_id' => $conversation->id,
-        ]);
     }
 
     protected function initializeTenantContext(Project $project): void
