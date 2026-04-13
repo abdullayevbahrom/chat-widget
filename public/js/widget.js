@@ -730,8 +730,10 @@
       });
 
       const channelName = config.channel || `private-conversation.${state.conversationId}`;
+      console.log('[Widget] Subscribing to channel:', channelName);
       const channel = pusher.subscribe(channelName);
 
+      // Bind ALL possible event formats for debugging
       channel.bind('pusher:subscription_succeeded', () => {
         console.log('[Widget] ✅ WebSocket subscribed to', channelName);
         state.wsConnected = true;
@@ -741,10 +743,13 @@
         console.error('[Widget] ❌ WebSocket subscription error:', err);
       });
 
-      // Listen for message created events (both formats)
+      channel.bind('pusher:member_added', (member) => {
+        console.log('[Widget] Member added:', member);
+      });
+
+      // Try ALL possible event name formats
       channel.bind('.MessageCreated', (data) => {
-        console.log('[Widget] 📨 MessageCreated event received:', data);
-        // Only add if not already in the messages list
+        console.log('[Widget] 📨 .MessageCreated event received:', data);
         const exists = state.messages.some((m) => m.id === data.id);
         if (!exists) {
           state.messages.push(data);
@@ -752,9 +757,10 @@
         }
       });
 
-      // Also listen for WidgetMessageSent events (admin replies via Telegram)
-      // IMPORTANT: Server events with broadcastAs() MUST be prefixed with '.'
-      // See: https://pusher.com/docs/channels/using_channels/events/#receiving-events
+      channel.bind('MessageCreated', (data) => {
+        console.log('[Widget] 📨 MessageCreated event (no dot) received:', data);
+      });
+
       channel.bind('.widget.message-sent', (data) => {
         console.log('[Widget] 📨 .widget.message-sent event received:', data);
         const msg = data.message || data;
@@ -764,6 +770,22 @@
           state.messages.push(msg);
           addMessage(msg);
         }
+      });
+
+      channel.bind('widget.message-sent', (data) => {
+        console.log('[Widget] 📨 widget.message-sent event (no dot) received:', data);
+        const msg = data.message || data;
+        if (!msg) return;
+        const exists = state.messages.some((m) => m.id === msg.id);
+        if (!exists) {
+          state.messages.push(msg);
+          addMessage(msg);
+        }
+      });
+
+      // Catch-all for debugging
+      channel.bind_global((eventName, data) => {
+        console.log('[Widget] 🌐 GLOBAL EVENT:', eventName, data);
       });
 
       state.pusher = pusher;
