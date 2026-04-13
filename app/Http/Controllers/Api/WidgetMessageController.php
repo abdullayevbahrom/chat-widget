@@ -37,7 +37,8 @@ class WidgetMessageController extends Controller
         protected VisitorTrackingService $visitorTrackingService,
         protected MessageAttachmentService $messageAttachmentService,
         protected ConversationService $conversationService,
-    ) {}
+    ) {
+    }
 
     /**
      * Store a new visitor message.
@@ -59,14 +60,14 @@ class WidgetMessageController extends Controller
                     'nullable',
                     'string',
                     'max:2000',
-                    Rule::requiredIf(fn (): bool => ! $request->hasFile('attachments')),
+                    Rule::requiredIf(fn(): bool => !$request->hasFile('attachments')),
                 ],
                 'visitor_name' => ['nullable', 'string', 'max:100'],
                 'visitor_email' => ['nullable', 'email', 'max:255'],
-                'attachments' => ['sometimes', 'array', 'max:'.MessageAttachmentService::MAX_ATTACHMENTS],
+                'attachments' => ['sometimes', 'array', 'max:' . MessageAttachmentService::MAX_ATTACHMENTS],
                 'attachments.*' => [
                     'file',
-                    'max:'.MessageAttachmentService::MAX_FILE_SIZE_KB,
+                    'max:' . MessageAttachmentService::MAX_FILE_SIZE_KB,
                     'mimetypes:image/jpeg,image/png,image/gif,image/webp,application/pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document',
                 ],
             ]);
@@ -127,7 +128,7 @@ class WidgetMessageController extends Controller
                     'visitor_name' => $validated['visitor_name'] ?? null,
                     'visitor_email' => $validated['visitor_email'] ?? null,
                     'attachment_count' => count($attachments),
-                ], static fn (mixed $value): bool => filled($value)),
+                ], static fn(mixed $value): bool => filled($value)),
             ]);
 
             // Broadcast the message to real-time listeners (ignore errors to avoid breaking message storage)
@@ -224,7 +225,7 @@ class WidgetMessageController extends Controller
             ]);
 
             return response()->json([
-                'messages' => $result['messages']->map(fn (Message $message): array => $this->serializeMessage($message))->values(),
+                'messages' => $result['messages']->map(fn(Message $message): array => $this->serializeMessage($message))->values(),
                 'next_cursor' => $result['next_cursor'],
                 'has_more' => $result['has_more'],
             ]);
@@ -249,7 +250,7 @@ class WidgetMessageController extends Controller
             'ws_secure' => request()->secure(),
             // The widget SDK should use the bootstrap token or widget key from the
             // original config response to authenticate via the authorizer callback.
-            'ws_path' => '/app/'.config('broadcasting.connections.reverb.app_id'),
+            'ws_path' => '/app/' . config('broadcasting.connections.reverb.app_id'),
         ]);
     }
 
@@ -420,7 +421,7 @@ class WidgetMessageController extends Controller
 
     protected function getVisitorCookieName(Project $project): string
     {
-        return self::VISITOR_COOKIE_PREFIX.$project->id;
+        return self::VISITOR_COOKIE_PREFIX . $project->id;
     }
 
     protected function buildVisitorToken(Project $project, Visitor $visitor): string
@@ -471,11 +472,11 @@ class WidgetMessageController extends Controller
         }
 
         if (
-            ! is_array($decoded)
-            || ! isset($decoded['project_id'], $decoded['visitor_id'], $decoded['session_id'])
-            || ! is_int($decoded['project_id'])
-            || ! is_int($decoded['visitor_id'])
-            || ! is_string($decoded['session_id'])
+            !is_array($decoded)
+            || !isset($decoded['project_id'], $decoded['visitor_id'], $decoded['session_id'])
+            || !is_int($decoded['project_id'])
+            || !is_int($decoded['visitor_id'])
+            || !is_string($decoded['session_id'])
         ) {
             return null;
         }
@@ -513,7 +514,7 @@ class WidgetMessageController extends Controller
                 ->where('session_id', $sessionId)
                 ->first();
 
-            if (! $visitor) {
+            if (!$visitor) {
                 Log::warning('WebSocket auth rejected: invalid session.', [
                     'project_id' => $project->id,
                     'session_id' => $sessionId,
@@ -547,86 +548,88 @@ class WidgetMessageController extends Controller
         if (blank($sessionId)) {
             Log::warning('Reverb auth rejected: missing session_id.', [
                 'channel' => $request->input('channel_name'),
-                'body' => $request->all(),
             ]);
 
             return response()->json(['error' => 'Missing session_id'], 403);
         }
 
-        /** @var Project|null $project */
-        $project = $request->get('project');
+        // Resolve project from session_id (no ValidateWidgetDomain middleware)
+        $visitor = Visitor::withoutGlobalScopes()
+            ->where('session_id', $sessionId)
+            ->with('project')
+            ->first();
+
+        if ($visitor === null) {
+            Log::warning('Reverb auth rejected: visitor not found.', [
+                'session_id' => $sessionId,
+            ]);
+
+            return response()->json(['error' => 'Invalid session'], 403);
+        }
+
+        $project = $visitor->project;
+
+        if ($project === null || !$project->is_active) {
+            Log::warning('Reverb auth rejected: project not found or inactive.', [
+                'visitor_id' => $visitor->id,
+                'project_id' => $project?->id,
+            ]);
+
+            return response()->json(['error' => 'Invalid project'], 403);
+        }
+
+        $this->initializeTenantContext($project);
+
         $channel = $request->input('channel_name');
         $socketId = $request->input('socket_id');
-
-        if ($project === null) {
-            return response()->json(['error' => 'Invalid widget domain'], 403);
-        }
 
         if (blank($channel) || blank($socketId)) {
             return response()->json(['error' => 'Missing channel or socket_id'], 403);
         }
 
-        $this->initializeTenantContext($project);
+        // Extract conversation ID from channel name (e.g., "private-conversation.uuid")
+        $conversationId = str_replace('private-conversation.', '', $channel);
 
-        try {
-            $visitor = Visitor::withoutGlobalScopes()
-                ->where('tenant_id', $project->tenant_id)
-                ->where('session_id', $sessionId)
-                ->first();
+        // Determine if conversationId is a UUID or integer ID
+        $isUuid = preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $conversationId);
 
-            if ($visitor === null) {
-                Log::warning('Reverb auth rejected: visitor not found.', [
-                    'project_id' => $project->id,
-                    'session_id' => $sessionId,
-                ]);
+        $conversationQuery = Conversation::withoutGlobalScopes();
 
-                return response()->json(['error' => 'Invalid session'], 403);
-            }
-
-            // Extract conversation ID from channel name (e.g., "private-conversation.uuid")
-            $conversationId = str_replace('private-conversation.', '', $channel);
-
-            // Determine if conversationId is a UUID or integer ID
-            $isUuid = preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $conversationId);
-
-            $conversationQuery = Conversation::withoutGlobalScopes();
-
-            if ($isUuid) {
-                // UUID: search only by public_id to avoid bigint cast error
-                $conversation = $conversationQuery->where('public_id', $conversationId)->first();
-            } else {
-                // Integer ID: search by id
-                $conversation = $conversationQuery->where('id', $conversationId)->first();
-            }
-
-            if ($conversation === null || (int) $conversation->visitor_id !== (int) $visitor->id) {
-                Log::warning('Reverb auth rejected: conversation mismatch.', [
-                    'project_id' => $project->id,
-                    'conversation_id' => $conversationId,
-                    'visitor_id' => $visitor->id,
-                ]);
-
-                return response()->json(['error' => 'Unauthorized'], 403);
-            }
-
-            Log::info('Reverb auth successful.', [
-                'project_id' => $project->id,
-                'visitor_id' => $visitor->id,
-                'channel' => $channel,
-            ]);
-
-            // Generate auth signature for Reverb
-            $reverbSecret = config('broadcasting.connections.reverb.secret');
-            $reverbKey = config('broadcasting.connections.reverb.key');
-            $stringToSign = "{$socketId}:{$channel}";
-            $signature = hash_hmac('sha256', $stringToSign, $reverbSecret);
-
-            return response()->json([
-                'auth' => "{$reverbKey}:{$signature}",
-            ]);
-        } finally {
-            Tenant::clearCurrent();
+        if ($isUuid) {
+            // UUID: search only by public_id to avoid bigint cast error
+            $conversation = $conversationQuery->where('public_id', $conversationId)->first();
+        } else {
+            // Integer ID: search by id
+            $conversation = $conversationQuery->where('id', $conversationId)->first();
         }
+
+        if ($conversation === null || (int) $conversation->visitor_id !== (int) $visitor->id) {
+            Log::warning('Reverb auth rejected: conversation mismatch.', [
+                'project_id' => $project->id,
+                'conversation_id' => $conversationId,
+                'visitor_id' => $visitor->id,
+            ]);
+
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        Log::info('Reverb auth successful.', [
+            'project_id' => $project->id,
+            'visitor_id' => $visitor->id,
+            'channel' => $channel,
+        ]);
+
+        // Generate auth signature for Reverb
+        $reverbSecret = config('broadcasting.connections.reverb.secret');
+        $reverbKey = config('broadcasting.connections.reverb.key');
+        $stringToSign = "{$socketId}:{$channel}";
+        $signature = hash_hmac('sha256', $stringToSign, $reverbSecret);
+
+        Tenant::clearCurrent();
+
+        return response()->json([
+            'auth' => "{$reverbKey}:{$signature}",
+        ]);
     }
 
     /**
@@ -641,7 +644,7 @@ class WidgetMessageController extends Controller
             'message_type' => $message->message_type,
             'body' => $message->body,
             'attachments' => array_values(array_map(
-                fn (array $attachment): array => $this->messageAttachmentService->serializeForApi($attachment),
+                fn(array $attachment): array => $this->messageAttachmentService->serializeForApi($attachment),
                 $message->attachments ?? [],
             )),
             'is_read' => $message->is_read,

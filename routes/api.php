@@ -70,7 +70,8 @@ Route::middleware(['throttle:widget-config', ValidateWidgetDomain::class, Valida
     ->name('widget.ws.auth');
 
 // Reverb broadcasting auth endpoint for widget private channels
-Route::middleware([ValidateWidgetDomain::class, ValidateCorsOrigins::class])
+// Note: No ValidateWidgetDomain middleware here - project is resolved via session_id
+Route::middleware([ValidateCorsOrigins::class])
     ->post('broadcasting/auth', [WidgetMessageController::class, 'reverbAuth'])
     ->name('widget.reverb.auth');
 
