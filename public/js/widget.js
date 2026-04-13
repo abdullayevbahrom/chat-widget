@@ -853,7 +853,7 @@
       });
 
       // Handle MessageCreated events
-      channel.bind('.MessageCreated', (data) => {
+      channel.bind('MessageCreated', (data) => {
         console.log('[Widget] 📨 .MessageCreated event received');
         console.log('[Widget] 📦 Message data:', JSON.stringify(data, null, 2));
         
@@ -873,8 +873,8 @@
       });
 
       // Handle WidgetMessageSent events (admin replies)
-      channel.bind('.widget.message-sent', (data) => {
-        console.log('[Widget] 📨 .widget.message-sent event received');
+      channel.bind('widget.message-sent', (data) => {
+        console.log('[Widget] 📨 widget.message-sent event received');
         console.log('[Widget] 📦 Event data:', JSON.stringify(data, null, 2));
         
         if (!data) {
