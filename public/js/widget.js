@@ -771,7 +771,6 @@
 
       // Initialize Pusher
       const pusher = new Pusher(config.app_key || 'app-key', {
-        cluster: 'mt1',
         wsHost: wsHost,
         wsPort: wsPort,
         wssPort: wsPort,
