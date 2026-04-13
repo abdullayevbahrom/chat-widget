@@ -542,15 +542,25 @@ class WidgetMessageController extends Controller
     public function reverbAuth(Request $request): JsonResponse
     {
         // Accept session_id from query parameter or request payload.
-        // Pusher may send auth params in the POST body rather than the query string.
         $sessionId = $request->query('session_id') ?? $request->input('session_id');
+        $socketId = $request->input('socket_id') ?? '0.0'; // Default if not provided
+        $channel = $request->input('channel_name');
 
         if (blank($sessionId)) {
             Log::warning('Reverb auth rejected: missing session_id.', [
-                'channel' => $request->input('channel_name'),
+                'channel' => $channel,
+                'socket_id' => $socketId,
             ]);
 
             return response()->json(['error' => 'Missing session_id'], 403);
+        }
+
+        if (blank($channel)) {
+            Log::warning('Reverb auth rejected: missing channel.', [
+                'session_id' => $sessionId,
+            ]);
+
+            return response()->json(['error' => 'Missing channel_name'], 403);
         }
 
         // Resolve project from session_id (no ValidateWidgetDomain middleware)
