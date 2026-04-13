@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Events\MessageCreated;
 use App\Events\WidgetMessageSent;
 use App\Models\Conversation;
 use App\Models\Message;
@@ -266,43 +265,34 @@ class TelegramWebhookController extends Controller
             'attachment_count' => count($attachments),
         ]);
 
+        // Ensure conversation has a public_id for WebSocket broadcasting
+        if (blank($conversation->public_id)) {
+            $conversation->public_id = (string) Str::uuid();
+            $conversation->saveQuietly();
+            Log::info('Assigned public_id to conversation.', [
+                'conversation_id' => $conversation->id,
+                'public_id' => $conversation->public_id,
+            ]);
+        }
+
         // Derive agent name from Telegram user info
         $agentName = $this->resolveAgentName($messagePayload['from'] ?? []);
 
         // Broadcast the admin reply to the widget in real time via Reverb
-        if (!$conversation->public_id) {
-            $conversation->public_id = (string) Str::uuid();
-            $conversation->save();
-            Log::info('Assigned public_id to conversation.', ['conversation_id' => $conversation->id, 'public_id' => $conversation->public_id]);
-        }
-        Log::info('Broadcasting admin reply to WebSocket.', [
-            'event' => 'WidgetMessageSent',
-            'conversation_db_id' => $conversation->id,
-            'conversation_public_id' => $conversation->public_id ?? 'NULL',
-            'channel' => 'private-conversation.' . ($conversation->public_id ?? 'NULL'),
-            'message_db_id' => $adminMessage->id,
-            'message_public_id' => $adminMessage->public_id ?? 'NULL',
-            'body_preview' => mb_substr($adminMessage->body ?? '', 0, 50),
-        ]);
-
+        // Only WidgetMessageSent is needed (widget.js listens to both widget.message-sent and MessageCreated)
         try {
             broadcast(new WidgetMessageSent($conversation, $adminMessage, $agentName))->toOthers();
-            Log::info('WidgetMessageSent broadcast completed.');
-        } catch (\Throwable $e) {
-            Log::error('WidgetMessageSent broadcast failed.', [
-                'error' => $e->getMessage(),
-                'error_type' => get_class($e),
-            ]);
-        }
 
-        // Also broadcast via the simple MessageCreated event for the widget SDK
-        try {
-            broadcast(new MessageCreated($adminMessage))->toOthers();
-            Log::info('MessageCreated broadcast completed.');
+            Log::info('Broadcast admin reply to WebSocket completed.', [
+                'conversation_public_id' => $conversation->public_id,
+                'message_public_id' => $adminMessage->public_id,
+                'channel' => 'private-conversation.' . $conversation->public_id,
+            ]);
         } catch (\Throwable $e) {
-            Log::error('MessageCreated broadcast failed.', [
+            Log::warning('Broadcast admin reply to WebSocket failed (non-critical).', [
+                'conversation_id' => $conversation->id,
+                'message_id' => $adminMessage->id,
                 'error' => $e->getMessage(),
-                'error_type' => get_class($e),
             ]);
         }
 
@@ -521,8 +511,21 @@ class TelegramWebhookController extends Controller
 
         $agentName = $this->resolveAgentName($messagePayload['from'] ?? []);
 
-        broadcast(new WidgetMessageSent($conversation, $adminMessage, $agentName))->toOthers();
-        broadcast(new MessageCreated($adminMessage))->toOthers();
+        // Broadcast the admin reply to the widget in real time via Reverb
+        try {
+            broadcast(new WidgetMessageSent($conversation, $adminMessage, $agentName))->toOthers();
+
+            Log::info('Broadcast legacy admin reply to WebSocket completed.', [
+                'conversation_id' => $conversation->id,
+                'message_id' => $adminMessage->id,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Broadcast legacy admin reply to WebSocket failed (non-critical).', [
+                'conversation_id' => $conversation->id,
+                'message_id' => $adminMessage->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         return response()->json(['ok' => true, 'result' => true]);
     }
