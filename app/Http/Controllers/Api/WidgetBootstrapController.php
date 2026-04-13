@@ -142,12 +142,14 @@ class WidgetBootstrapController extends Controller
                 'websocket' => [
                     'enabled' => config('broadcasting.default') === 'reverb',
                     'app_key' => config('broadcasting.connections.reverb.key'),
+                    'app_id' => config('broadcasting.connections.reverb.app_id'),
                     'channel' => 'private-conversation.'.$conversation->public_id,
                     'endpoint' => route('widget.ws.connect', [], false),
                     // Host - strip protocol if present, use request host as fallback
                     'host' => env('REVERB_PUBLIC_HOST', preg_replace('#^https?://#', '', $request->getHost())),
                     'port' => env('REVERB_PUBLIC_PORT', request()->secure() ? 443 : (config('broadcasting.connections.reverb.options.port', 6001))),
                     'use_path' => env('REVERB_USE_PROXY', false) ? '/reverb' : null,
+                    'ws_path' => env('REVERB_USE_PROXY', false) ? '/reverb' : '/app/'.config('broadcasting.connections.reverb.app_id'),
                 ],
             ]);
         } finally {

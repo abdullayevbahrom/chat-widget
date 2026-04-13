@@ -703,7 +703,11 @@
       const rawHost = config.host || '127.0.0.1';
       const wsHost = rawHost.replace(/^https?:\/\//, '');
       const wsPort = config.port || (window.location.protocol === 'https:' ? 443 : 6001);
-      const wsPath = config.use_path || '/reverb';
+      // Reverb requires path in format: /app/{app_id}
+      // Backend returns ws_path field, fallback to use_path for backward compatibility
+      const wsPath = config.ws_path || config.use_path || `/app/${config.app_id || 'app-key'}`;
+
+      console.log('[Widget] Pusher config:', { wsHost, wsPort, wsPath, channel: config.channel });
 
       const pusher = new Pusher(config.app_key || 'app-key', {
         cluster: 'mt1',
@@ -714,10 +718,13 @@
         disableStats: true,
         enabledTransports: ['ws', 'wss'],
         path: wsPath,
-        authEndpoint: `${API_BASE}/api/broadcasting/auth?session_id=${encodeURIComponent(state.sessionId)}`,
+        authEndpoint: `${API_BASE}/api/broadcasting/auth`,
         auth: {
+          headers: {
+            'Content-Type': 'application/json',
+          },
           params: {
-            visitor_id: state.visitorId,
+            session_id: state.sessionId,
           },
         },
       });
@@ -726,15 +733,17 @@
       const channel = pusher.subscribe(channelName);
 
       channel.bind('pusher:subscription_succeeded', () => {
-        console.log('[Widget] WebSocket subscribed to', channelName);
+        console.log('[Widget] ✅ WebSocket subscribed to', channelName);
         state.wsConnected = true;
       });
 
       channel.bind('pusher:subscription_error', (err) => {
-        console.error('[Widget] WebSocket subscription error:', err);
+        console.error('[Widget] ❌ WebSocket subscription error:', err);
       });
 
+      // Listen for message created events (both formats)
       channel.bind('.MessageCreated', (data) => {
+        console.log('[Widget] 📨 MessageCreated event received:', data);
         // Only add if not already in the messages list
         const exists = state.messages.some((m) => m.id === data.id);
         if (!exists) {
@@ -744,8 +753,11 @@
       });
 
       // Also listen for WidgetMessageSent events (admin replies via Telegram)
-      channel.bind('.widget.message-sent', (data) => {
-        const msg = data.message;
+      // Note: Pusher events with broadcastAs() get prefixed with 'client-' for client events
+      // or with '.' for server events
+      channel.bind('widget.message-sent', (data) => {
+        console.log('[Widget] 📨 widget.message-sent event received:', data);
+        const msg = data.message || data;
         if (!msg) return;
         const exists = state.messages.some((m) => m.id === msg.id);
         if (!exists) {
@@ -756,6 +768,7 @@
 
       state.pusher = pusher;
       state.wsChannel = channelName;
+      console.log('[Widget] WebSocket channel subscribed:', channelName);
     } catch (err) {
       console.error('[Widget] WebSocket init error:', err);
     }
