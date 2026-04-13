@@ -542,9 +542,18 @@ class WidgetMessageController extends Controller
     public function reverbAuth(Request $request): JsonResponse
     {
         // Accept session_id from query parameter or request payload.
+        // Pusher sends custom params as query string and socket_id/channel_name in POST body.
         $sessionId = $request->query('session_id') ?? $request->input('session_id');
-        $socketId = $request->input('socket_id') ?? '0.0'; // Default if not provided
+        $socketId = $request->input('socket_id');
         $channel = $request->input('channel_name');
+
+        Log::debug('Reverb auth request received.', [
+            'session_id' => $sessionId,
+            'socket_id' => $socketId,
+            'channel' => $channel,
+            'request_method' => $request->method(),
+            'request_headers' => $request->headers->all(),
+        ]);
 
         if (blank($sessionId)) {
             Log::warning('Reverb auth rejected: missing session_id.', [
@@ -555,9 +564,19 @@ class WidgetMessageController extends Controller
             return response()->json(['error' => 'Missing session_id'], 403);
         }
 
+        if (blank($socketId)) {
+            Log::warning('Reverb auth rejected: missing socket_id.', [
+                'session_id' => $sessionId,
+                'channel' => $channel,
+            ]);
+
+            return response()->json(['error' => 'Missing socket_id'], 403);
+        }
+
         if (blank($channel)) {
             Log::warning('Reverb auth rejected: missing channel.', [
                 'session_id' => $sessionId,
+                'socket_id' => $socketId,
             ]);
 
             return response()->json(['error' => 'Missing channel_name'], 403);
@@ -598,13 +617,6 @@ class WidgetMessageController extends Controller
         }
 
         $this->initializeTenantContext($project);
-
-        $channel = $request->input('channel_name');
-        $socketId = $request->input('socket_id');
-
-        if (blank($channel) || blank($socketId)) {
-            return response()->json(['error' => 'Missing channel or socket_id'], 403);
-        }
 
         // Extract conversation ID from channel name (e.g., "private-conversation.uuid")
         $conversationId = str_replace('private-conversation.', '', $channel);
