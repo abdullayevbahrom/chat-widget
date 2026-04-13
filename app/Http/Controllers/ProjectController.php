@@ -23,7 +23,14 @@ class ProjectController extends Controller
      */
     public function index(): View
     {
-        $projects = Project::latest()->paginate(10);
+        $user = Auth::guard('tenant_user')->user();
+        $tenant = $user->tenant;
+
+        if (!$tenant) {
+            abort(403, 'No tenant associated with this account.');
+        }
+
+        $projects = Project::where('tenant_id', $tenant->id)->latest()->paginate(10);
 
         return view('tenant.projects.index', compact('projects'));
     }
@@ -34,6 +41,7 @@ class ProjectController extends Controller
     public function create(): View
     {
         $project = new Project();
+        $project->tenant_id = Auth::guard('tenant_user')->user()->tenant->id;
         $project->is_active = true;
         $project->settings = ['widget' => [
             'theme' => 'light',

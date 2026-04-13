@@ -16,7 +16,14 @@ class ConversationController extends Controller
      */
     public function index(Request $request): View
     {
-        $query = Conversation::with(['visitor', 'project', 'latestMessages.sender'])
+        $user = Auth::guard('tenant_user')->user();
+        $tenant = $user->tenant;
+
+        if (!$tenant) {
+            abort(403, 'No tenant associated with this account.');
+        }
+
+        $query = Conversation::where('tenant_id', $tenant->id)->with(['visitor', 'project', 'latestMessages.sender'])
             ->orderBy('updated_at', 'desc');
 
         // Filter by status
@@ -35,7 +42,7 @@ class ConversationController extends Controller
         $conversations = $query->paginate(15)->withQueryString();
 
         // Get tenant's projects for filter dropdown (TenantScope already applied)
-        $projects = Project::orderBy('name')->get();
+        $projects = Project::where('tenant_id', $tenant->id)->orderBy('name')->get();
 
         return view('tenant.conversations.index', compact('conversations', 'projects'));
     }
