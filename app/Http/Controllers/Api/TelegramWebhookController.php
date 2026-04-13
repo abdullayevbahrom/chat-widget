@@ -24,21 +24,6 @@ use Illuminate\Support\Str;
 class TelegramWebhookController extends Controller
 {
     use TelegramMessageHelpers;
-    /**
-     * Official Telegram webhook IP ranges.
-     *
-     * @see https://core.telegram.org/bots/webhooks#ip-addresses
-     */
-    protected const TELEGRAM_IP_RANGES = [
-        // IPv4 ranges
-        '149.154.160.0/20',
-        '91.108.4.0/22',
-        '5.255.255.0/24',
-        // IPv6 ranges
-        '2001:67c:4e8::/48',
-        '2001:b28:f23c::/47',
-        '2001:b28:f23f::/48',
-    ];
 
     public function __construct(
         protected TelegramBotService $telegramBotService,
@@ -51,31 +36,6 @@ class TelegramWebhookController extends Controller
      */
     public function handle(Request $request, Project $project): JsonResponse
     {
-        $secretToken = $request->header('X-Telegram-Bot-Api-Secret-Token');
-
-        // Use the real client IP directly from the server variable
-        // instead of $request->ip() which can be manipulated via proxy headers.
-        // When behind a trusted reverse proxy, TRUSTED_PROXIES middleware
-        // will already have set the correct client IP in $request->ip().
-        // For direct connections (no proxy), $_SERVER['REMOTE_ADDR'] is authoritative.
-        $clientIp = $this->resolveClientIp($request);
-
-        $forwardedFor = $request->header('X-Forwarded-For');
-        $realIp = $request->header('X-Real-IP');
-
-        if ($forwardedFor !== null || $realIp !== null) {
-            // Sanitize proxy headers to prevent log injection
-            $sanitizedForwardedFor = preg_replace('/[^\d.,\s:]/', '', $forwardedFor ?? '');
-            $sanitizedRealIp = preg_replace('/[^\d.\s:]/', '', $realIp ?? '');
-
-            Log::info('Telegram webhook with proxy headers.', [
-                'client_ip' => $clientIp,
-                'x_forwarded_for' => $sanitizedForwardedFor !== '' ? $sanitizedForwardedFor : null,
-                'x_real_ip' => $sanitizedRealIp !== '' ? $sanitizedRealIp : null,
-                'project_id' => $project->id,
-            ]);
-        }
-
         // Load bot settings for this project's tenant in a single query
         $setting = TelegramBotSetting::where('tenant_id', $project->tenant_id)
             ->with('tenant')
@@ -106,44 +66,9 @@ class TelegramWebhookController extends Controller
             Log::warning('Telegram webhook received for project without configured bot.', [
                 'project_id' => $project->id,
                 'tenant_id' => $project->tenant_id,
-                'ip' => $clientIp,
             ]);
 
             return response()->json(['ok' => false, 'error' => 'Tenant or bot not found'], 404);
-        }
-
-        if ($setting->webhook_secret === null) {
-            Log::warning('Telegram webhook received for setting without webhook_secret.', [
-                'tenant_id' => $setting->tenant_id,
-                'setting_id' => $setting->id,
-                'ip' => $clientIp,
-            ]);
-
-            return response()->json(['ok' => false, 'error' => 'Webhook not configured'], 400);
-        }
-
-        // Skip secret token validation for legacy bot settings (created from project token)
-        // These will be validated by the bot token check instead
-        $isLegacyBot = filled($project->telegram_bot_token) && blank($project->telegram_bot_username);
-
-        if (! $isLegacyBot && $secretToken === null) {
-            Log::warning('Telegram webhook received without secret token header.', [
-                'tenant_id' => $setting->tenant_id,
-                'setting_id' => $setting->id,
-                'ip' => $clientIp,
-            ]);
-
-            return response()->json(['ok' => false, 'error' => 'Unauthorized'], 401);
-        }
-
-        if (! $isLegacyBot && ! hash_equals($setting->webhook_secret, $secretToken)) {
-            Log::warning('Telegram webhook received with invalid secret token.', [
-                'tenant_id' => $setting->tenant_id,
-                'setting_id' => $setting->id,
-                'ip' => $clientIp,
-            ]);
-
-            return response()->json(['ok' => false, 'error' => 'Unauthorized'], 401);
         }
 
         if (! $setting->is_active) {
@@ -156,17 +81,6 @@ class TelegramWebhookController extends Controller
         }
 
         $payload = $request->all();
-
-        // Verify the request originates from Telegram's IP range
-        if (! $this->isTelegramIp($clientIp)) {
-            Log::warning('Telegram webhook received from untrusted IP.', [
-                'tenant_id' => $setting->tenant_id,
-                'setting_id' => $setting->id,
-                'client_ip' => $clientIp,
-            ]);
-
-            return response()->json(['ok' => false, 'error' => 'Unauthorized'], 403);
-        }
 
         // Replay attack protection: reject duplicate update_id
         $updateId = $payload['update_id'] ?? null;
@@ -1178,132 +1092,5 @@ class TelegramWebhookController extends Controller
                 'error_type' => get_class($e),
             ]);
         }
-    }
-
-    /**
-     * Resolve the real client IP address.
-     *
-     * Uses $_SERVER['REMOTE_ADDR'] directly to avoid relying on
-     * potentially untrusted proxy headers. When the request comes
-     * through a trusted reverse proxy (configured via TRUSTED_PROXIES),
-     * Laravel's middleware will have already set the correct client IP.
-     * For direct connections, REMOTE_ADDR is the authoritative source.
-     */
-    protected function resolveClientIp(Request $request): string
-    {
-        // If trusted proxies are configured, Laravel's middleware has
-        // already resolved the real IP from X-Forwarded-For headers.
-        // In that case, $request->ip() is safe to use.
-        $trustedProxies = array_values(array_filter(
-            array_map('trim', explode(',', (string) env('TRUSTED_PROXIES', ''))),
-            static fn (string $proxy): bool => $proxy !== ''
-        ));
-
-        if ($trustedProxies !== []) {
-            // Trusted proxy is configured — Laravel middleware already
-            // resolved the real client IP from forwarded headers
-            return $request->ip() ?? $this->getServerRemoteAddr();
-        }
-
-        // No trusted proxy configured — use REMOTE_ADDR directly
-        // This is the safest option for direct connections
-        return $this->getServerRemoteAddr();
-    }
-
-    /**
-     * Get the remote address from the server variable.
-     *
-     * Fallback to '0.0.0.0' if not available (should never happen).
-     */
-    protected function getServerRemoteAddr(): string
-    {
-        return $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
-    }
-
-    /**
-     * Check if the given IP belongs to Telegram's webhook IP ranges.
-     *
-     * @see https://core.telegram.org/bots/webhooks#ip-addresses
-     */
-    protected function isTelegramIp(string $ip): bool
-    {
-        foreach (self::TELEGRAM_IP_RANGES as $range) {
-            [$subnet, $mask] = array_pad(explode('/', $range), 2, $this->isIpv6($ip) ? '128' : '32');
-            $mask = (int) $mask;
-
-            // IPv6 handling
-            if ($this->isIpv6($ip) || $this->isIpv6($subnet)) {
-                if (! $this->isIpv6($ip) || ! $this->isIpv6($subnet)) {
-                    continue; // Mismatched IP types
-                }
-
-                $ipBin = $this->ipv6ToBinary($ip);
-                $subnetBin = $this->ipv6ToBinary($subnet);
-
-                if ($ipBin === null || $subnetBin === null) {
-                    continue;
-                }
-
-                // Compare first $mask bits
-                if (substr($ipBin, 0, $mask) === substr($subnetBin, 0, $mask)) {
-                    return true;
-                }
-
-                continue;
-            }
-
-            if ($mask === 32) {
-                // Exact IP match
-                if ($ip === $subnet) {
-                    return true;
-                }
-
-                continue;
-            }
-
-            // IPv4 CIDR match
-            $ipLong = ip2long($ip);
-            $subnetLong = ip2long($subnet);
-
-            if ($ipLong === false || $subnetLong === false) {
-                continue;
-            }
-
-            $maskLong = -1 << (32 - $mask);
-
-            if (($ipLong & $maskLong) === ($subnetLong & $maskLong)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Check if an IP address is IPv6.
-     */
-    protected function isIpv6(string $ip): bool
-    {
-        return filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false;
-    }
-
-    /**
-     * Convert an IPv6 address to its binary representation.
-     */
-    protected function ipv6ToBinary(string $ip): ?string
-    {
-        $packed = @inet_pton($ip);
-
-        if ($packed === false || $packed === null) {
-            return null;
-        }
-
-        $binary = '';
-
-        for ($i = 0; $i < strlen($packed); $i++) {
-            $binary .= str_pad(decbin(ord($packed[$i])), 8, '0', STR_PAD_LEFT);
-        }
-
-        return $binary;
     }
 }

@@ -953,16 +953,13 @@
     }
 
     // Show greeting message
-    const messagesDiv = document.getElementById('widget-messages');
-    if (messagesDiv) {
-      messagesDiv.innerHTML = '';
-      const greeting = state.config?.greeting_message || 'Salom! 👋 Sizga qanday yordam bera olaman?';
-      addMessage({
-        body: greeting,
-        direction: 'inbound',
-        created_at: new Date().toISOString(),
-      });
-    }
+    const greeting = state.config?.greeting_message || 'Salom! 👋 Sizga qanday yordam bera olaman?';
+    state.messages = [{
+      body: greeting,
+      direction: 'inbound',
+      created_at: new Date().toISOString(),
+    }];
+    showChatView();
 
     const messageInput = document.getElementById('widget-message-input');
     if (messageInput) {
@@ -1108,16 +1105,16 @@
       // If there are existing messages, show them in chat view
       if (data.messages?.length) {
         state.messages = data.messages;
-        data.messages.forEach(addMessage);
         showChatView();
       } else {
         // No messages - show greeting from project config
         const greeting = data.greeting_message || 'Salom! 👋 Sizga qanday yordam bera olaman?';
-        addMessage({
+        // Add to state.messages so showChatView renders it
+        state.messages = [{
           body: greeting,
           direction: 'inbound',
           created_at: new Date().toISOString(),
-        });
+        }];
         showChatView();
       }
 
