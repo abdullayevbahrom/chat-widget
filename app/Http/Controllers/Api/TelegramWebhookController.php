@@ -6,7 +6,6 @@ use App\Events\WidgetMessageSent;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\Project;
-use App\Models\Tenant;
 use App\Services\ConversationService;
 use App\Services\MessageAttachmentService;
 use App\Services\TelegramBotService;
@@ -79,7 +78,7 @@ class TelegramWebhookController extends Controller
 
         // Handle callback_query (inline button presses)
         if (isset($payload['callback_query']) && is_array($payload['callback_query'])) {
-            return $this->handleCallbackQuery($payload['callback_query'], $project->);
+            return $this->handleCallbackQuery($payload['callback_query'], $project);
         }
 
         if (!isset($payload['message']) || !is_array($payload['message'])) {
