@@ -714,11 +714,9 @@
         disableStats: true,
         enabledTransports: ['ws', 'wss'],
         path: wsPath,
-        authEndpoint: `${API_BASE}/api/widget/ws/auth`,
+        authEndpoint: `${API_BASE}/api/widget/ws/auth?session_id=${encodeURIComponent(state.sessionId)}`,
         auth: {
-          headers: {
-            'X-Session-Id': state.sessionId,
-          },
+          headers: {},
         },
       });
 

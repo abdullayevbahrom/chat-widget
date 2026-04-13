@@ -491,7 +491,8 @@ class WidgetMessageController extends Controller
      */
     public function wsAuth(Request $request): array
     {
-        $sessionId = $request->header('X-Session-Id');
+        // Accept session_id from query parameter (avoids CORS preflight with custom headers)
+        $sessionId = $request->query('session_id') ?: $request->header('X-Session-Id');
 
         if (blank($sessionId)) {
             throw new AccessDeniedHttpException('Missing session ID');

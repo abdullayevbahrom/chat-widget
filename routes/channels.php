@@ -297,8 +297,9 @@ Broadcast::channel('private-conversation.{conversationId}', function (Request $r
         return false;
     }
 
-    // Authorize via session_id header (set by widget SDK in Pusher auth headers)
-    $sessionId = $request->header('X-Session-Id');
+    // Authorize via session_id from query parameter (avoids CORS preflight)
+    // or X-Session-Id header (fallback for backward compatibility)
+    $sessionId = $request->query('session_id') ?: $request->header('X-Session-Id');
 
     if ($sessionId === null) {
         // Fallback: try visitor_id from request body (Pusher auth params)
