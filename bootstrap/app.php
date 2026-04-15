@@ -17,7 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
         channels: __DIR__ . '/../routes/channels.php',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->redirectUsersTo('/auth/login');
+        $middleware->redirectUsersTo('/');
 
         // Register tenant middleware aliases
         $middleware->alias([
@@ -50,7 +50,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->api(append: [
             HandleCors::class,
         ]);
-        
+
         $middleware->append([
             \App\Http\Middleware\SecurityHeaders::class,
         ]);

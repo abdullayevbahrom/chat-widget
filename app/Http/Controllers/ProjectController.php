@@ -17,20 +17,27 @@ class ProjectController extends Controller
 {
     public function __construct(
         protected WidgetEmbedService $embedService,
-    ) {}
+    ) {
+    }
     /**
      * Display a listing of the tenant's projects.
      */
-    public function index(): View
+    public function index(Request $request): View
     {
-        $user = Auth::guard('tenant_user')->user();
-        $tenant = $user->tenant;
+        $user = $request->user('web') ?? $request->user('tenant_user');
 
-        if (!$tenant) {
-            abort(403, 'No tenant associated with this account.');
+        if ($user->isSuperAdmin()) {
+            // Super admin sees all projects
+            $projects = Project::latest()->paginate(10);
+        } else {
+            $tenant = $user->tenant;
+
+            if (!$tenant) {
+                abort(403, 'No tenant associated with this account.');
+            }
+
+            $projects = Project::where('tenant_id', $tenant->id)->latest()->paginate(10);
         }
-
-        $projects = Project::where('tenant_id', $tenant->id)->latest()->paginate(10);
 
         return view('tenant.projects.index', compact('projects'));
     }
@@ -38,19 +45,24 @@ class ProjectController extends Controller
     /**
      * Show the form for creating a new project.
      */
-    public function create(): View
+    public function create(Request $request): View
     {
+        $user = $request->user('web') ?? $request->user('tenant_user');
+        $tenant = $user->tenant;
+
         $project = new Project();
-        $project->tenant_id = Auth::guard('tenant_user')->user()->tenant->id;
+        $project->tenant_id = $tenant->id;
         $project->is_active = true;
-        $project->settings = ['widget' => [
-            'theme' => 'light',
-            'position' => 'bottom-right',
-            'width' => 400,
-            'height' => 600,
-            'primary_color' => '#6366f1',
-            'custom_css' => '',
-        ]];
+        $project->settings = [
+            'widget' => [
+                'theme' => 'light',
+                'position' => 'bottom-right',
+                'width' => 400,
+                'height' => 600,
+                'primary_color' => '#6366f1',
+                'custom_css' => '',
+            ]
+        ];
 
         return view('tenant.projects.form', compact('project'));
     }
@@ -60,15 +72,15 @@ class ProjectController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        $user = Auth::guard('tenant_user')->user();
-        $tenantId = $user?->tenant->id;
+        $user = $request->user('web') ?? $request->user('tenant_user');
+        $tenant = $user->tenant;
 
-        if (!$tenantId) {
+        if (!$tenant) {
             return redirect()->route('login')->withErrors(['auth' => 'You must be logged in.']);
         }
 
         $validated = $request->validate([
-            'domain' => ['required', 'string', 'max:255', 'unique:projects,domain,NULL,id,tenant_id,'.$tenantId, 'regex:/^[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$/'],
+            'domain' => ['required', 'string', 'max:255', 'unique:projects,domain,NULL,id,tenant_id,' . $tenant->id, 'regex:/^[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$/'],
             'chat_name' => ['nullable', 'string', 'max:100'],
             'greeting_message' => ['nullable', 'string', 'max:500'],
             'theme' => ['required', 'string', 'in:light,dark,auto'],
@@ -82,15 +94,14 @@ class ProjectController extends Controller
             'telegram_chat_id' => ['nullable', 'string', 'max:100'],
         ]);
 
-        $user = Auth::guard('tenant_user')->user();
         $domain = strtolower(trim($validated['domain']));
         $chatName = trim($validated['chat_name'] ?? '');
 
         $project = new Project();
-        $project->tenant_id = $user->tenant->id;
+        $project->tenant_id = $tenant->id;
         $project->domain = $domain;
         $project->name = $domain; // name is same as domain
-        $project->slug = $this->generateUniqueSlug($domain, (int) $user->tenant->id);
+        $project->slug = $this->generateUniqueSlug($domain, (int) $tenant->id);
         $project->is_active = $request->boolean('is_active', true);
         $project->greeting_message = $validated['greeting_message'] ?? null;
         $project->settings = [
@@ -110,7 +121,7 @@ class ProjectController extends Controller
         $project->save();
 
         // Telegram settings
-        if (! empty($validated['telegram_bot_token'])) {
+        if (!empty($validated['telegram_bot_token'])) {
             $project->telegram_bot_token = $validated['telegram_bot_token'];
 
             // Set webhook and fetch bot info from Telegram API
@@ -143,7 +154,7 @@ class ProjectController extends Controller
     public function update(Request $request, Project $project): RedirectResponse
     {
         $validated = $request->validate([
-            'domain' => ['required', 'string', 'max:255', 'unique:projects,domain,'.$project->id, 'regex:/^[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$/'],
+            'domain' => ['required', 'string', 'max:255', 'unique:projects,domain,' . $project->id, 'regex:/^[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$/'],
             'chat_name' => ['nullable', 'string', 'max:100'],
             'greeting_message' => ['nullable', 'string', 'max:500'],
             'theme' => ['required', 'string', 'in:light,dark,auto'],
@@ -182,14 +193,14 @@ class ProjectController extends Controller
         $project->telegram_chat_id = $validated['telegram_chat_id'] ?? $project->telegram_chat_id;
         $project->telegram_is_active = filled($project->telegram_bot_token) && filled($project->telegram_chat_id);
         $project->save();
-        if (! empty($validated['telegram_bot_token']) && $validated['telegram_bot_token'] !== str_repeat('*', strlen($validated['telegram_bot_token']))) {
+        if (!empty($validated['telegram_bot_token']) && $validated['telegram_bot_token'] !== str_repeat('*', strlen($validated['telegram_bot_token']))) {
             $project->telegram_bot_token = $validated['telegram_bot_token'];
 
             // Set webhook and fetch bot info from Telegram API
             $this->configureTelegramWebhook($project, $validated['telegram_bot_token']);
         }
         $project->save();
-        
+
         return redirect()
             ->route('dashboard.projects.edit', $project)
             ->with('success', 'Project updated successfully.');
@@ -232,14 +243,14 @@ class ProjectController extends Controller
         $token = $request->input('telegram_bot_token') ?: $project->telegram_bot_token;
         $chatId = $request->input('telegram_chat_id') ?: $project->telegram_chat_id;
 
-        if (! $token) {
+        if (!$token) {
             return response()->json([
                 'success' => false,
                 'message' => 'Bot token is not configured.',
             ], 400);
         }
 
-        if (! $chatId) {
+        if (!$chatId) {
             return response()->json([
                 'success' => false,
                 'message' => 'Chat ID is not configured.',
@@ -248,7 +259,7 @@ class ProjectController extends Controller
 
         $response = Http::timeout(10)->post("https://api.telegram.org/bot{$token}/sendMessage", [
             'chat_id' => $chatId,
-            'text' => "✅ Test message from ChatWidget\n\nThis is a test message to verify your Telegram bot integration is working correctly.\n\nProject: {$project->name}\nTime: ".now()->format('Y-m-d H:i:s'),
+            'text' => "✅ Test message from ChatWidget\n\nThis is a test message to verify your Telegram bot integration is working correctly.\n\nProject: {$project->name}\nTime: " . now()->format('Y-m-d H:i:s'),
             'parse_mode' => 'HTML',
         ]);
 
@@ -284,7 +295,7 @@ class ProjectController extends Controller
                 ->where('slug', $slug)
                 ->when(
                     $ignoreProject,
-                    fn ($query) => $query->whereKeyNot($ignoreProject->getKey())
+                    fn($query) => $query->whereKeyNot($ignoreProject->getKey())
                 )
                 ->exists()
         ) {
@@ -328,7 +339,7 @@ class ProjectController extends Controller
         // Fetch bot info
         $botInfo = $this->fetchBotInfo($token);
         if ($botInfo) {
-            $project->telegram_bot_username = '@'.$botInfo['username'];
+            $project->telegram_bot_username = '@' . $botInfo['username'];
             $project->telegram_bot_name = $botInfo['first_name'];
         }
     }

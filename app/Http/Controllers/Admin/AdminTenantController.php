@@ -13,7 +13,7 @@ class AdminTenantController extends Controller
 {
     public function index()
     {
-        $tenants = Tenant::withCount('users', 'projects')
+        $tenants = Tenant::withCount('user', 'projects')
             ->latest()
             ->paginate(20);
         return view('admin.tenants.index', compact('tenants'));
@@ -74,7 +74,7 @@ class AdminTenantController extends Controller
     public function destroy(Tenant $tenant)
     {
         DB::transaction(function () use ($tenant): void {
-            User::where('tenant_id', $tenant->id)->delete();
+            $tenant->user()->delete();
             $tenant->delete();
         });
 

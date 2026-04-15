@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -21,25 +22,40 @@
         }
     </script>
     <style>
-        .gradient-bg { background: linear-gradient(135deg, #1e1b4b 0%, #312e81 30%, #4338ca 60%, #6366f1 100%); }
-        .glass { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
-        .card-hover:hover { transform: translateY(-4px); box-shadow: 0 20px 40px rgba(0,0,0,0.15); }
-        [x-cloak] { display: none !important; }
+        .gradient-bg {
+            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 30%, #4338ca 60%, #6366f1 100%);
+        }
+
+        .glass {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+
+        .card-hover:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+        }
+
+        [x-cloak] {
+            display: none !important;
+        }
     </style>
     @stack('styles')
 </head>
+
 <body class="font-sans antialiased bg-gray-50">
     <div x-data="{ sidebarOpen: false }" class="min-h-screen flex">
         <!-- Sidebar -->
-        <aside 
-            :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
-            class="fixed inset-y-0 left-0 z-50 w-64 gradient-bg text-white transition-transform duration-300 lg:translate-x-0 lg:static lg:inset-0"
-        >
+        <aside :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
+            class="fixed inset-y-0 left-0 z-50 w-64 gradient-bg text-white transition-transform duration-300 lg:translate-x-0 lg:static lg:inset-0">
             <div class="flex items-center justify-center h-20 border-b border-white/10">
                 <div class="flex items-center gap-3">
                     <div class="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z">
+                            </path>
                         </svg>
                     </div>
                     <span class="text-xl font-bold">ChatWidget</span>
@@ -48,16 +64,30 @@
 
             <nav class="mt-6 px-4">
                 <div class="space-y-1">
-                    <a href="/dashboard" class="flex items-center gap-3 px-4 py-3 {{ request()->is('dashboard') ? 'bg-white/10' : 'text-white/70 hover:bg-white/10' }} rounded-xl transition-colors">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
+                    <a href="/dashboard"
+                        class="flex items-center gap-3 px-4 py-3 {{ request()->is('dashboard') ? 'bg-white/10' : 'text-white/70 hover:bg-white/10' }} rounded-xl transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z">
+                            </path>
+                        </svg>
                         Dashboard
                     </a>
-                    <a href="/dashboard/projects" class="flex items-center gap-3 px-4 py-3 {{ request()->is('dashboard/projects*') ? 'bg-white/10' : 'text-white/70 hover:bg-white/10' }} rounded-xl transition-colors">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                    <a href="/dashboard/projects"
+                        class="flex items-center gap-3 px-4 py-3 {{ request()->is('dashboard/projects*') ? 'bg-white/10' : 'text-white/70 hover:bg-white/10' }} rounded-xl transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+                        </svg>
                         Projects
                     </a>
-                    <a href="/dashboard/conversations" class="flex items-center gap-3 px-4 py-3 {{ request()->is('dashboard/conversations*') ? 'bg-white/10' : 'text-white/70 hover:bg-white/10' }} rounded-xl transition-colors">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                    <a href="/dashboard/conversations"
+                        class="flex items-center gap-3 px-4 py-3 {{ request()->is('dashboard/conversations*') ? 'bg-white/10' : 'text-white/70 hover:bg-white/10' }} rounded-xl transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z">
+                            </path>
+                        </svg>
                         Conversations
                     </a>
                 </div>
@@ -69,22 +99,50 @@
             <!-- Top Bar -->
             <header class="glass border-b border-gray-200 h-20 flex items-center justify-between px-6">
                 <button @click="sidebarOpen = !sidebarOpen" class="lg:hidden text-gray-600">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 6h16M4 12h16M4 18h16"></path>
+                    </svg>
                 </button>
                 <div class="flex items-center gap-4 ml-auto">
+                    @php
+                        $currentUser = auth()->guard('web')->check() ? auth()->guard('web')->user() : auth()->guard('tenant_user')->user();
+                    @endphp
                     <div class="text-right">
-                        <p class="text-sm font-semibold text-gray-900">{{ auth()->guard('tenant_user')->user()->name }}</p>
-                        <p class="text-xs text-gray-500">{{ auth()->guard('tenant_user')->user()->tenant->name }}</p>
+                        <p class="text-sm font-semibold text-gray-900">{{ $currentUser->name }}</p>
+                        <p class="text-xs text-gray-500">
+                            {{ $currentUser->is_super_admin ? 'Super Admin' : ($currentUser->tenant->name ?? 'No Tenant') }}
+                        </p>
                     </div>
-                    <div class="w-10 h-10 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white font-bold">
-                        {{ strtoupper(substr(auth()->guard('tenant_user')->user()->name, 0, 1)) }}
+                    <div
+                        class="w-10 h-10 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white font-bold">
+                        {{ strtoupper(substr($currentUser->name, 0, 1)) }}
                     </div>
-                    <form method="POST" action="{{ route('logout') }}">
-                        @csrf
-                        <button type="submit" class="text-gray-500 hover:text-red-600 transition-colors" title="Logout">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
-                        </button>
-                    </form>
+                    @if(auth()->guard('tenant_user')->check())
+                        <form method="POST" action="{{ route('logout') }}">
+                            @csrf
+                            <button type="submit" class="text-gray-500 hover:text-red-600 transition-colors" title="Logout">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1">
+                                    </path>
+                                </svg>
+                            </button>
+                        </form>
+                    @else
+                        <a href="{{ route('admin.logout') }}" class="text-gray-500 hover:text-red-600 transition-colors"
+                            title="Logout"
+                            onclick="event.preventDefault(); document.getElementById('admin-logout-form').submit();">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1">
+                                </path>
+                            </svg>
+                        </a>
+                        <form id="admin-logout-form" method="POST" action="{{ route('admin.logout') }}" class="hidden">
+                            @csrf
+                        </form>
+                    @endif
                 </div>
             </header>
 
@@ -96,4 +154,5 @@
     </div>
     @stack('scripts')
 </body>
+
 </html>

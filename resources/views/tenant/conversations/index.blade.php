@@ -135,11 +135,11 @@
                                 <td class="px-6 py-4">
                                     <div class="flex items-center gap-3">
                                         <div class="w-10 h-10 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 font-semibold text-sm">
-                                            {{ strtoupper(substr($conversation->visitor->name ?? 'V', 0, 1)) }}
+                                            {{ strtoupper(substr($conversation->visitor?->name ?? 'V', 0, 1)) }}
                                         </div>
                                         <div>
-                                            <p class="font-semibold text-gray-900">{{ $conversation->visitor->name ?? 'Anonymous Visitor' }}</p>
-                                            @if($conversation->visitor->email)
+                                            <p class="font-semibold text-gray-900">{{ $conversation->visitor?->name ?? 'Anonymous Visitor' }}</p>
+                                            @if($conversation->visitor?->email)
                                                 <p class="text-xs text-gray-500">{{ $conversation->visitor->email }}</p>
                                             @endif
                                         </div>

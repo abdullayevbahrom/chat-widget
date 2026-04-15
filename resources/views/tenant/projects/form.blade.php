@@ -779,9 +779,14 @@
             function updateButtonState() {
                 const tokenValue = tokenInput.value;
                 const chatIdValue = chatIdInput.value;
-                // Token is valid if it's not empty AND not the masked placeholder
-                const hasRealToken = tokenValue.length > 0 && tokenValue !== maskedToken;
+                
+                // Edit sahifada: agar projectda saqlangan token bo'lsa (maskedToken mavjud)
+                // yoki foydalanuvchi yangi token kiritsa, token valid hisoblanadi
+                const hasStoredToken = maskedToken.length > 0;
+                const hasNewToken = tokenValue.length > 0 && tokenValue !== maskedToken;
+                const hasRealToken = hasStoredToken || hasNewToken;
                 const hasChatId = chatIdValue.length > 0;
+                
                 sendBtn.disabled = !(hasRealToken && hasChatId);
             }
 

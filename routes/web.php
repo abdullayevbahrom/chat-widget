@@ -9,11 +9,15 @@ use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\WidgetEmbedController;
+use App\Http\Middleware\SetTenantContext;
 use App\Http\Middleware\TrackVisitors;
 use App\Http\Middleware\ValidateWidgetDomain;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
+    if (auth('web')->check() && auth('web')->user()->is_super_admin) {
+        return redirect('/admin');
+    }
     if (auth('tenant_user')->check()) {
         return redirect('/dashboard');
     }
@@ -35,7 +39,7 @@ Route::middleware(['auth:tenant_user'])->group(function () {
     Route::post('/auth/logout', [TenantAuthController::class, 'logout'])->name('logout');
 });
 
-Route::middleware(['web', 'auth:tenant_user'])->prefix('dashboard')->name('dashboard.')->group(function () {
+Route::middleware(['auth:web,tenant_user', SetTenantContext::class])->prefix('dashboard')->name('dashboard.')->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('index');
 
     // Projects CRUD

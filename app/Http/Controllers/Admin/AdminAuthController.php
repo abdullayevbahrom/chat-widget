@@ -13,9 +13,13 @@ class AdminAuthController extends Controller
      */
     public function logout(Request $request)
     {
+        // Ikkala guard'ni ham logout qilamiz (web va tenant_user bitta session ishlatadi)
         Auth::guard('web')->logout();
+        Auth::guard('tenant_user')->logout();
+
         $request->session()->invalidate();
         $request->session()->regenerateToken();
+
         return redirect('/');
     }
 }

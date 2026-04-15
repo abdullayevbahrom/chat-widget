@@ -16,15 +16,22 @@ class ConversationController extends Controller
      */
     public function index(Request $request): View
     {
-        $user = Auth::guard('tenant_user')->user();
-        $tenant = $user->tenant;
+        $user = $request->user('web') ?? $request->user('tenant_user');
 
-        if (!$tenant) {
-            abort(403, 'No tenant associated with this account.');
+        if ($user->isSuperAdmin()) {
+            // Super admin sees all conversations
+            $query = Conversation::with(['visitor', 'project', 'latestMessages.sender'])
+                ->orderBy('updated_at', 'desc');
+        } else {
+            $tenant = $user->tenant;
+
+            if (!$tenant) {
+                abort(403, 'No tenant associated with this account.');
+            }
+
+            $query = Conversation::where('tenant_id', $tenant->id)->with(['visitor', 'project', 'latestMessages.sender'])
+                ->orderBy('updated_at', 'desc');
         }
-
-        $query = Conversation::where('tenant_id', $tenant->id)->with(['visitor', 'project', 'latestMessages.sender'])
-            ->orderBy('updated_at', 'desc');
 
         // Filter by status
         if ($request->filled('status')) {
@@ -41,8 +48,12 @@ class ConversationController extends Controller
 
         $conversations = $query->paginate(15)->withQueryString();
 
-        // Get tenant's projects for filter dropdown (TenantScope already applied)
-        $projects = Project::where('tenant_id', $tenant->id)->orderBy('name')->get();
+        // Get tenant's projects for filter dropdown
+        if ($user->isSuperAdmin()) {
+            $projects = Project::orderBy('name')->get();
+        } else {
+            $projects = Project::where('tenant_id', $user->tenant->id)->orderBy('name')->get();
+        }
 
         return view('tenant.conversations.index', compact('conversations', 'projects'));
     }
@@ -52,9 +63,13 @@ class ConversationController extends Controller
      */
     public function show(Conversation $conversation): View
     {
-        $conversation->load(['visitor', 'project', 'messages.sender' => function ($query) {
-            $query->withTrashed();
-        }]);
+        $conversation->load([
+            'visitor',
+            'project',
+            'messages.sender' => function ($query) {
+                $query->withTrashed();
+            }
+        ]);
 
         $messages = $conversation->messages()->with('sender')->orderBy('created_at', 'asc')->get();
 
@@ -64,12 +79,17 @@ class ConversationController extends Controller
     /**
      * Mark the conversation as closed.
      */
-    public function close(Conversation $conversation): RedirectResponse
+    public function close(Conversation $conversation, Request $request): RedirectResponse
     {
-        $user = Auth::guard('tenant_user')->user();
+        $user = $request->user('web') ?? $request->user('tenant_user');
+
+        // Agar admin bo'lsa, conversation tenant egasining ID'sini ishlatamiz
+        $closedBy = $user->isSuperAdmin()
+            ? $conversation->project->tenant->user_id
+            : $user->id;
 
         try {
-            $conversation->close($user->id);
+            $conversation->close($closedBy);
         } catch (\LogicException $e) {
             return redirect()
                 ->back()
