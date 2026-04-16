@@ -10,7 +10,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
 class ProjectController extends Controller
@@ -78,6 +77,18 @@ class ProjectController extends Controller
         if (!$tenant) {
             return redirect()->route('login')->withErrors(['auth' => 'You must be logged in.']);
         }
+
+        $domain = $this->normalizeDomain((string) $request->input('domain'));
+
+        if (!$domain) {
+            return back()->withErrors([
+                'domain' => 'Domen noto‘g‘ri formatda kiritilgan.',
+            ])->withInput();
+        }
+
+        $request->merge([
+            'domain' => $domain,
+        ]);
 
         $validated = $request->validate([
             'domain' => ['required', 'string', 'max:255', 'unique:projects,domain,NULL,id,tenant_id,' . $tenant->id, 'regex:/^[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$/'],
@@ -153,6 +164,18 @@ class ProjectController extends Controller
      */
     public function update(Request $request, Project $project): RedirectResponse
     {
+        $domain = $this->normalizeDomain((string) $request->input('domain'));
+
+        if (!$domain) {
+            return back()->withErrors([
+                'domain' => "Domen noto'g'ri formatda kiritilgan.",
+            ])->withInput();
+        }
+
+        $request->merge([
+            'domain' => $domain,
+        ]);
+
         $validated = $request->validate([
             'domain' => ['required', 'string', 'max:255', 'unique:projects,domain,' . $project->id, 'regex:/^[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$/'],
             'chat_name' => ['nullable', 'string', 'max:100'],
@@ -361,5 +384,34 @@ class ProjectController extends Controller
         }
 
         return null;
+    }
+
+    private function normalizeDomain(string $input): ?string
+    {
+        $value = trim(mb_strtolower($input));
+
+        if ($value === '') {
+            return null;
+        }
+
+        // Protokol yo'q bo'lsa vaqtincha qo'shamiz
+        if (!preg_match('#^[a-z][a-z0-9+\-.]*://#i', $value)) {
+            $value = 'https://' . $value;
+        }
+
+        $host = parse_url($value, PHP_URL_HOST);
+
+        if (!$host) {
+            return null;
+        }
+
+        $host = preg_replace('/^www\./i', '', $host);
+        $host = rtrim($host, '.');
+
+        if (!filter_var($host, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME)) {
+            return null;
+        }
+
+        return $host;
     }
 }
