@@ -54,6 +54,7 @@ class ProjectController extends Controller
         $project->is_active = true;
         $project->settings = [
             'widget' => [
+                'chat_name' => 'Support Chat',
                 'theme' => 'light',
                 'position' => 'bottom-right',
                 'width' => 400,

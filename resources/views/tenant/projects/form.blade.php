@@ -1,18 +1,18 @@
 @extends('layouts.tenant')
 
 @php
-$isEdit = $project->exists;
-$title = $isEdit ? 'Edit Project' : 'Create Project';
-$widget = $project->settings['widget'] ?? [];
-$chatName = $widget['chat_name'] ?? ($project->name ?: '');
-$theme = $widget['theme'] ?? 'light';
-$position = $widget['position'] ?? 'bottom-right';
-$width = $widget['width'] ?? 400;
-$height = $widget['height'] ?? 600;
-$primaryColor = $widget['primary_color'] ?? '#6366f1';
-$customCss = $widget['custom_css'] ?? '';
-$pageTitle = $isEdit ? 'Edit Project' : 'Create Project';
-$maskedToken = $project->telegram_bot_token ? str_repeat('*', strlen($project->telegram_bot_token)) : '';
+    $isEdit = $project->exists;
+    $title = $isEdit ? 'Edit Project' : 'Create Project';
+    $widget = $project->settings['widget'] ?? [];
+    $chatName = $widget['chat_name'] ?? ($project->name ?: '');
+    $theme = $widget['theme'] ?? 'light';
+    $position = $widget['position'] ?? 'bottom-right';
+    $width = $widget['width'] ?? 400;
+    $height = $widget['height'] ?? 600;
+    $primaryColor = $widget['primary_color'] ?? '#6366f1';
+    $customCss = $widget['custom_css'] ?? '';
+    $pageTitle = $isEdit ? 'Edit Project' : 'Create Project';
+    $maskedToken = $project->telegram_bot_token ? str_repeat('*', strlen($project->telegram_bot_token)) : '';
 @endphp
 
 @section('content')
