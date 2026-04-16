@@ -1,18 +1,18 @@
 @extends('layouts.tenant')
 
 @php
-    $isEdit = $project->exists;
-    $title = $isEdit ? 'Edit Project' : 'Create Project';
-    $widget = $project->settings['widget'] ?? [];
-    $chatName = $widget['chat_name'] ?? ($project->name ?: '');
-    $theme = $widget['theme'] ?? 'light';
-    $position = $widget['position'] ?? 'bottom-right';
-    $width = $widget['width'] ?? 400;
-    $height = $widget['height'] ?? 600;
-    $primaryColor = $widget['primary_color'] ?? '#6366f1';
-    $customCss = $widget['custom_css'] ?? '';
-    $pageTitle = $isEdit ? 'Edit Project' : 'Create Project';
-    $maskedToken = $project->telegram_bot_token ? str_repeat('*', strlen($project->telegram_bot_token)) : '';
+$isEdit = $project->exists;
+$title = $isEdit ? 'Edit Project' : 'Create Project';
+$widget = $project->settings['widget'] ?? [];
+$chatName = $widget['chat_name'] ?? ($project->name ?: '');
+$theme = $widget['theme'] ?? 'light';
+$position = $widget['position'] ?? 'bottom-right';
+$width = $widget['width'] ?? 400;
+$height = $widget['height'] ?? 600;
+$primaryColor = $widget['primary_color'] ?? '#6366f1';
+$customCss = $widget['custom_css'] ?? '';
+$pageTitle = $isEdit ? 'Edit Project' : 'Create Project';
+$maskedToken = $project->telegram_bot_token ? str_repeat('*', strlen($project->telegram_bot_token)) : '';
 @endphp
 
 @section('content')
@@ -112,11 +112,11 @@
             <form action="{{ $isEdit ? route('dashboard.projects.update', $project) : route('dashboard.projects.store') }}"
                   method="POST"
                   x-data="projectForm({
-                      theme: '{{ $theme }}',
-                      position: '{{ $position }}',
-                      width: {{ $width }},
-                      height: {{ $height }},
-                      primaryColor: '{{ $primaryColor }}',
+                    theme: '{{ old('theme', $theme) }}',
+                    position: '{{ old('position', $position) }}',
+                    width: {{ old('width', $width) }},
+                    height: {{ old('height', $height) }},
+                    primaryColor: '{{ old('primary_color', $primaryColor) }}',
                   })"
                   @submit="validateForm()"
                   novalidate>
@@ -674,10 +674,10 @@
             document.addEventListener('alpine:init', () => {
                 Alpine.data('projectForm', (initial) => ({
                     name: '{{ old('name', $project->name) }}',
-                    theme: initial.theme,
-                    position: initial.position,
-                    width: initial.width,
-                    height: initial.height,
+                    theme: '{{ old('theme', $theme) }}',
+                    position: '{{ old('position', $position) }}',
+                    width: {{ old('width', $width) }},
+                    height: {{ old('height', $height) }},
                     customCss: document.getElementById('custom_css')?.value || '',
                     isActive: {{ old('is_active', $project->is_active) ? 'true' : 'false' }},
                     isEdit: {{ $isEdit ? 'true' : 'false' }},
@@ -691,7 +691,7 @@
                         primaryColor: '',
                     },
 
-                    function normalizeDomain(input) {
+                    normalizeDomain(input) {
                         if(!input) return null;
 
                         let value = input.trim().toLowerCase();
