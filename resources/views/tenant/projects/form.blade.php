@@ -1,532 +1,533 @@
 @extends('layouts.tenant')
 
 @php
-    $isEdit = $project->exists;
-    $title = $isEdit ? 'Edit Project' : 'Create Project';
-    $widget = $project->settings['widget'] ?? [];
-    $chatName = $widget['chat_name'] ?? ($project->name ?: '');
-    $theme = $widget['theme'] ?? 'light';
-    $position = $widget['position'] ?? 'bottom-right';
-    $width = $widget['width'] ?? 400;
-    $height = $widget['height'] ?? 600;
-    $primaryColor = $widget['primary_color'] ?? '#6366f1';
-    $customCss = $widget['custom_css'] ?? '';
-    $pageTitle = $isEdit ? 'Edit Project' : 'Create Project';
-    $maskedToken = $project->telegram_bot_token ? str_repeat('*', strlen($project->telegram_bot_token)) : '';
+$isEdit = $project->exists;
+$title = $isEdit ? 'Edit Project' : 'Create Project';
+$widget = $project->settings['widget'] ?? [];
+$chatName = $widget['chat_name'] ?? ($project->name ?: '');
+$theme = $widget['theme'] ?? 'light';
+$position = $widget['position'] ?? 'bottom-right';
+$width = $widget['width'] ?? 400;
+$height = $widget['height'] ?? 600;
+$primaryColor = $widget['primary_color'] ?? '#6366f1';
+$customCss = $widget['custom_css'] ?? '';
+$pageTitle = $isEdit ? 'Edit Project' : 'Create Project';
+$maskedToken = $project->telegram_bot_token ? str_repeat('*', strlen($project->telegram_bot_token)) : '';
 @endphp
 
 @section('content')
-<div class="space-y-6">
-    {{-- Page Header --}}
-    <div class="flex items-center gap-4">
-        <a href="{{ route('dashboard.projects.index') }}"
-           class="p-2 rounded-xl hover:bg-white/60 transition-colors">
-            <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
-            </svg>
-        </a>
-        <div>
-            <h1 class="text-2xl font-bold text-gray-900">{{ $pageTitle }}</h1>
-            <p class="text-sm text-gray-500 mt-1">{{ $isEdit ? 'Update your widget settings' : 'Create a new widget project' }}</p>
-        </div>
-    </div>
-
-    {{-- Flash Messages --}}
-    @if(session('success'))
-        <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 5000)"
-             x-transition:enter="transition ease-out duration-300"
-             x-transition:enter-start="opacity-0 transform -translate-y-2"
-             x-transition:enter-end="opacity-100 transform translate-y-0"
-             x-transition:leave="transition ease-in duration-200"
-             x-transition:leave-start="opacity-100 transform translate-y-0"
-             x-transition:leave-end="opacity-0 transform -translate-y-2"
-             class="flex items-center gap-3 p-4 rounded-xl bg-green-50 border border-green-200 text-green-800">
-            <svg class="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-            </svg>
-            <p class="text-sm font-medium">{{ session('success') }}</p>
-            <button @click="show = false" class="ml-auto text-green-400 hover:text-green-600">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+    <div class="space-y-6">
+        {{-- Page Header --}}
+        <div class="flex items-center gap-4">
+            <a href="{{ route('dashboard.projects.index') }}"
+               class="p-2 rounded-xl hover:bg-white/60 transition-colors">
+                <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
                 </svg>
-            </button>
+            </a>
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">{{ $pageTitle }}</h1>
+                <p class="text-sm text-gray-500 mt-1">{{ $isEdit ? 'Update your widget settings' : 'Create a new widget project' }}</p>
+            </div>
         </div>
-    @endif
 
-    {{-- Embed Script Section --}}
-    @if($project->exists)
-        <div x-data="{ copied: false }" class="glass rounded-2xl p-6 border-2 border-brand-200">
-            <div class="flex items-start justify-between mb-3">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl bg-brand-100 flex items-center justify-center flex-shrink-0">
-                        <svg class="w-5 h-5 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
-                        </svg>
-                    </div>
-                    <div>
-                        <h3 class="text-sm font-semibold text-gray-900">Embed Script</h3>
-                        <p class="text-xs text-gray-500">Copy this script and paste it into your website's HTML before </p>
-                    </div>
-                </div>
-                <button @click="navigator.clipboard.writeText(`{{ $embedScript }}`); copied = true; setTimeout(() => copied = false, 2000)"
-                        class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-gradient-to-r from-brand-500 to-brand-700 hover:opacity-95 transition-all">
-                    <svg x-show="!copied" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+        {{-- Flash Messages --}}
+        @if(session('success'))
+            <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 5000)"
+                 x-transition:enter="transition ease-out duration-300"
+                 x-transition:enter-start="opacity-0 transform -translate-y-2"
+                 x-transition:enter-end="opacity-100 transform translate-y-0"
+                 x-transition:leave="transition ease-in duration-200"
+                 x-transition:leave-start="opacity-100 transform translate-y-0"
+                 x-transition:leave-end="opacity-0 transform -translate-y-2"
+                 class="flex items-center gap-3 p-4 rounded-xl bg-green-50 border border-green-200 text-green-800">
+                <svg class="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <p class="text-sm font-medium">{{ session('success') }}</p>
+                <button @click="show = false" class="ml-auto text-green-400 hover:text-green-600">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                     </svg>
-                    <svg x-show="copied" x-cloak class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                    </svg>
-                    <span x-text="copied ? 'Copied!' : 'Copy Script'"></span>
                 </button>
             </div>
-            <div class="relative">
-                <pre class="bg-gray-900 text-green-400 p-4 rounded-xl text-xs font-mono overflow-x-auto whitespace-pre-wrap break-all"><code>{{ $embedScript }}</code></pre>
-            </div>
-            <div class="mt-3 flex items-center gap-2">
-                <p class="text-xs text-gray-500">Simple script tag - domain validation happens automatically via Origin header.</p>
-            </div>
-        </div>
-    @endif
+        @endif
 
-    {{-- Validation Errors --}}
-    @if($errors->any())
-        <div class="glass rounded-2xl p-4 border border-red-200 bg-red-50">
-            <div class="flex items-start gap-3">
-                <svg class="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
-                <div>
-                    <h3 class="text-sm font-semibold text-red-800">Please fix the following errors:</h3>
-                    <ul class="mt-2 text-sm text-red-700 list-disc list-inside space-y-1">
-                        @foreach($errors->all() as $error)
-                            <li>{{ $error }}</li>
-                        @endforeach
-                    </ul>
-                </div>
-            </div>
-        </div>
-    @endif
-
-    {{-- Form Card --}}
-    <div class="glass rounded-2xl shadow-xl overflow-hidden">
-        <form action="{{ $isEdit ? route('dashboard.projects.update', $project) : route('dashboard.projects.store') }}"
-              method="POST"
-              x-data="projectForm({
-                  theme: '{{ $theme }}',
-                  position: '{{ $position }}',
-                  width: {{ $width }},
-                  height: {{ $height }},
-                  primaryColor: '{{ $primaryColor }}',
-              })"
-              @submit="validateForm()"
-              novalidate>
-            @csrf
-            @if($isEdit)
-                @method('PUT')
-            @endif
-
-            <div class="p-6 space-y-6">
-                {{-- Domain --}}
-                <div>
-                    <label for="domain" class="block text-sm font-semibold text-gray-700 mb-2">
-                        Domain <span class="text-red-500">*</span>
-                    </label>
-                    <input type="text"
-                           id="domain"
-                           name="domain"
-                           value="{{ old('domain', $project->domain) }}"
-                           required
-                           class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all {{ $errors->has('domain') ? 'border-red-300 bg-red-50' : '' }}"
-                           placeholder="example.com">
-                    <p class="mt-1 text-xs text-gray-400">Enter the full domain (e.g., example.com or sub.example.com)</p>
-                    @error('domain')
-                        <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
-                    @enderror
-                </div>
-
-                {{-- Chat Name --}}
-                <div>
-                    <label for="chat_name" class="block text-sm font-semibold text-gray-700 mb-2">
-                        Chat Name
-                    </label>
-                    <input type="text"
-                           id="chat_name"
-                           name="chat_name"
-                           value="{{ old('chat_name', $chatName) }}"
-                           class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all"
-                           placeholder="Support Team">
-                    <p class="mt-1 text-xs text-gray-400">This name appears in the widget header. Leave empty to use project name.</p>
-                </div>
-
-                {{-- Greeting Message --}}
-                <div>
-                    <label for="greeting_message" class="block text-sm font-semibold text-gray-700 mb-2">
-                        Greeting Message
-                    </label>
-                    <textarea id="greeting_message"
-                              name="greeting_message"
-                              rows="3"
-                              class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all resize-none"
-                              placeholder="Salom! 👋 Sizga qanday yordam bera olaman?">{{ old('greeting_message', $project->greeting_message ?? 'Salom! 👋 Sizga qanday yordam bera olaman?') }}</textarea>
-                    <p class="mt-1 text-xs text-gray-400">This message appears when a visitor opens the widget for the first time. Leave empty to use default greeting.</p>
-                    @error('greeting_message')
-                        <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
-                    @enderror
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {{-- Theme --}}
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">
-                            Theme <span class="text-red-500">*</span>
-                        </label>
-                        <div class="grid grid-cols-3 gap-2">
-                            @foreach(['light' => 'Light', 'dark' => 'Dark', 'auto' => 'Auto'] as $value => $label)
-                                <label class="relative cursor-pointer">
-                                    <input type="radio"
-                                           name="theme"
-                                           value="{{ $value }}"
-                                           x-model="theme"
-                                           @change="errors.theme = ''"
-                                           class="peer sr-only"
-                                           {{ old('theme', $theme) === $value ? 'checked' : '' }}>
-                                    <div class="peer-checked:border-brand-500 peer-checked:bg-brand-50 peer-checked:text-brand-700 border-2 border-gray-200 rounded-xl py-3 px-3 text-center text-sm font-medium text-gray-600 hover:border-gray-300 transition-all">
-                                        @if($value === 'light')
-                                            <svg class="w-5 h-5 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
-                                        @elseif($value === 'dark')
-                                            <svg class="w-5 h-5 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
-                                        @else
-                                            <svg class="w-5 h-5 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path></svg>
-                                        @endif
-                                        {{ $label }}
-                                    </div>
-                                </label>
-                            @endforeach
-                        </div>
-                        @error('theme')
-                            <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
-                        @enderror
-                    </div>
-
-                    {{-- Position --}}
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">
-                            Position <span class="text-red-500">*</span>
-                        </label>
-                        <div class="grid grid-cols-2 gap-2">
-                            @foreach(['top-left' => 'Top Left', 'top-right' => 'Top Right', 'bottom-left' => 'Bottom Left', 'bottom-right' => 'Bottom Right'] as $value => $label)
-                                <label class="relative cursor-pointer">
-                                    <input type="radio"
-                                           name="position"
-                                           value="{{ $value }}"
-                                           x-model="position"
-                                           @change="errors.position = ''"
-                                           class="peer sr-only"
-                                           {{ old('position', $position) === $value ? 'checked' : '' }}>
-                                    <div class="peer-checked:border-brand-500 peer-checked:bg-brand-50 peer-checked:text-brand-700 border-2 border-gray-200 rounded-xl py-2.5 px-2 text-center text-xs font-medium text-gray-600 hover:border-gray-300 transition-all">
-                                        {{ $label }}
-                                    </div>
-                                </label>
-                            @endforeach
-                        </div>
-                        @error('position')
-                            <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
-                        @enderror
-                    </div>
-                </div>
-
-                {{-- Width & Height --}}
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <label for="width" class="block text-sm font-semibold text-gray-700 mb-2">
-                            Width (px) <span class="text-red-500">*</span>
-                        </label>
-                        <input type="number"
-                               id="width"
-                               name="width"
-                               value="{{ old('width', $width) }}"
-                               min="200"
-                               max="800"
-                               required
-                               x-model.number="width"
-                               @input="errors.width = ''"
-                               class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all {{ $errors->has('width') ? 'border-red-300 bg-red-50' : '' }}"
-                               placeholder="400">
-                        <p class="mt-1 text-xs text-gray-400">Between 200 and 800 pixels</p>
-                        @error('width')
-                            <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
-                        @enderror
-                        <p x-show="errors.width" x-text="errors.width" class="mt-1 text-xs text-red-600"></p>
-                    </div>
-
-                    <div>
-                        <label for="height" class="block text-sm font-semibold text-gray-700 mb-2">
-                            Height (px) <span class="text-red-500">*</span>
-                        </label>
-                        <input type="number"
-                               id="height"
-                               name="height"
-                               value="{{ old('height', $height) }}"
-                               min="200"
-                               max="1200"
-                               required
-                               x-model.number="height"
-                               @input="errors.height = ''"
-                               class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all {{ $errors->has('height') ? 'border-red-300 bg-red-50' : '' }}"
-                               placeholder="600">
-                        <p class="mt-1 text-xs text-gray-400">Between 200 and 1200 pixels</p>
-                        @error('height')
-                            <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
-                        @enderror
-                        <p x-show="errors.height" x-text="errors.height" class="mt-1 text-xs text-red-600"></p>
-                    </div>
-                </div>
-
-                {{-- Primary Color --}}
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">
-                        Primary Color <span class="text-red-500">*</span>
-                    </label>
+        {{-- Embed Script Section --}}
+        @if($project->exists)
+            <div x-data="{ copied: false }" class="glass rounded-2xl p-6 border-2 border-brand-200">
+                <div class="flex items-start justify-between mb-3">
                     <div class="flex items-center gap-3">
-                        <div class="relative">
-                            <input type="color"
-                                   id="primary_color_picker"
-                                   value="{{ old('primary_color', $primaryColor) }}"
-                                   class="w-12 h-12 rounded-xl cursor-pointer border-2 border-gray-200 p-0.5">
+                        <div class="w-10 h-10 rounded-xl bg-brand-100 flex items-center justify-center flex-shrink-0">
+                            <svg class="w-5 h-5 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
+                            </svg>
                         </div>
-                        <div class="flex-1">
-                            <input type="text"
-                                   id="primary_color"
-                                   name="primary_color"
-                                   value="{{ old('primary_color', $primaryColor) }}"
-                                   class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all font-mono uppercase {{ $errors->has('primary_color') ? 'border-red-300 bg-red-50' : '' }}"
-                                   placeholder="#6366f1"
-                                   maxlength="7">
-                        </div>
-                    </div>
-                    @error('primary_color')
-                        <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
-                    @enderror
-                    <p x-show="errors.primaryColor" x-text="errors.primaryColor" class="mt-1 text-xs text-red-600"></p>
-                </div>
-
-                {{-- Custom CSS --}}
-                <div>
-                    <label for="custom_css" class="block text-sm font-semibold text-gray-700 mb-2">
-                        Custom CSS
-                    </label>
-                    <textarea id="custom_css"
-                              name="custom_css"
-                              rows="5"
-                              x-model="customCss"
-                              class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all font-mono text-sm {{ $errors->has('custom_css') ? 'border-red-300 bg-red-50' : '' }}"
-                              placeholder=".chat-widget { /* your custom styles */ }">{{ old('custom_css', $customCss) }}</textarea>
-                    @error('custom_css')
-                        <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
-                    @enderror
-                </div>
-
-                {{-- Active Toggle --}}
-                <div class="flex items-center justify-between p-4 rounded-xl bg-gray-50">
-                    <div>
-                        <h3 class="text-sm font-semibold text-gray-900">Project Status</h3>
-                        <p class="text-xs text-gray-500 mt-0.5">Enable or disable this widget</p>
-                    </div>
-                    <label class="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox"
-                               name="is_active"
-                               value="1"
-                               x-model="isActive"
-                               class="sr-only peer"
-                               {{ old('is_active', $project->is_active) ? 'checked' : '' }}>
-                        <div class="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-brand-500/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600"></div>
-                        <span class="ml-3 text-sm font-medium text-gray-700" x-text="isActive ? 'Active' : 'Inactive'"></span>
-                    </label>
-                </div>
-
-                {{-- Telegram Bot Section --}}
-                <div class="border-t border-gray-200 pt-6">
-                    <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                        <svg class="w-5 h-5 text-brand-600" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.161c-.18 1.897-.962 6.502-1.359 8.627-.168.9-.5 1.201-.82 1.23-.697.064-1.226-.461-1.901-.903-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.911.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.429-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635.099-.002.321.023.465.141a.506.506 0 01.171.325c.016.093.036.306.02.472z"/>
-                        </svg>
-                        Telegram Bot Integration
-                    </h3>
-
-                    {{-- Test Message Result --}}
-                    <div id="telegram-test-result" class="hidden mb-4 rounded-xl border p-4 flex items-center gap-3"></div>
-
-                    <div class="space-y-4">
-                        {{-- Bot Token --}}
                         <div>
-                            <label for="telegram_bot_token" class="block text-sm font-medium text-gray-700 mb-1">Bot Token</label>
-                            <div class="relative">
-                                <input type="password"
-                                       name="telegram_bot_token"
-                                       id="telegram_bot_token"
-                                       value="{{ old('telegram_bot_token', $maskedToken) }}"
-                                       placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
-                                       class="w-full px-4 py-3 pr-20 rounded-xl border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all font-mono text-sm">
-                                <div class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                                    <button type="button" onclick="toggleTokenVisibility()"
-                                            class="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-500" title="Show/Hide">
-                                        <svg id="eye-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
-                                        </svg>
-                                    </button>
-                                    <button type="button" onclick="clearTokenField()"
-                                            class="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-500" title="Clear">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                                        </svg>
-                                    </button>
-                                </div>
-                            </div>
-                            <p class="text-xs text-gray-500 mt-1">Get your token from <a href="https://t.me/BotFather" target="_blank" class="text-brand-600 hover:underline">@BotFather</a> on Telegram</p>
-                            @error('telegram_bot_token')
-                                <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                            @enderror
+                            <h3 class="text-sm font-semibold text-gray-900">Embed Script</h3>
+                            <p class="text-xs text-gray-500">Copy this script and paste it into your website's HTML before </p>
                         </div>
-
-                        {{-- Chat ID --}}
-                        <div>
-                            <label for="telegram_chat_id" class="block text-sm font-medium text-gray-700 mb-1">Chat ID</label>
-                            <input type="text"
-                                   name="telegram_chat_id"
-                                   id="telegram_chat_id"
-                                   value="{{ old('telegram_chat_id', $project->telegram_chat_id) }}"
-                                   placeholder="e.g., -1001234567890 or 123456789"
-                                   class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all font-mono text-sm">
-                            <p class="text-xs text-gray-500 mt-1">Send a message to your bot, then check <a href="https://t.me/userinfobot" target="_blank" class="text-brand-600 hover:underline">@userinfobot</a> for your Chat ID</p>
-                            @error('telegram_chat_id')
-                                <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                            @enderror
-                        </div>
-
-                        {{-- Send Test Message Button --}}
-                        @if($isEdit)
-                        <div class="flex justify-end pt-2">
-                            <button type="button"
-                                    id="send-test-message-btn"
-                                    onclick="sendTestMessage()"
-                                    disabled
-                                    class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-brand-700 bg-brand-50 hover:bg-brand-100 border border-brand-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-                                <svg id="send-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
-                                </svg>
-                                <svg id="loading-icon" class="w-4 h-4 animate-spin hidden" fill="none" viewBox="0 0 24 24">
-                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                                <span id="button-text">Send Test Message</span>
-                            </button>
-                        </div>
-                        @endif
                     </div>
-                </div>
-            </div>
-
-            {{-- Form Actions --}}
-            <div class="px-6 py-4 bg-gray-50/80 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div class="flex items-center gap-3">
-                </div>
-                <div class="flex items-center gap-3">
-                    <a href="{{ route('dashboard.projects.index') }}"
-                       class="px-5 py-2.5 rounded-xl text-sm font-medium text-gray-700 bg-white hover:bg-gray-100 border border-gray-200 transition-colors">
-                        Cancel
-                    </a>
-                    <button type="submit"
-                            :disabled="submitting"
-                            class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-brand-500 to-brand-700 hover:opacity-95 transition-all shadow-lg shadow-brand-500/25 hover:shadow-brand-500/40 disabled:opacity-50 disabled:cursor-not-allowed">
-                        <svg x-show="submitting" x-cloak class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    <button @click="navigator.clipboard.writeText(`{{ $embedScript }}`); copied = true; setTimeout(() => copied = false, 2000)"
+                            class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-gradient-to-r from-brand-500 to-brand-700 hover:opacity-95 transition-all">
+                        <svg x-show="!copied" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
                         </svg>
-                        {{ $isEdit ? 'Update Project' : 'Create Project' }}
+                        <svg x-show="copied" x-cloak class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        <span x-text="copied ? 'Copied!' : 'Copy Script'"></span>
                     </button>
                 </div>
+                <div class="relative">
+                    <pre class="bg-gray-900 text-green-400 p-4 rounded-xl text-xs font-mono overflow-x-auto whitespace-pre-wrap break-all"><code>{{ $embedScript }}</code></pre>
+                </div>
+                <div class="mt-3 flex items-center gap-2">
+                    <p class="text-xs text-gray-500">Simple script tag - domain validation happens automatically via Origin header.</p>
+                </div>
             </div>
-        </form>
-    </div>
+        @endif
 
-    {{-- Widget Preview Section --}}
-    <div class="mt-8">
-        <h3 class="text-lg font-semibold text-gray-900 mb-4">Widget Preview</h3>
-        <div class="glass rounded-2xl p-6 overflow-hidden">
-            <div class="flex flex-col lg:flex-row gap-6">
-                <!-- Widget Mockup -->
-                <div class="widget-preview-container flex-shrink-0" style="--widget-primary: {{ old('primary_color', $primaryColor) }}">
-                    <div class="widget-preview-window">
-                        <!-- Header -->
-                        <div class="widget-preview-header">
-                            <div class="widget-preview-avatar">
-                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
-                                </svg>
+        {{-- Validation Errors --}}
+        @if($errors->any())
+            <div class="glass rounded-2xl p-4 border border-red-200 bg-red-50">
+                <div class="flex items-start gap-3">
+                    <svg class="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <div>
+                        <h3 class="text-sm font-semibold text-red-800">Please fix the following errors:</h3>
+                        <ul class="mt-2 text-sm text-red-700 list-disc list-inside space-y-1">
+                            @foreach($errors->all() as $error)
+                                <li>{{ $error }}</li>
+                            @endforeach
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        @endif
+
+        {{-- Form Card --}}
+        <div class="glass rounded-2xl shadow-xl overflow-hidden">
+            <form action="{{ $isEdit ? route('dashboard.projects.update', $project) : route('dashboard.projects.store') }}"
+                  method="POST"
+                  x-data="projectForm({
+                      theme: '{{ $theme }}',
+                      position: '{{ $position }}',
+                      width: {{ $width }},
+                      height: {{ $height }},
+                      primaryColor: '{{ $primaryColor }}',
+                  })"
+                  @submit="validateForm()"
+                  novalidate>
+                @csrf
+                @if($isEdit)
+                    @method('PUT')
+                @endif
+
+                <div class="p-6 space-y-6">
+                    {{-- Domain --}}
+                    <div>
+                        <label for="domain" class="block text-sm font-semibold text-gray-700 mb-2">
+                            Domain <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text"
+                               id="domain"
+                               name="domain"
+                               value="{{ old('domain', $project->domain) }}"
+                               required
+                               class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all {{ $errors->has('domain') ? 'border-red-300 bg-red-50' : '' }}"
+                               placeholder="example.com">
+                        <p class="mt-1 text-xs text-gray-400">Enter the full domain (e.g., example.com or sub.example.com)</p>
+                        @error('domain')
+                            <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+
+                    {{-- Chat Name --}}
+                    <div>
+                        <label for="chat_name" class="block text-sm font-semibold text-gray-700 mb-2">
+                            Chat Name
+                        </label>
+                        <input type="text"
+                               id="chat_name"
+                               name="chat_name"
+                               value="{{ old('chat_name', $chatName) }}"
+                               class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all"
+                               placeholder="Support Team">
+                        <p class="mt-1 text-xs text-gray-400">This name appears in the widget header. Leave empty to use project name.</p>
+                    </div>
+
+                    {{-- Greeting Message --}}
+                    <div>
+                        <label for="greeting_message" class="block text-sm font-semibold text-gray-700 mb-2">
+                            Greeting Message
+                        </label>
+                        <textarea id="greeting_message"
+                                  name="greeting_message"
+                                  rows="3"
+                                  class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all resize-none"
+                                  placeholder="Salom! 👋 Sizga qanday yordam bera olaman?">{{ old('greeting_message', $project->greeting_message ?? 'Salom! 👋 Sizga qanday yordam bera olaman?') }}</textarea>
+                        <p class="mt-1 text-xs text-gray-400">This message appears when a visitor opens the widget for the first time. Leave empty to use default greeting.</p>
+                        @error('greeting_message')
+                            <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {{-- Theme --}}
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                Theme <span class="text-red-500">*</span>
+                            </label>
+                            <div class="grid grid-cols-3 gap-2">
+                                @foreach(['light' => 'Light', 'dark' => 'Dark', 'auto' => 'Auto'] as $value => $label)
+                                    <label class="relative cursor-pointer">
+                                        <input type="radio"
+                                               name="theme"
+                                               value="{{ $value }}"
+                                               x-model="theme"
+                                               @change="errors.theme = ''"
+                                               class="peer sr-only"
+                                               {{ old('theme', $theme) === $value ? 'checked' : '' }}>
+                                        <div class="peer-checked:border-brand-500 peer-checked:bg-brand-50 peer-checked:text-brand-700 border-2 border-gray-200 rounded-xl py-3 px-3 text-center text-sm font-medium text-gray-600 hover:border-gray-300 transition-all">
+                                            @if($value === 'light')
+                                                <svg class="w-5 h-5 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                                            @elseif($value === 'dark')
+                                                <svg class="w-5 h-5 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+                                            @else
+                                                <svg class="w-5 h-5 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path></svg>
+                                            @endif
+                                            {{ $label }}
+                                        </div>
+                                    </label>
+                                @endforeach
                             </div>
-                            <div class="widget-preview-info">
-                                <div class="widget-preview-title" id="widget-preview-title">{{ $widget['chat_name'] ?? $project->name ?? 'Project Name' }}</div>
-                                <div class="widget-preview-status">Online</div>
+                            @error('theme')
+                                <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                        {{-- Position --}}
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                Position <span class="text-red-500">*</span>
+                            </label>
+                            <div class="grid grid-cols-2 gap-2">
+                                @foreach(['top-left' => 'Top Left', 'top-right' => 'Top Right', 'bottom-left' => 'Bottom Left', 'bottom-right' => 'Bottom Right'] as $value => $label)
+                                    <label class="relative cursor-pointer">
+                                        <input type="radio"
+                                               name="position"
+                                               value="{{ $value }}"
+                                               x-model="position"
+                                               @change="errors.position = ''"
+                                               class="peer sr-only"
+                                               {{ old('position', $position) === $value ? 'checked' : '' }}>
+                                        <div class="peer-checked:border-brand-500 peer-checked:bg-brand-50 peer-checked:text-brand-700 border-2 border-gray-200 rounded-xl py-2.5 px-2 text-center text-xs font-medium text-gray-600 hover:border-gray-300 transition-all">
+                                            {{ $label }}
+                                        </div>
+                                    </label>
+                                @endforeach
+                            </div>
+                            @error('position')
+                                <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+                    </div>
+
+                    {{-- Width & Height --}}
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label for="width" class="block text-sm font-semibold text-gray-700 mb-2">
+                                Width (px) <span class="text-red-500">*</span>
+                            </label>
+                            <input type="number"
+                                   id="width"
+                                   name="width"
+                                   value="{{ old('width', $width) }}"
+                                   min="200"
+                                   max="800"
+                                   required
+                                   x-model.number="width"
+                                   @input="errors.width = ''"
+                                   class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all {{ $errors->has('width') ? 'border-red-300 bg-red-50' : '' }}"
+                                   placeholder="400">
+                            <p class="mt-1 text-xs text-gray-400">Between 200 and 800 pixels</p>
+                            @error('width')
+                                <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                            @enderror
+                            <p x-show="errors.width" x-text="errors.width" class="mt-1 text-xs text-red-600"></p>
+                        </div>
+
+                        <div>
+                            <label for="height" class="block text-sm font-semibold text-gray-700 mb-2">
+                                Height (px) <span class="text-red-500">*</span>
+                            </label>
+                            <input type="number"
+                                   id="height"
+                                   name="height"
+                                   value="{{ old('height', $height) }}"
+                                   min="200"
+                                   max="1200"
+                                   required
+                                   x-model.number="height"
+                                   @input="errors.height = ''"
+                                   class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all {{ $errors->has('height') ? 'border-red-300 bg-red-50' : '' }}"
+                                   placeholder="600">
+                            <p class="mt-1 text-xs text-gray-400">Between 200 and 1200 pixels</p>
+                            @error('height')
+                                <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                            @enderror
+                            <p x-show="errors.height" x-text="errors.height" class="mt-1 text-xs text-red-600"></p>
+                        </div>
+                    </div>
+
+                    {{-- Primary Color --}}
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            Primary Color <span class="text-red-500">*</span>
+                        </label>
+                        <div class="flex items-center gap-3">
+                            <div class="relative">
+                                <input type="color"
+                                       id="primary_color_picker"
+                                       value="{{ old('primary_color', $primaryColor) }}"
+                                       class="w-12 h-12 rounded-xl cursor-pointer border-2 border-gray-200 p-0.5">
+                            </div>
+                            <div class="flex-1">
+                                <input type="text"
+                                       id="primary_color"
+                                       name="primary_color"
+                                       value="{{ old('primary_color', $primaryColor) }}"
+                                       class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all font-mono uppercase {{ $errors->has('primary_color') ? 'border-red-300 bg-red-50' : '' }}"
+                                       placeholder="#6366f1"
+                                       maxlength="7">
                             </div>
                         </div>
-                        <!-- Messages -->
-                        <div class="widget-preview-messages">
-                            <div class="widget-preview-message inbound">
-                                <span>Salom! 👋 Sizga qanday yordam bera olaman?</span>
-                                <div class="widget-preview-time">12:00</div>
-                            </div>
-                            <div class="widget-preview-message outbound">
-                                <span>Menga ma'lumot kerak</span>
-                                <div class="widget-preview-time">12:01</div>
-                            </div>
+                        @error('primary_color')
+                            <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                        @enderror
+                        <p x-show="errors.primaryColor" x-text="errors.primaryColor" class="mt-1 text-xs text-red-600"></p>
+                    </div>
+
+                    {{-- Custom CSS --}}
+                    <div>
+                        <label for="custom_css" class="block text-sm font-semibold text-gray-700 mb-2">
+                            Custom CSS
+                        </label>
+                        <textarea id="custom_css"
+                                  name="custom_css"
+                                  rows="5"
+                                  x-model="customCss"
+                                  class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all font-mono text-sm {{ $errors->has('custom_css') ? 'border-red-300 bg-red-50' : '' }}"
+                                  placeholder=".chat-widget { /* your custom styles */ }">{{ old('custom_css', $customCss) }}</textarea>
+                        @error('custom_css')
+                            <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+
+                    {{-- Active Toggle --}}
+                    <div class="flex items-center justify-between p-4 rounded-xl bg-gray-50">
+                        <div>
+                            <h3 class="text-sm font-semibold text-gray-900">Project Status</h3>
+                            <p class="text-xs text-gray-500 mt-0.5">Enable or disable this widget</p>
                         </div>
-                        <!-- Input -->
-                        <div class="widget-preview-input">
-                            <input type="text" placeholder="Type a message..." readonly />
-                            <button>
-                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
-                                </svg>
-                            </button>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox"
+                                   name="is_active"
+                                   value="1"
+                                   x-model="isActive"
+                                   class="sr-only peer"
+                                   {{ old('is_active', $project->is_active) ? 'checked' : '' }}>
+                            <div class="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-brand-500/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600"></div>
+                            <span class="ml-3 text-sm font-medium text-gray-700" x-text="isActive ? 'Active' : 'Inactive'"></span>
+                        </label>
+                    </div>
+
+                    {{-- Telegram Bot Section --}}
+                    <div class="border-t border-gray-200 pt-6">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-brand-600" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.161c-.18 1.897-.962 6.502-1.359 8.627-.168.9-.5 1.201-.82 1.23-.697.064-1.226-.461-1.901-.903-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.911.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.429-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635.099-.002.321.023.465.141a.506.506 0 01.171.325c.016.093.036.306.02.472z"/>
+                            </svg>
+                            Telegram Bot Integration
+                        </h3>
+
+                        {{-- Test Message Result --}}
+                        <div id="telegram-test-result" class="hidden mb-4 rounded-xl border p-4 flex items-center gap-3"></div>
+
+                        <div class="space-y-4">
+                            {{-- Bot Token --}}
+                            <div>
+                                <label for="telegram_bot_token" class="block text-sm font-medium text-gray-700 mb-1">Bot Token</label>
+                                <div class="relative">
+                                    <input type="password"
+                                           name="telegram_bot_token"
+                                           id="telegram_bot_token"
+                                           value="{{ old('telegram_bot_token', $maskedToken) }}"
+                                           placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
+                                           class="w-full px-4 py-3 pr-20 rounded-xl border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all font-mono text-sm">
+                                    <div class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                                        <button type="button" onclick="toggleTokenVisibility()"
+                                                class="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-500" title="Show/Hide">
+                                            <svg id="eye-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                            </svg>
+                                        </button>
+                                        <button type="button" onclick="clearTokenField()"
+                                                class="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-500" title="Clear">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">Get your token from <a href="https://t.me/BotFather" target="_blank" class="text-brand-600 hover:underline">@BotFather</a> on Telegram</p>
+                                @error('telegram_bot_token')
+                                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
+                                @enderror
+                            </div>
+
+                            {{-- Chat ID --}}
+                            <div>
+                                <label for="telegram_chat_id" class="block text-sm font-medium text-gray-700 mb-1">Chat ID</label>
+                                <input type="text"
+                                       name="telegram_chat_id"
+                                       id="telegram_chat_id"
+                                       value="{{ old('telegram_chat_id', $project->telegram_chat_id) }}"
+                                       placeholder="e.g., -1001234567890 or 123456789"
+                                       class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all font-mono text-sm">
+                                <p class="text-xs text-gray-500 mt-1">Send a message to your bot, then check <a href="https://t.me/userinfobot" target="_blank" class="text-brand-600 hover:underline">@userinfobot</a> for your Chat ID</p>
+                                @error('telegram_chat_id')
+                                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
+                                @enderror
+                            </div>
+
+                            {{-- Send Test Message Button --}}
+                            @if($isEdit)
+                            <div class="flex justify-end pt-2">
+                                <button type="button"
+                                        id="send-test-message-btn"
+                                        onclick="sendTestMessage()"
+                                        disabled
+                                        class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-brand-700 bg-brand-50 hover:bg-brand-100 border border-brand-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                                    <svg id="send-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                                    </svg>
+                                    <svg id="loading-icon" class="w-4 h-4 animate-spin hidden" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    <span id="button-text">Send Test Message</span>
+                                </button>
+                            </div>
+                            @endif
                         </div>
                     </div>
                 </div>
 
-                <!-- Color Controls -->
-                <div class="flex-1">
-                    <h4 class="font-medium text-gray-700 mb-4">Customize Colors</h4>
-                    <div class="space-y-4">
-                        <!-- Primary Color -->
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Primary Color</label>
-                            <div class="flex items-center gap-3">
-                                <input type="color"
-                                       id="primary_color_picker_preview"
-                                       value="{{ old('primary_color', $primaryColor) }}"
-                                       class="w-12 h-12 rounded-xl cursor-pointer border-2 border-gray-200 p-0.5" />
-                                <input type="text"
-                                       id="primary_color_text_preview"
-                                       value="{{ old('primary_color', $primaryColor) }}"
-                                       class="flex-1 px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all font-mono uppercase"
-                                       placeholder="#6366f1"
-                                       maxlength="7" />
-                            </div>
-                            <p class="mt-2 text-xs text-gray-500">This color affects the header, outbound bubbles, and buttons.</p>
-                        </div>
+                {{-- Form Actions --}}
+                <div class="px-6 py-4 bg-gray-50/80 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div class="flex items-center gap-3">
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <a href="{{ route('dashboard.projects.index') }}"
+                           class="px-5 py-2.5 rounded-xl text-sm font-medium text-gray-700 bg-white hover:bg-gray-100 border border-gray-200 transition-colors">
+                            Cancel
+                        </a>
+                        <button type="submit"
+                                :disabled="submitting"
+                                class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-brand-500 to-brand-700 hover:opacity-95 transition-all shadow-lg shadow-brand-500/25 hover:shadow-brand-500/40 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <svg x-show="submitting" x-cloak class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            {{ $isEdit ? 'Update Project' : 'Create Project' }}
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
 
-                        <!-- Color Presets -->
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Quick Presets</label>
-                            <div class="flex flex-wrap gap-2">
-                                <button type="button" data-color="#6366f1" class="preset-color-btn w-8 h-8 rounded-lg border-2 border-gray-200 hover:scale-110 transition-transform" style="background: #6366f1;"></button>
-                                <button type="button" data-color="#8b5cf6" class="preset-color-btn w-8 h-8 rounded-lg border-2 border-gray-200 hover:scale-110 transition-transform" style="background: #8b5cf6;"></button>
-                                <button type="button" data-color="#ec4899" class="preset-color-btn w-8 h-8 rounded-lg border-2 border-gray-200 hover:scale-110 transition-transform" style="background: #ec4899;"></button>
-                                <button type="button" data-color="#f43f5e" class="preset-color-btn w-8 h-8 rounded-lg border-2 border-gray-200 hover:scale-110 transition-transform" style="background: #f43f5e;"></button>
-                                <button type="button" data-color="#f97316" class="preset-color-btn w-8 h-8 rounded-lg border-2 border-gray-200 hover:scale-110 transition-transform" style="background: #f97316;"></button>
-                                <button type="button" data-color="#22c55e" class="preset-color-btn w-8 h-8 rounded-lg border-2 border-gray-200 hover:scale-110 transition-transform" style="background: #22c55e;"></button>
-                                <button type="button" data-color="#06b6d4" class="preset-color-btn w-8 h-8 rounded-lg border-2 border-gray-200 hover:scale-110 transition-transform" style="background: #06b6d4;"></button>
-                                <button type="button" data-color="#3b82f6" class="preset-color-btn w-8 h-8 rounded-lg border-2 border-gray-200 hover:scale-110 transition-transform" style="background: #3b82f6;"></button>
+        {{-- Widget Preview Section --}}
+        <div class="mt-8">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Widget Preview</h3>
+            <div class="glass rounded-2xl p-6 overflow-hidden">
+                <div class="flex flex-col lg:flex-row gap-6">
+                    <!-- Widget Mockup -->
+                    <div class="widget-preview-container flex-shrink-0" style="--widget-primary: {{ old('primary_color', $primaryColor) }}">
+                        <div class="widget-preview-window">
+                            <!-- Header -->
+                            <div class="widget-preview-header">
+                                <div class="widget-preview-avatar">
+                                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+                                    </svg>
+                                </div>
+                                <div class="widget-preview-info">
+                                    <div class="widget-preview-title" id="widget-preview-title">{{ $widget['chat_name'] ?? $project->name ?? 'Project Name' }}</div>
+                                    <div class="widget-preview-status">Online</div>
+                                </div>
+                            </div>
+                            <!-- Messages -->
+                            <div class="widget-preview-messages">
+                                <div class="widget-preview-message inbound">
+                                    <span>Salom! 👋 Sizga qanday yordam bera olaman?</span>
+                                    <div class="widget-preview-time">12:00</div>
+                                </div>
+                                <div class="widget-preview-message outbound">
+                                    <span>Menga ma'lumot kerak</span>
+                                    <div class="widget-preview-time">12:01</div>
+                                </div>
+                            </div>
+                            <!-- Input -->
+                            <div class="widget-preview-input">
+                                <input type="text" placeholder="Type a message..." readonly />
+                                <button>
+                                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Color Controls -->
+                    <div class="flex-1">
+                        <h4 class="font-medium text-gray-700 mb-4">Customize Colors</h4>
+                        <div class="space-y-4">
+                            <!-- Primary Color -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Primary Color</label>
+                                <div class="flex items-center gap-3">
+                                    <input type="color"
+                                           id="primary_color_picker_preview"
+                                           value="{{ old('primary_color', $primaryColor) }}"
+                                           class="w-12 h-12 rounded-xl cursor-pointer border-2 border-gray-200 p-0.5" />
+                                    <input type="text"
+                                           id="primary_color_text_preview"
+                                           value="{{ old('primary_color', $primaryColor) }}"
+                                           class="flex-1 px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all font-mono uppercase"
+                                           placeholder="#6366f1"
+                                           maxlength="7" />
+                                </div>
+                                <p class="mt-2 text-xs text-gray-500">This color affects the header, outbound bubbles, and buttons.</p>
+                            </div>
+
+                            <!-- Color Presets -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Quick Presets</label>
+                                <div class="flex flex-wrap gap-2">
+                                    <button type="button" data-color="#6366f1" class="preset-color-btn w-8 h-8 rounded-lg border-2 border-gray-200 hover:scale-110 transition-transform" style="background: #6366f1;"></button>
+                                    <button type="button" data-color="#8b5cf6" class="preset-color-btn w-8 h-8 rounded-lg border-2 border-gray-200 hover:scale-110 transition-transform" style="background: #8b5cf6;"></button>
+                                    <button type="button" data-color="#ec4899" class="preset-color-btn w-8 h-8 rounded-lg border-2 border-gray-200 hover:scale-110 transition-transform" style="background: #ec4899;"></button>
+                                    <button type="button" data-color="#f43f5e" class="preset-color-btn w-8 h-8 rounded-lg border-2 border-gray-200 hover:scale-110 transition-transform" style="background: #f43f5e;"></button>
+                                    <button type="button" data-color="#f97316" class="preset-color-btn w-8 h-8 rounded-lg border-2 border-gray-200 hover:scale-110 transition-transform" style="background: #f97316;"></button>
+                                    <button type="button" data-color="#22c55e" class="preset-color-btn w-8 h-8 rounded-lg border-2 border-gray-200 hover:scale-110 transition-transform" style="background: #22c55e;"></button>
+                                    <button type="button" data-color="#06b6d4" class="preset-color-btn w-8 h-8 rounded-lg border-2 border-gray-200 hover:scale-110 transition-transform" style="background: #06b6d4;"></button>
+                                    <button type="button" data-color="#3b82f6" class="preset-color-btn w-8 h-8 rounded-lg border-2 border-gray-200 hover:scale-110 transition-transform" style="background: #3b82f6;"></button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -534,449 +535,474 @@
             </div>
         </div>
     </div>
-</div>
 
-@push('styles')
-<style>
-    .widget-preview-container {
-        --widget-primary: #6366f1;
-        width: 280px;
-    }
-    .widget-preview-window {
-        background: #0f172a;
-        border-radius: 12px;
-        overflow: hidden;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-    }
-    .widget-preview-header {
-        background: var(--widget-primary);
-        padding: 12px;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-    .widget-preview-avatar {
-        width: 32px;
-        height: 32px;
-        border-radius: 50%;
-        background: rgba(255, 255, 255, 0.2);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-    .widget-preview-avatar svg {
-        width: 16px;
-        height: 16px;
-        color: white;
-    }
-    .widget-preview-info {
-        flex: 1;
-    }
-    .widget-preview-title {
-        color: white;
-        font-size: 13px;
-        font-weight: 600;
-    }
-    .widget-preview-status {
-        color: #22c55e;
-        font-size: 10px;
-        display: flex;
-        align-items: center;
-        gap: 4px;
-    }
-    .widget-preview-status::before {
-        content: '';
-        width: 6px;
-        height: 6px;
-        border-radius: 50%;
-        background: #22c55e;
-    }
-    .widget-preview-messages {
-        padding: 12px;
-        min-height: 120px;
-    }
-    .widget-preview-message {
-        max-width: 80%;
-        padding: 8px 12px;
-        border-radius: 12px;
-        font-size: 12px;
-        line-height: 1.4;
-        margin-bottom: 8px;
-    }
-    .widget-preview-message.inbound {
-        background: #1e293b;
-        color: #f1f5f9;
-        border-bottom-left-radius: 4px;
-    }
-    .widget-preview-message.outbound {
-        background: var(--widget-primary);
-        color: white;
-        border-bottom-right-radius: 4px;
-        margin-left: auto;
-    }
-    .widget-preview-time {
-        font-size: 9px;
-        color: #64748b;
-        margin-top: 2px;
-        text-align: right;
-    }
-    .widget-preview-message.outbound .widget-preview-time {
-        color: rgba(255, 255, 255, 0.7);
-    }
-    .widget-preview-input {
-        padding: 10px 12px;
-        border-top: 1px solid #334155;
-        display: flex;
-        gap: 6px;
-    }
-    .widget-preview-input input {
-        flex: 1;
-        padding: 8px 12px;
-        background: #1e293b;
-        border: 1px solid #334155;
-        border-radius: 20px;
-        color: #f1f5f9;
-        font-size: 12px;
-        outline: none;
-    }
-    .widget-preview-input button {
-        width: 32px;
-        height: 32px;
-        border-radius: 50%;
-        background: var(--widget-primary);
-        border: none;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        transition: opacity 0.2s;
-    }
-    .widget-preview-input button:hover {
-        opacity: 0.9;
-    }
-    .widget-preview-input button svg {
-        width: 14px;
-        height: 14px;
-        color: white;
-    }
-    .preset-color-btn {
-        cursor: pointer;
-    }
-    .preset-color-btn.active {
-        border-color: white !important;
-        box-shadow: 0 0 0 2px #6366f1;
-    }
-</style>
-@endpush
+    @push('styles')
+    <style>
+        .widget-preview-container {
+            --widget-primary: #6366f1;
+            width: 280px;
+        }
+        .widget-preview-window {
+            background: #0f172a;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+        .widget-preview-header {
+            background: var(--widget-primary);
+            padding: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .widget-preview-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .widget-preview-avatar svg {
+            width: 16px;
+            height: 16px;
+            color: white;
+        }
+        .widget-preview-info {
+            flex: 1;
+        }
+        .widget-preview-title {
+            color: white;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .widget-preview-status {
+            color: #22c55e;
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .widget-preview-status::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #22c55e;
+        }
+        .widget-preview-messages {
+            padding: 12px;
+            min-height: 120px;
+        }
+        .widget-preview-message {
+            max-width: 80%;
+            padding: 8px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            line-height: 1.4;
+            margin-bottom: 8px;
+        }
+        .widget-preview-message.inbound {
+            background: #1e293b;
+            color: #f1f5f9;
+            border-bottom-left-radius: 4px;
+        }
+        .widget-preview-message.outbound {
+            background: var(--widget-primary);
+            color: white;
+            border-bottom-right-radius: 4px;
+            margin-left: auto;
+        }
+        .widget-preview-time {
+            font-size: 9px;
+            color: #64748b;
+            margin-top: 2px;
+            text-align: right;
+        }
+        .widget-preview-message.outbound .widget-preview-time {
+            color: rgba(255, 255, 255, 0.7);
+        }
+        .widget-preview-input {
+            padding: 10px 12px;
+            border-top: 1px solid #334155;
+            display: flex;
+            gap: 6px;
+        }
+        .widget-preview-input input {
+            flex: 1;
+            padding: 8px 12px;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 20px;
+            color: #f1f5f9;
+            font-size: 12px;
+            outline: none;
+        }
+        .widget-preview-input button {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--widget-primary);
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .widget-preview-input button:hover {
+            opacity: 0.9;
+        }
+        .widget-preview-input button svg {
+            width: 14px;
+            height: 14px;
+            color: white;
+        }
+        .preset-color-btn {
+            cursor: pointer;
+        }
+        .preset-color-btn.active {
+            border-color: white !important;
+            box-shadow: 0 0 0 2px #6366f1;
+        }
+    </style>
+    @endpush
 
-@push('scripts')
-<script>
-    document.addEventListener('alpine:init', () => {
-        Alpine.data('projectForm', (initial) => ({
-            name: '{{ old('name', $project->name) }}',
-            theme: initial.theme,
-            position: initial.position,
-            width: initial.width,
-            height: initial.height,
-            customCss: document.getElementById('custom_css')?.value || '',
-            isActive: {{ old('is_active', $project->is_active) ? 'true' : 'false' }},
-            isEdit: {{ $isEdit ? 'true' : 'false' }},
-            submitting: false,
-            errors: {
-                name: '',
-                theme: '',
-                position: '',
-                width: '',
-                height: '',
-                primaryColor: '',
-            },
-
-            validateForm() {
-                this.errors = { theme: '', position: '', width: '', height: '', primaryColor: '' };
-                let isValid = true;
-
-                // Validate domain
-                const domain = document.getElementById('domain').value;
-                if (!domain || domain.trim() === '') {
-                    this.errors.domain = 'Domain is required';
-                    isValid = false;
-                } else if (!/^[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$/.test(domain)) {
-                    this.errors.domain = 'Must be a valid domain (e.g., example.com)';
-                    isValid = false;
-                }
-
-                if (!this.theme) {
-                    this.errors.theme = 'Theme is required';
-                    isValid = false;
-                }
-
-                if (!this.position) {
-                    this.errors.position = 'Position is required';
-                    isValid = false;
-                }
-
-                if (!this.width || this.width < 200 || this.width > 800) {
-                    this.errors.width = 'Width must be between 200 and 800';
-                    isValid = false;
-                }
-
-                if (!this.height || this.height < 200 || this.height > 1200) {
-                    this.errors.height = 'Height must be between 200 and 1200';
-                    isValid = false;
-                }
-
-                if (!document.getElementById('primary_color').value || !/^#[0-9a-fA-F]{6}$/.test(document.getElementById('primary_color').value)) {
-                    this.errors.primaryColor = 'Must be a valid hex color (e.g. #6366f1)';
-                    isValid = false;
-                }
-
-                if (!isValid) {
-                    event.preventDefault();
-                } else {
-                    this.submitting = true;
-                }
-            },
-        }));
-    });
-
-    // Telegram Bot helper functions - works on both create and edit
-    (function() {
-        const tokenInput = document.getElementById('telegram_bot_token');
-        const chatIdInput = document.getElementById('telegram_chat_id');
-        
-        window.toggleTokenVisibility = function() {
-            const isPassword = tokenInput.type === 'password';
-            tokenInput.type = isPassword ? 'text' : 'password';
-        };
-
-        window.clearTokenField = function() {
-            tokenInput.value = '';
-            const sendBtn = document.getElementById('send-test-message-btn');
-            if (sendBtn) {
-                const maskedToken = '{{ $maskedToken }}';
-                const tokenValue = tokenInput.value;
-                const chatIdValue = chatIdInput?.value;
-                const hasRealToken = tokenValue.length > 0 && tokenValue !== maskedToken;
-                const hasChatId = chatIdValue && chatIdValue.length > 0;
-                sendBtn.disabled = !(hasRealToken && hasChatId);
-            }
-        };
-    })();
-
-    // Telegram test message - only on edit pages
-    document.addEventListener('DOMContentLoaded', function() {
-        @if($isEdit)
-        (function() {
-            const tokenInput = document.getElementById('telegram_bot_token');
-            const chatIdInput = document.getElementById('telegram_chat_id');
-            const sendBtn = document.getElementById('send-test-message-btn');
-            const sendIcon = document.getElementById('send-icon');
-            const loadingIcon = document.getElementById('loading-icon');
-            const buttonText = document.getElementById('button-text');
-            const resultDiv = document.getElementById('telegram-test-result');
-            const maskedToken = '{{ $maskedToken }}';
-
-            function updateButtonState() {
-                const tokenValue = tokenInput.value;
-                const chatIdValue = chatIdInput.value;
-                
-                // Edit sahifada: agar projectda saqlangan token bo'lsa (maskedToken mavjud)
-                // yoki foydalanuvchi yangi token kiritsa, token valid hisoblanadi
-                const hasStoredToken = maskedToken.length > 0;
-                const hasNewToken = tokenValue.length > 0 && tokenValue !== maskedToken;
-                const hasRealToken = hasStoredToken || hasNewToken;
-                const hasChatId = chatIdValue.length > 0;
-                
-                sendBtn.disabled = !(hasRealToken && hasChatId);
-            }
-
-            tokenInput.addEventListener('input', updateButtonState);
-            chatIdInput.addEventListener('input', updateButtonState);
-
-            // Initial state check
-            updateButtonState();
-
-            window.sendTestMessage = async function() {
-            sendBtn.disabled = true;
-            sendIcon.classList.add('hidden');
-            loadingIcon.classList.remove('hidden');
-            buttonText.textContent = 'Sending...';
-            resultDiv.classList.add('hidden');
-
-            try {
-                const response = await fetch('{{ route('dashboard.projects.send-test-message', $project) }}', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                        'Accept': 'application/json',
+    @push('scripts')
+        <script>
+            document.addEventListener('alpine:init', () => {
+                Alpine.data('projectForm', (initial) => ({
+                    name: '{{ old('name', $project->name) }}',
+                    theme: initial.theme,
+                    position: initial.position,
+                    width: initial.width,
+                    height: initial.height,
+                    customCss: document.getElementById('custom_css')?.value || '',
+                    isActive: {{ old('is_active', $project->is_active) ? 'true' : 'false' }},
+                    isEdit: {{ $isEdit ? 'true' : 'false' }},
+                    submitting: false,
+                    errors: {
+                        name: '',
+                        theme: '',
+                        position: '',
+                        width: '',
+                        height: '',
+                        primaryColor: '',
                     },
-                    body: JSON.stringify({
-                        telegram_bot_token: tokenInput.value !== maskedToken ? tokenInput.value : null,
-                        telegram_chat_id: chatIdInput.value || null,
-                    }),
+
+                    function normalizeDomain(input) {
+                        if(!input) return null;
+
+                        let value = input.trim().toLowerCase();
+
+                        if(value === '') return null;
+
+                        if (!/^https?:\/\//.test(value)) {
+                            value = 'https://' + value;
+                        }
+
+                        try {
+                            const url = new URL(value);
+                            let host = url.hostname;
+
+                            host = host.replace(/^www\./, '');
+
+                            return host;
+                        } catch (e) {
+                            return null;
+                        }
+                    },
+
+                    validateForm() {
+                        this.errors = { theme: '', position: '', width: '', height: '', primaryColor: '' };
+                        let isValid = true;
+
+                        // Validate domain
+                        const rawDomain = document.getElementById('domain').value;
+                        const domain = this.normalizeDomain(rawDomain);
+                        if (!domain || domain.trim() === '') {
+                            this.errors.domain = 'Domain is required';
+                            isValid = false;
+                        } else if (!/^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/.test(domain)) {
+                            this.errors.domain = 'Must be a valid domain (e.g., example.com)';
+                            isValid = false;
+                        } else {
+                            document.getElementById('domain').value = domain;
+                        }
+
+                        if (!this.theme) {
+                            this.errors.theme = 'Theme is required';
+                            isValid = false;
+                        }
+
+                        if (!this.position) {
+                            this.errors.position = 'Position is required';
+                            isValid = false;
+                        }
+
+                        if (!this.width || this.width < 200 || this.width > 800) {
+                            this.errors.width = 'Width must be between 200 and 800';
+                            isValid = false;
+                        }
+
+                        if (!this.height || this.height < 200 || this.height > 1200) {
+                            this.errors.height = 'Height must be between 200 and 1200';
+                            isValid = false;
+                        }
+
+                        if (!document.getElementById('primary_color').value || !/^#[0-9a-fA-F]{6}$/.test(document.getElementById('primary_color').value)) {
+                            this.errors.primaryColor = 'Must be a valid hex color (e.g. #6366f1)';
+                            isValid = false;
+                        }
+
+                        if (!isValid) {
+                            event.preventDefault();
+                        } else {
+                            this.submitting = true;
+                        }
+                    },
+                }));
+            });
+
+            // Telegram Bot helper functions - works on both create and edit
+            (function() {
+                const tokenInput = document.getElementById('telegram_bot_token');
+                const chatIdInput = document.getElementById('telegram_chat_id');
+
+                window.toggleTokenVisibility = function() {
+                    const isPassword = tokenInput.type === 'password';
+                    tokenInput.type = isPassword ? 'text' : 'password';
+                };
+
+                window.clearTokenField = function() {
+                    tokenInput.value = '';
+                    const sendBtn = document.getElementById('send-test-message-btn');
+                    if (sendBtn) {
+                        const maskedToken = '{{ $maskedToken }}';
+                        const tokenValue = tokenInput.value;
+                        const chatIdValue = chatIdInput?.value;
+                        const hasRealToken = tokenValue.length > 0 && tokenValue !== maskedToken;
+                        const hasChatId = chatIdValue && chatIdValue.length > 0;
+                        sendBtn.disabled = !(hasRealToken && hasChatId);
+                    }
+                };
+            })();
+
+            // Telegram test message - only on edit pages
+            document.addEventListener('DOMContentLoaded', function() {
+                @if($isEdit)
+                (function() {
+                    const tokenInput = document.getElementById('telegram_bot_token');
+                    const chatIdInput = document.getElementById('telegram_chat_id');
+                    const sendBtn = document.getElementById('send-test-message-btn');
+                    const sendIcon = document.getElementById('send-icon');
+                    const loadingIcon = document.getElementById('loading-icon');
+                    const buttonText = document.getElementById('button-text');
+                    const resultDiv = document.getElementById('telegram-test-result');
+                    const maskedToken = '{{ $maskedToken }}';
+
+                    function updateButtonState() {
+                        const tokenValue = tokenInput.value;
+                        const chatIdValue = chatIdInput.value;
+
+                        // Edit sahifada: agar projectda saqlangan token bo'lsa (maskedToken mavjud)
+                        // yoki foydalanuvchi yangi token kiritsa, token valid hisoblanadi
+                        const hasStoredToken = maskedToken.length > 0;
+                        const hasNewToken = tokenValue.length > 0 && tokenValue !== maskedToken;
+                        const hasRealToken = hasStoredToken || hasNewToken;
+                        const hasChatId = chatIdValue.length > 0;
+
+                        sendBtn.disabled = !(hasRealToken && hasChatId);
+                    }
+
+                    tokenInput.addEventListener('input', updateButtonState);
+                    chatIdInput.addEventListener('input', updateButtonState);
+
+                    // Initial state check
+                    updateButtonState();
+
+                    window.sendTestMessage = async function() {
+                    sendBtn.disabled = true;
+                    sendIcon.classList.add('hidden');
+                    loadingIcon.classList.remove('hidden');
+                    buttonText.textContent = 'Sending...';
+                    resultDiv.classList.add('hidden');
+
+                    try {
+                        const response = await fetch('{{ route('dashboard.projects.send-test-message', $project) }}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                                'Accept': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                telegram_bot_token: tokenInput.value !== maskedToken ? tokenInput.value : null,
+                                telegram_chat_id: chatIdInput.value || null,
+                            }),
+                        });
+
+                        const data = await response.json();
+                        showTestResult(data.success ? 'success' : 'error', data.message);
+                    } catch (error) {
+                        showTestResult('error', 'Failed to send test message.');
+                    } finally {
+                        sendBtn.disabled = false;
+                        sendIcon.classList.remove('hidden');
+                        loadingIcon.classList.add('hidden');
+                        buttonText.textContent = 'Send Test Message';
+                    }
+                };
+
+                function showTestResult(type, message) {
+                    const isSuccess = type === 'success';
+                    resultDiv.className = `mb-4 rounded-xl border p-4 flex items-center gap-3 ${isSuccess ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`;
+                    resultDiv.innerHTML = `
+                        <svg class="w-5 h-5 flex-shrink-0 ${isSuccess ? 'text-emerald-600' : 'text-red-600'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${isSuccess ? 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' : 'M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'}"></path>
+                        </svg>
+                        <p class="font-medium text-sm ${isSuccess ? 'text-emerald-800' : 'text-red-800'}">${message}</p>
+                        <button onclick="document.getElementById('telegram-test-result').classList.add('hidden')" class="ml-auto ${isSuccess ? 'text-emerald-600 hover:text-emerald-800' : 'text-red-600 hover:text-red-800'}">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                    `;
+                    resultDiv.classList.remove('hidden');
+                }
+                })();
+                @endif
+            });
+
+            // Color picker sync - works on both create and edit pages
+            // This runs at the end of the page, DOM is already loaded
+            (function() {
+                const picker = document.getElementById('primary_color_picker');
+                const textInput = document.getElementById('primary_color');
+
+                if (picker && textInput) {
+                    // Sync picker to text
+                    picker.addEventListener('input', function() {
+                        textInput.value = this.value;
+                    });
+
+                    // Sync text to picker
+                    textInput.addEventListener('input', function() {
+                        const value = this.value;
+                        if (/^#[0-9a-fA-F]{6}$/.test(value)) {
+                            picker.value = value;
+                        }
+                    });
+                }
+            })();
+
+            // Widget preview color sync - only on edit pages
+            @if($isEdit)
+            (function() {
+                const previewPicker = document.getElementById('primary_color_picker_preview');
+                const previewText = document.getElementById('primary_color_text_preview');
+                const mainPicker = document.getElementById('primary_color_picker');
+                const mainText = document.getElementById('primary_color');
+                const presetButtons = document.querySelectorAll('.preset-color-btn');
+
+                function updatePreviewColor(color) {
+                    // Update CSS custom property on preview container
+                    const containers = document.querySelectorAll('.widget-preview-container');
+                    containers.forEach(el => {
+                        el.style.setProperty('--widget-primary', color);
+                    });
+
+                    // Sync all color inputs
+                    if (previewPicker && previewPicker.value !== color) {
+                        previewPicker.value = color;
+                    }
+                    if (previewText && previewText.value !== color.toUpperCase()) {
+                        previewText.value = color.toUpperCase();
+                    }
+                    if (mainPicker && mainPicker.value !== color) {
+                        mainPicker.value = color;
+                    }
+                    if (mainText && mainText.value !== color.toUpperCase()) {
+                        mainText.value = color.toUpperCase();
+                    }
+
+                    // Update active preset button
+                    presetButtons.forEach(btn => {
+                        if (btn.dataset.color.toLowerCase() === color.toLowerCase()) {
+                            btn.classList.add('active');
+                        } else {
+                            btn.classList.remove('active');
+                        }
+                    });
+                }
+
+                // Listen to preview picker
+                if (previewPicker) {
+                    previewPicker.addEventListener('input', function() {
+                        updatePreviewColor(this.value);
+                    });
+                }
+
+                // Listen to preview text input
+                if (previewText) {
+                    previewText.addEventListener('input', function() {
+                        const value = this.value;
+                        if (/^#[0-9a-fA-F]{6}$/.test(value)) {
+                            updatePreviewColor(value);
+                        }
+                    });
+                }
+
+                // Listen to main form picker (sync to preview)
+                if (mainPicker) {
+                    mainPicker.addEventListener('input', function() {
+                        updatePreviewColor(this.value);
+                    });
+                }
+
+                // Listen to main form text input (sync to preview)
+                if (mainText) {
+                    mainText.addEventListener('input', function() {
+                        const value = this.value;
+                        if (/^#[0-9a-fA-F]{6}$/.test(value)) {
+                            updatePreviewColor(value);
+                        }
+                    });
+                }
+
+                // Preset color buttons
+                presetButtons.forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        updatePreviewColor(this.dataset.color);
+                    });
                 });
 
-                const data = await response.json();
-                showTestResult(data.success ? 'success' : 'error', data.message);
-            } catch (error) {
-                showTestResult('error', 'Failed to send test message.');
-            } finally {
-                sendBtn.disabled = false;
-                sendIcon.classList.remove('hidden');
-                loadingIcon.classList.add('hidden');
-                buttonText.textContent = 'Send Test Message';
-            }
-        };
+                // Initial update on page load
+                const initialColor = previewText?.value || mainText?.value || '#6366f1';
+                updatePreviewColor(initialColor);
 
-        function showTestResult(type, message) {
-            const isSuccess = type === 'success';
-            resultDiv.className = `mb-4 rounded-xl border p-4 flex items-center gap-3 ${isSuccess ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`;
-            resultDiv.innerHTML = `
-                <svg class="w-5 h-5 flex-shrink-0 ${isSuccess ? 'text-emerald-600' : 'text-red-600'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${isSuccess ? 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' : 'M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'}"></path>
-                </svg>
-                <p class="font-medium text-sm ${isSuccess ? 'text-emerald-800' : 'text-red-800'}">${message}</p>
-                <button onclick="document.getElementById('telegram-test-result').classList.add('hidden')" class="ml-auto ${isSuccess ? 'text-emerald-600 hover:text-emerald-800' : 'text-red-600 hover:text-red-800'}">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                </button>
-            `;
-            resultDiv.classList.remove('hidden');
-        }
-        })();
-        @endif
-    });
+                // Chat name sync with preview
+                const chatNameInput = document.getElementById('chat_name');
+                const previewTitle = document.getElementById('widget-preview-title');
+                const domainInput = document.getElementById('domain');
 
-    // Color picker sync - works on both create and edit pages
-    // This runs at the end of the page, DOM is already loaded
-    (function() {
-        const picker = document.getElementById('primary_color_picker');
-        const textInput = document.getElementById('primary_color');
-
-        if (picker && textInput) {
-            // Sync picker to text
-            picker.addEventListener('input', function() {
-                textInput.value = this.value;
-            });
-
-            // Sync text to picker
-            textInput.addEventListener('input', function() {
-                const value = this.value;
-                if (/^#[0-9a-fA-F]{6}$/.test(value)) {
-                    picker.value = value;
+                function updatePreviewTitle() {
+                    if (!previewTitle) return;
+                    const chatName = chatNameInput?.value?.trim();
+                    const domain = domainInput?.value?.trim();
+                    previewTitle.textContent = chatName || domain || 'Project Name';
                 }
-            });
-        }
-    })();
 
-    // Widget preview color sync - only on edit pages
-    @if($isEdit)
-    (function() {
-        const previewPicker = document.getElementById('primary_color_picker_preview');
-        const previewText = document.getElementById('primary_color_text_preview');
-        const mainPicker = document.getElementById('primary_color_picker');
-        const mainText = document.getElementById('primary_color');
-        const presetButtons = document.querySelectorAll('.preset-color-btn');
-
-        function updatePreviewColor(color) {
-            // Update CSS custom property on preview container
-            const containers = document.querySelectorAll('.widget-preview-container');
-            containers.forEach(el => {
-                el.style.setProperty('--widget-primary', color);
-            });
-
-            // Sync all color inputs
-            if (previewPicker && previewPicker.value !== color) {
-                previewPicker.value = color;
-            }
-            if (previewText && previewText.value !== color.toUpperCase()) {
-                previewText.value = color.toUpperCase();
-            }
-            if (mainPicker && mainPicker.value !== color) {
-                mainPicker.value = color;
-            }
-            if (mainText && mainText.value !== color.toUpperCase()) {
-                mainText.value = color.toUpperCase();
-            }
-
-            // Update active preset button
-            presetButtons.forEach(btn => {
-                if (btn.dataset.color.toLowerCase() === color.toLowerCase()) {
-                    btn.classList.add('active');
-                } else {
-                    btn.classList.remove('active');
+                if (chatNameInput) {
+                    chatNameInput.addEventListener('input', updatePreviewTitle);
                 }
-            });
-        }
-
-        // Listen to preview picker
-        if (previewPicker) {
-            previewPicker.addEventListener('input', function() {
-                updatePreviewColor(this.value);
-            });
-        }
-
-        // Listen to preview text input
-        if (previewText) {
-            previewText.addEventListener('input', function() {
-                const value = this.value;
-                if (/^#[0-9a-fA-F]{6}$/.test(value)) {
-                    updatePreviewColor(value);
+                if (domainInput) {
+                    domainInput.addEventListener('input', updatePreviewTitle);
                 }
-            });
-        }
 
-        // Listen to main form picker (sync to preview)
-        if (mainPicker) {
-            mainPicker.addEventListener('input', function() {
-                updatePreviewColor(this.value);
-            });
-        }
-
-        // Listen to main form text input (sync to preview)
-        if (mainText) {
-            mainText.addEventListener('input', function() {
-                const value = this.value;
-                if (/^#[0-9a-fA-F]{6}$/.test(value)) {
-                    updatePreviewColor(value);
-                }
-            });
-        }
-
-        // Preset color buttons
-        presetButtons.forEach(btn => {
-            btn.addEventListener('click', function() {
-                updatePreviewColor(this.dataset.color);
-            });
-        });
-
-        // Initial update on page load
-        const initialColor = previewText?.value || mainText?.value || '#6366f1';
-        updatePreviewColor(initialColor);
-
-        // Chat name sync with preview
-        const chatNameInput = document.getElementById('chat_name');
-        const previewTitle = document.getElementById('widget-preview-title');
-        const domainInput = document.getElementById('domain');
-        
-        function updatePreviewTitle() {
-            if (!previewTitle) return;
-            const chatName = chatNameInput?.value?.trim();
-            const domain = domainInput?.value?.trim();
-            previewTitle.textContent = chatName || domain || 'Project Name';
-        }
-        
-        if (chatNameInput) {
-            chatNameInput.addEventListener('input', updatePreviewTitle);
-        }
-        if (domainInput) {
-            domainInput.addEventListener('input', updatePreviewTitle);
-        }
-        
-        // Initial update
-        updatePreviewTitle();
-    })();
-    @endif
-</script>
-@endpush
+                // Initial update
+                updatePreviewTitle();
+            })();
+            @endif
+        </script>
+    @endpush
 @endsection
