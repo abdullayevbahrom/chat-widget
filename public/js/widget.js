@@ -846,11 +846,9 @@
 
     if (!body) return;
 
-    console.log('[Widget] 📤 Sending message, conversationId:', state.conversationId);
 
     // If no conversation ID, bootstrap first to get one
     if (!state.conversationId) {
-      console.log('[Widget] 🔄 No conversationId, bootstrapping first...');
       try {
         const data = await bootstrap();
         if (!data.success) throw new Error(data.error);
@@ -863,12 +861,9 @@
         if (data.conversation_id) localStorage.setItem('widget_conversation_id', data.conversation_id);
         if (data.visitor_id) localStorage.setItem('widget_visitor_id', data.visitor_id);
 
-        console.log('[Widget] 🔄 Bootstrap returned new conversationId:', data.conversation_id);
-        console.log('[Widget] 🔄 Old conversationId:', oldConversationId);
 
         // Reconnect WebSocket with new conversation if it changed
         if (oldConversationId !== data.conversation_id && state.config?.websocket?.enabled) {
-          console.log('[Widget] 🔄 Reconnecting WebSocket to new conversation...');
           disconnectWebSocket();
           connectWebSocket({
             ...state.config.websocket,
@@ -876,7 +871,6 @@
           });
         }
       } catch (err) {
-        console.error('[Widget] Bootstrap error during send:', err);
         showError('Failed to start conversation');
         return;
       }
@@ -917,12 +911,10 @@
       
       // If server returns a different conversation_id, reconnect WebSocket
       if (result.conversation_id && result.conversation_id !== state.conversationId) {
-        console.log('[Widget] 🔄 Server returned different conversationId:', result.conversation_id);
         state.conversationId = result.conversation_id;
         localStorage.setItem('widget_conversation_id', result.conversation_id);
 
         if (state.config?.websocket?.enabled) {
-          console.log('[Widget] 🔄 Reconnecting WebSocket to server conversation...');
           disconnectWebSocket();
           connectWebSocket({
             ...state.config.websocket,
@@ -933,12 +925,10 @@
 
       // Update visitor_id if server returns a new one
       if (result.visitor_id && result.visitor_id !== state.visitorId) {
-        console.log('[Widget] 🔄 Server returned new visitorId:', result.visitor_id);
         state.visitorId = result.visitor_id;
         localStorage.setItem('widget_visitor_id', result.visitor_id);
       }
     } catch (err) {
-      console.error('[Widget] Send error:', err);
       showError('Network error. Please try again.');
     }
   }
@@ -1136,23 +1126,17 @@
 
   // ===== WebSocket (Pusher with detailed logging) =====
   function connectWebSocket(config) {
-    console.log('[Widget] 🔌 WebSocket connect called');
-    console.log('[Widget] 📦 Config:', JSON.stringify(config, null, 2));
 
     // Load Pusher if not already loaded
     if (typeof Pusher === 'undefined') {
-      console.log('[Widget] 📦 Loading Pusher library...');
       loadScript('https://cdn.jsdelivr.net/npm/pusher-js@8.4.0-rc2/dist/web/pusher.min.js')
         .then(() => {
-          console.log('[Widget] ✅ Pusher loaded successfully');
           initPusher(config);
         })
         .catch((err) => {
-          console.error('[Widget] ❌ Failed to load Pusher:', err);
           showError('Failed to load WebSocket library');
         });
     } else {
-      console.log('[Widget] ✅ Pusher already loaded');
       initPusher(config);
     }
   }
@@ -1160,18 +1144,15 @@
   function loadScript(src) {
     return new Promise((resolve, reject) => {
       if (document.querySelector(`script[src="${src}"]`)) {
-        console.log('[Widget] ℹ️ Script already loaded:', src);
         resolve();
         return;
       }
       const script = document.createElement('script');
       script.src = src;
       script.onload = () => {
-        console.log('[Widget] ✅ Script loaded:', src);
         resolve();
       };
       script.onerror = (err) => {
-        console.error('[Widget] ❌ Script load failed:', src, err);
         reject(err);
       };
       document.head.appendChild(script);
@@ -1180,7 +1161,6 @@
 
   function initPusher(config) {
     try {
-      console.log('[Widget] 🔧 Initializing Pusher...');
 
       // Build WebSocket connection parameters
       const rawHost = config.host || '127.0.0.1';
@@ -1189,13 +1169,6 @@
       const wsPath = config.ws_path || config.use_path || `/app/${config.app_id || 'app-key'}`;
       const channelName = config.channel || `private-conversation.${state.conversationId}`;
 
-      console.log('[Widget] 📡 Connection details:');
-      console.log('  - Host:', wsHost);
-      console.log('  - Port:', wsPort);
-      console.log('  - Path:', wsPath);
-      console.log('  - Channel:', channelName);
-      console.log('  - App Key:', config.app_key);
-      console.log('  - Session ID:', state.sessionId);
 
       // Initialize Pusher
       const pusher = new Pusher(config.app_key || 'app-key', {
@@ -1215,77 +1188,52 @@
         },
       });
 
-      console.log('[Widget] ✅ Pusher instance created');
-      console.log('[Widget] 📝 Auth params will include: session_id=', state.sessionId);
 
       // Connection state logging
       pusher.connection.bind('state_change', (states) => {
-        console.log(`[Widget] 🔌 Connection: ${states.previous} -> ${states.current}`);
       });
 
       pusher.connection.bind('connected', () => {
-        console.log('[Widget] ✅ Pusher connected to server');
       });
 
       pusher.connection.bind('disconnected', () => {
-        console.log('[Widget] 🔌 Pusher disconnected');
       });
 
       pusher.connection.bind('failed', (err) => {
-        console.error('[Widget] ❌ Pusher connection failed:', err);
       });
 
       pusher.connection.bind('error', (err) => {
-        console.error('[Widget] ❌ Pusher connection error:', err);
-        console.error('[Widget] 📦 Error type:', err?.type);
-        console.error('[Widget] 📦 Error details:', JSON.stringify(err, null, 2));
         if (err?.error) {
-          console.error('[Widget] 📦 Inner error:', err.error);
-          console.error('[Widget] 📦 Inner error type:', err.error?.type);
-          console.error('[Widget] 📦 Inner error data:', err.error?.data);
         }
       });
 
       // Subscribe to private channel
-      console.log('[Widget] 📡 Subscribing to channel:', channelName);
       const channel = pusher.subscribe(channelName);
 
       // Channel subscription events
       channel.bind('pusher:subscription_succeeded', () => {
-        console.log('[Widget] ✅ Successfully subscribed to', channelName);
         state.wsConnected = true;
         state.pusher = pusher;
         state.wsChannel = channelName;
       });
 
       channel.bind('pusher:subscription_error', (err) => {
-        console.error('[Widget] ❌ Subscription error:', err);
         showError('Failed to subscribe to chat channel');
       });
 
       channel.bind('pusher:subscription_count', (data) => {
-        console.log('[Widget] 👥 Subscription count:', data);
       });
 
       // Listen for ALL events (debugging)
       channel.bind_global((eventName, data) => {
-        console.log('[Widget] 🌐🌐 GLOBAL EVENT TRIGGERED!');
-        console.log('[Widget] 📛 Event name:', eventName);
-        console.log('[Widget] 📦 Event data type:', typeof data);
-        console.log('[Widget] 📦 Event data:', data);
         try {
-          console.log('[Widget] 📦 Event data JSON:', JSON.stringify(data, null, 2));
         } catch (e) {
-          console.log('[Widget] 📦 Event data (not JSON):', data);
         }
       });
 
       channel.bind('MessageCreated', (data) => {
-        console.log('[Widget] 📨 .MessageCreated event received');
-        console.log('[Widget] 📦 Message data:', JSON.stringify(data, null, 2));
         
         if (!data || !data.id) {
-          console.warn('[Widget] ⚠️ Invalid message data:', data);
           return;
         }
 
@@ -1294,29 +1242,22 @@
 
       // Handle WidgetMessageSent events (admin replies)
       channel.bind('widget.message-sent', (data) => {
-        console.log('[Widget] 📨 widget.message-sent event received');
-        console.log('[Widget] 📦 Event data:', JSON.stringify(data, null, 2));
         
         if (!data) {
-          console.warn('[Widget] ⚠️ Empty event data');
           return;
         }
 
         const msg = data.message || data;
         if (!msg || !msg.id) {
-          console.warn('[Widget] ⚠️ Invalid message in event:', data);
           return;
         }
 
-        console.log('[Widget] 📨 Message from event:', msg);
 
         handleRealtimeMessage(msg);
       });
 
       // Also listen without dot prefix (some Reverb versions)
       channel.bind('widget.message-sent', (data) => {
-        console.log('[Widget] 📨 widget.message-sent (no dot) received');
-        console.log('[Widget] 📦 Data:', JSON.stringify(data, null, 2));
         
         const msg = data.message || data;
         if (!msg || !msg.id) return;
@@ -1326,34 +1267,25 @@
 
       state.pusher = pusher;
       state.wsChannel = channelName;
-      console.log('[Widget] ✅ WebSocket setup complete');
     } catch (err) {
-      console.error('[Widget] ❌ Pusher init error:', err);
-      console.error('[Widget] 📦 Error stack:', err.stack);
       showError('Failed to initialize WebSocket');
     }
   }
 
   function disconnectWebSocket() {
-    console.log('[Widget] 🔌 Disconnecting WebSocket...');
     
     if (state.pusher) {
       try {
         if (state.wsChannel) {
-          console.log('[Widget] 📡 Unsubscribing from:', state.wsChannel);
           state.pusher.unsubscribe(state.wsChannel);
         }
-        console.log('[Widget] 🔌 Disconnecting Pusher');
         state.pusher.disconnect();
       } catch (err) {
-        console.error('[Widget] ❌ Error during disconnect:', err);
       }
       state.pusher = null;
       state.wsChannel = null;
       state.wsConnected = false;
-      console.log('[Widget] ✅ WebSocket disconnected');
     } else {
-      console.log('[Widget] ℹ️ WebSocket already disconnected');
     }
   }
 
@@ -1378,7 +1310,6 @@
       state.conversations = data.conversations || [];
       renderConversationsView();
     } catch (err) {
-      console.error('[Widget] Conversations fetch error:', err);
       showError('Failed to load conversations');
     }
   }
@@ -1522,9 +1453,7 @@
         state.messages.forEach(msg => addMessage(msg));
       }
 
-      console.log(`[Widget] 📬 Loaded ${state.messages.length} messages for conversation`);
     } catch (err) {
-      console.error('[Widget] Fetch messages error:', err);
     }
   }
 
@@ -1561,7 +1490,6 @@
 
       showChatView();
     } catch (err) {
-      console.error('[Widget] Open conversation error:', err);
       showError('Failed to load conversation');
     }
   }
@@ -1777,7 +1705,6 @@
       }
 
     } catch (err) {
-      console.error('[Widget] Bootstrap error:', err);
       showError(err.message || 'Failed to start chat');
     }
   }
@@ -1806,7 +1733,6 @@
             state.config = await fetchConfig();
             applyWidgetConfig(state.config);
           } catch (err) {
-            console.error('[Widget] Config error:', err);
             showError('Failed to load widget settings');
             return;
           }
@@ -1852,7 +1778,6 @@
     document.body.appendChild(elements.window);
     applyWidgetConfig(state.config);
 
-    console.log(`[Widget] v${SDK_VERSION} initialized`);
   }
 
   if (document.readyState === 'loading') {
