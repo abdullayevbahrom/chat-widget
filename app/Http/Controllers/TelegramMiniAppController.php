@@ -89,7 +89,7 @@ class TelegramMiniAppController extends Controller
         return response()->json([
             'success' => true,
             'message' => [
-                'id' => $freshMessage->id,
+                'id' => $freshMessage->public_id,
                 'body' => $freshMessage->body,
                 'created_at' => $freshMessage->created_at->format('Y-m-d H:i'),
                 'type' => 'admin',
