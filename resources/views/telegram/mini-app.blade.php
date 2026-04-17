@@ -46,19 +46,19 @@
 
                     <div id="messages-list" class="max-h-[60vh] space-y-3 overflow-y-auto p-4">
                         @foreach($messages as $message)
-                            @php
-        $isAgent = $message->sender instanceof \App\Models\User || $message->sender instanceof \App\Models\Tenant;
-                            @endphp
-                            <div class="flex {{ $isAgent ? 'justify-end' : 'justify-start' }}"
-                                data-message-id="{{ $message->public_id }}">
-                                <div
-                                    class="max-w-[80%] rounded-md px-3 py-2 text-sm {{ $isAgent ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-900' }}">
-                                    <div>{{ $message->body }}</div>
-                                    <div class="mt-1 text-[11px] {{ $isAgent ? 'text-blue-100' : 'text-gray-500' }}">
-                                        {{ $message->created_at->format('Y-m-d H:i') }}
-                                    </div>
-                                </div>
-                            </div>
+                                                @php
+                            $isAgent = $message->sender instanceof \App\Models\User || $message->sender instanceof \App\Models\Tenant;
+                                                @endphp
+                                                <div class="flex {{ $isAgent ? 'justify-end' : 'justify-start' }}"
+                                                    data-message-id="{{ $message->public_id ?? $message->id }}">
+                                                    <div
+                                                        class="max-w-[80%] rounded-md px-3 py-2 text-sm {{ $isAgent ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-900' }}">
+                                                        <div>{{ $message->body }}</div>
+                                                        <div class="mt-1 text-[11px] {{ $isAgent ? 'text-blue-100' : 'text-gray-500' }}">
+                                                            {{ $message->created_at->format('Y-m-d H:i') }}
+                                                        </div>
+                                                    </div>
+                                                </div>
                         @endforeach
                     </div>
 
