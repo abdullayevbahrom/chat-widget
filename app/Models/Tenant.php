@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -17,6 +18,8 @@ class Tenant extends Model
     use HasFactory;
 
     protected static ?self $currentTenant = null;
+
+    protected static bool $bypassContext = false;
 
     protected $fillable = [
         'user_id',
@@ -58,6 +61,45 @@ class Tenant extends Model
         static::$currentTenant = null;
     }
 
+    public static function setBypass(bool $enabled): void
+    {
+        static::$bypassContext = $enabled;
+    }
+
+    public static function disableBypass(): void
+    {
+        static::$bypassContext = false;
+    }
+
+    public static function isBypassingContext(): bool
+    {
+        return static::$bypassContext;
+    }
+
+    /**
+     * Run a callback without tenant context checks and then restore the prior state.
+     *
+     * @template TReturn
+     *
+     * @param  callable(): TReturn  $callback
+     * @return TReturn
+     */
+    public static function withoutTenantContext(callable $callback): mixed
+    {
+        $previousTenant = static::$currentTenant;
+        $previousBypass = static::$bypassContext;
+
+        static::$currentTenant = null;
+        static::$bypassContext = true;
+
+        try {
+            return $callback();
+        } finally {
+            static::$currentTenant = $previousTenant;
+            static::$bypassContext = $previousBypass;
+        }
+    }
+
     protected function casts(): array
     {
         return [
@@ -94,7 +136,22 @@ class Tenant extends Model
     {
         return $this->hasMany(Project::class);
     }
-   
+
+    public function users(): HasMany
+    {
+        return $this->hasMany(User::class);
+    }
+
+    public function conversations(): HasMany
+    {
+        return $this->hasMany(Conversation::class);
+    }
+
+    public function messages(): MorphMany
+    {
+        return $this->morphMany(Message::class, 'sender');
+    }
+
     public function invalidateSessions(): void
     {
         // Get all users belonging to this tenant

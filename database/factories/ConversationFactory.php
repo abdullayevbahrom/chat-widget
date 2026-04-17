@@ -64,8 +64,8 @@ class ConversationFactory extends Factory
     {
         return $this
             ->afterMaking(function (Conversation $conversation): void {
-                if ($conversation->project !== null) {
-                    $conversation->tenant()->associate($conversation->project->tenant);
+                if ($conversation->project !== null && $conversation->tenant_id === null) {
+                    $conversation->tenant_id = $conversation->project->tenant_id;
                 }
             })
             ->afterCreating(function (Conversation $conversation): void {

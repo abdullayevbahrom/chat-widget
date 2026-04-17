@@ -29,8 +29,7 @@ class TenantScope implements Scope
      */
     public function __construct(
         protected ?string $relationColumn = null,
-    ) {
-    }
+    ) {}
 
     /**
      * Apply the scope to a given Eloquent query builder.
@@ -39,6 +38,10 @@ class TenantScope implements Scope
     {
         // In testing environment, skip tenant scope to allow test data creation
         if (app()->environment('testing')) {
+            return;
+        }
+
+        if (Tenant::isBypassingContext()) {
             return;
         }
 
@@ -91,7 +94,7 @@ class TenantScope implements Scope
         $hasTenantColumn = $this->modelHasTenantColumn($model);
 
         if ($hasTenantColumn) {
-            $builder->where($model->getTable() . '.tenant_id', $currentTenant->id);
+            $builder->where($model->getTable().'.tenant_id', $currentTenant->id);
 
             return;
         }
@@ -107,7 +110,7 @@ class TenantScope implements Scope
 
         // Fallback: agar tenant_id ustuni ham, relation ham bo'lmasa,
         // jadval nomiga tenant_id qo'shib where() ishlatamiz
-        $builder->where($model->getTable() . '.tenant_id', $currentTenant->id);
+        $builder->where($model->getTable().'.tenant_id', $currentTenant->id);
     }
 
     /**
@@ -138,6 +141,6 @@ class TenantScope implements Scope
      */
     protected function isHttpContext(): bool
     {
-        return !app()->runningInConsole() && app('request') !== null;
+        return ! app()->runningInConsole() && app('request') !== null;
     }
 }

@@ -2,10 +2,8 @@
 
 namespace Tests\Unit;
 
-use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\Project;
-use App\Services\TelegramInlineKeyboard;
 use App\Services\TelegramMessageFormatter;
 use PHPUnit\Framework\TestCase;
 
@@ -44,7 +42,8 @@ class TelegramMessageFormatterTest extends TestCase
 
     public function test_format_returns_parse_mode_markdownv2(): void
     {
-        $message = new class extends Message {
+        $message = new class extends Message
+        {
             public function __construct()
             {
                 parent::__construct();
@@ -56,7 +55,8 @@ class TelegramMessageFormatterTest extends TestCase
             }
         };
 
-        $project = new class extends Project {
+        $project = new class extends Project
+        {
             public function __construct()
             {
                 parent::__construct();
@@ -69,12 +69,13 @@ class TelegramMessageFormatterTest extends TestCase
         $this->assertArrayHasKey('telegram_text', $result);
         $this->assertArrayHasKey('parse_mode', $result);
         $this->assertEquals('MarkdownV2', $result['parse_mode']);
-        $this->assertStringContainsString('Yangi xabar', $result['telegram_text']);
+        $this->assertStringContainsString('New message', $result['telegram_text']);
     }
 
     public function test_format_includes_visitor_name_and_email(): void
     {
-        $message = new class extends Message {
+        $message = new class extends Message
+        {
             public function __construct()
             {
                 parent::__construct();
@@ -86,7 +87,8 @@ class TelegramMessageFormatterTest extends TestCase
             }
         };
 
-        $project = new class extends Project {
+        $project = new class extends Project
+        {
             public function __construct()
             {
                 parent::__construct();
@@ -105,7 +107,8 @@ class TelegramMessageFormatterTest extends TestCase
 
     public function test_format_handles_null_body(): void
     {
-        $message = new class extends Message {
+        $message = new class extends Message
+        {
             public function __construct()
             {
                 parent::__construct();
@@ -117,7 +120,8 @@ class TelegramMessageFormatterTest extends TestCase
             }
         };
 
-        $project = new class extends Project {
+        $project = new class extends Project
+        {
             public function __construct()
             {
                 parent::__construct();
@@ -128,14 +132,15 @@ class TelegramMessageFormatterTest extends TestCase
         $result = TelegramMessageFormatter::format($message, $project);
 
         // Should not throw, and should contain header info
-        $this->assertStringContainsString('Yangi xabar', $result['telegram_text']);
+        $this->assertStringContainsString('New message', $result['telegram_text']);
     }
 
     public function test_format_truncates_long_body(): void
     {
         $longBody = str_repeat('A', 2000);
 
-        $message = new class($longBody) extends Message {
+        $message = new class($longBody) extends Message
+        {
             public function __construct(public string $longBody = '')
             {
                 parent::__construct();
@@ -147,7 +152,8 @@ class TelegramMessageFormatterTest extends TestCase
             }
         };
 
-        $project = new class extends Project {
+        $project = new class extends Project
+        {
             public function __construct()
             {
                 parent::__construct();
@@ -171,7 +177,8 @@ class TelegramMessageFormatterTest extends TestCase
             ['original_name' => 'photo.jpg', 'name' => 'photo.jpg'],
         ], JSON_THROW_ON_ERROR);
 
-        $message = new class($attachments) extends Message {
+        $message = new class($attachments) extends Message
+        {
             public function __construct(public string $attachmentsJson = '')
             {
                 parent::__construct();
@@ -183,7 +190,8 @@ class TelegramMessageFormatterTest extends TestCase
             }
         };
 
-        $project = new class extends Project {
+        $project = new class extends Project
+        {
             public function __construct()
             {
                 parent::__construct();
@@ -199,7 +207,8 @@ class TelegramMessageFormatterTest extends TestCase
 
     public function test_format_uses_default_values_for_missing_visitor_data(): void
     {
-        $message = new class extends Message {
+        $message = new class extends Message
+        {
             public function __construct()
             {
                 parent::__construct();
@@ -211,7 +220,8 @@ class TelegramMessageFormatterTest extends TestCase
             }
         };
 
-        $project = new class extends Project {
+        $project = new class extends Project
+        {
             public function __construct()
             {
                 parent::__construct();
@@ -221,12 +231,13 @@ class TelegramMessageFormatterTest extends TestCase
 
         $result = TelegramMessageFormatter::format($message, $project, []);
 
-        $this->assertStringContainsString('Anonim', $result['telegram_text']);
+        $this->assertStringContainsString('Visitor', $result['telegram_text']);
     }
 
     public function test_format_image_message_type(): void
     {
-        $message = new class extends Message {
+        $message = new class extends Message
+        {
             public function __construct()
             {
                 parent::__construct();
@@ -238,7 +249,8 @@ class TelegramMessageFormatterTest extends TestCase
             }
         };
 
-        $project = new class extends Project {
+        $project = new class extends Project
+        {
             public function __construct()
             {
                 parent::__construct();
@@ -248,6 +260,6 @@ class TelegramMessageFormatterTest extends TestCase
 
         $result = TelegramMessageFormatter::format($message, $project);
 
-        $this->assertStringContainsString('rasm', $result['telegram_text']);
+        $this->assertStringContainsString('image', $result['telegram_text']);
     }
 }

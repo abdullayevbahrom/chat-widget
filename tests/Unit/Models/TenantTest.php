@@ -3,9 +3,11 @@
 namespace Tests\Unit\Models;
 
 use App\Models\Conversation;
-use App\Models\Message;
+use App\Models\Project;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Models\Visitor;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
@@ -17,8 +19,7 @@ class TenantTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        // Tenant testlar uchun bypass yoqamiz
-        Tenant::setBypass(true);
+        Tenant::setBypass(false);
     }
 
     #[Test]
@@ -125,19 +126,19 @@ class TenantTest extends TestCase
     public function it_has_conversations_relationship(): void
     {
         $tenant = Tenant::factory()->create();
-        $project = \App\Models\Project::factory()->create([
+        $project = Project::factory()->create([
             'tenant_id' => $tenant->id,
             'settings' => ['widget' => ['theme' => 'light']],
         ]);
-        $visitor1 = \App\Models\Visitor::factory()->create(['tenant_id' => $tenant->id]);
-        $visitor2 = \App\Models\Visitor::factory()->create(['tenant_id' => $tenant->id]);
-        \App\Models\Conversation::factory()->create([
+        $visitor1 = Visitor::factory()->create(['tenant_id' => $tenant->id]);
+        $visitor2 = Visitor::factory()->create(['tenant_id' => $tenant->id]);
+        Conversation::factory()->create([
             'tenant_id' => $tenant->id,
             'project_id' => $project->id,
             'visitor_id' => $visitor1->id,
             'status' => 'open',
         ]);
-        \App\Models\Conversation::factory()->closed()->create([
+        Conversation::factory()->closed()->create([
             'tenant_id' => $tenant->id,
             'project_id' => $project->id,
             'visitor_id' => $visitor2->id,
@@ -151,7 +152,7 @@ class TenantTest extends TestCase
     {
         $tenant = Tenant::factory()->create();
 
-        $this->assertInstanceOf(\Illuminate\Database\Eloquent\Relations\MorphMany::class, $tenant->messages());
+        $this->assertInstanceOf(MorphMany::class, $tenant->messages());
     }
 
     #[Test]

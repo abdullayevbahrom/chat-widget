@@ -28,7 +28,7 @@ bash:
 	@$(PHP) bash
 
 psql:
-	@$(DB) psql -U $(DB_USER) -d $(DB_NAME)
+	@$(DB) psql -U $(DB_USERNAME) -d $(DB_DATABASE)
 
 ci:
 	@$(PHP) $(CI)
@@ -53,3 +53,7 @@ pull:
 	@$(PHP) php artisan optimize:clear
 	@$(PHP) php artisan optimize
 	@docker image prune -f
+
+test:
+	@$(DB) psql -U $(DB_USERNAME) -d postgres -c "CREATE DATABASE widget_test" >/dev/null 2>&1 || true
+	@$(PHP) php artisan test

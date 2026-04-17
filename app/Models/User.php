@@ -5,15 +5,15 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Laravel\Sanctum\NewAccessToken;
 
-#[Fillable(['name', 'email', 'password', 'is_super_admin', 'email_verified_at', 'telegram_user_id'])]
+#[Fillable(['name', 'email', 'password', 'tenant_id', 'is_super_admin', 'email_verified_at', 'telegram_user_id'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -38,9 +38,9 @@ class User extends Authenticatable
         return ! $this->isSuperAdmin() && $this->tenant !== null;
     }
 
-    public function tenant(): HasOne
+    public function tenant(): BelongsTo
     {
-        return $this->hasOne(Tenant::class);
+        return $this->belongsTo(Tenant::class);
     }
 
     public function assignedConversations(): HasMany

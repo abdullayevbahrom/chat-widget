@@ -7,8 +7,8 @@ use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
 
 class TenantAuthController extends Controller
@@ -30,11 +30,13 @@ class TenantAuthController extends Controller
         if ($user && $user->is_super_admin) {
             if (Auth::guard('web')->attempt($credentials, $request->boolean('remember'))) {
                 $request->session()->regenerate();
+
                 return redirect()->intended('/admin');
             }
         } else {
             if (Auth::guard('tenant_user')->attempt($credentials, $request->boolean('remember'))) {
                 $request->session()->regenerate();
+
                 return redirect()->intended('/dashboard');
             }
         }
@@ -67,7 +69,7 @@ class TenantAuthController extends Controller
             $counter = 1;
 
             while (Tenant::where('slug', $slug)->exists()) {
-                $slug = $baseSlug . '-' . $counter;
+                $slug = $baseSlug.'-'.$counter;
                 $counter++;
             }
 
@@ -79,7 +81,7 @@ class TenantAuthController extends Controller
                 'email_verified_at' => now(),
             ]);
 
-            Tenant::create([
+            $tenant = Tenant::create([
                 'name' => $emailUsername,
                 'user_id' => $user->id,
                 'slug' => $slug,
@@ -87,6 +89,10 @@ class TenantAuthController extends Controller
                 'plan' => 'free',
                 'subscription_expires_at' => null,
             ]);
+
+            $user->forceFill([
+                'tenant_id' => $tenant->id,
+            ])->save();
 
             return $user;
         });

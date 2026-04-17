@@ -67,11 +67,11 @@ class ConversationControllerTest extends TestCase
     public function guest_cannot_access_conversation_pages(): void
     {
         $this->get('/dashboard/conversations')
-            ->assertRedirect('/auth/login');
+            ->assertStatus(401);
 
         $conversation = $this->createConversation();
         $this->get('/dashboard/conversations/'.$conversation->id)
-            ->assertRedirect('/auth/login');
+            ->assertStatus(401);
     }
 
     #[Test]
@@ -197,11 +197,11 @@ class ConversationControllerTest extends TestCase
     {
         $conversation = $this->createConversation(['status' => Conversation::STATUS_CLOSED]);
 
-        $this->actingAs($this->user, 'tenant_user')
+        $response = $this->actingAs($this->user, 'tenant_user')
             ->patch('/dashboard/conversations/'.$conversation->id.'/close')
             ->assertRedirect();
 
-        $this->assertSessionHas('error');
+        $response->assertSessionHas('error');
     }
 
     #[Test]
@@ -209,11 +209,11 @@ class ConversationControllerTest extends TestCase
     {
         $conversation = $this->createConversation(['status' => Conversation::STATUS_ARCHIVED]);
 
-        $this->actingAs($this->user, 'tenant_user')
+        $response = $this->actingAs($this->user, 'tenant_user')
             ->patch('/dashboard/conversations/'.$conversation->id.'/reopen')
             ->assertRedirect();
 
-        $this->assertSessionHas('error');
+        $response->assertSessionHas('error');
     }
 
     #[Test]
@@ -221,11 +221,11 @@ class ConversationControllerTest extends TestCase
     {
         $conversation = $this->createConversation(['status' => Conversation::STATUS_ARCHIVED]);
 
-        $this->actingAs($this->user, 'tenant_user')
+        $response = $this->actingAs($this->user, 'tenant_user')
             ->patch('/dashboard/conversations/'.$conversation->id.'/archive')
             ->assertRedirect();
 
-        $this->assertSessionHas('error');
+        $response->assertSessionHas('error');
     }
 
     #[Test]

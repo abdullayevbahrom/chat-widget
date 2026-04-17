@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\Project;
+use App\Models\Visitor;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -39,16 +40,8 @@ class TelegramService
 
         $token = $project->telegram_bot_token;
 
-        // Format message with metadata
-        $message = sprintf(
-            "💬 *New Message*\n\n%s\n\n*Conversation:* #%d\n*Domain:* %s",
-            $text,
-            $conversation->id,
-            $project->domain ?? 'unknown'
-        );
-
-        // Add inline keyboard with conversation ID for reply tracking
-        $replyMarkup = json_encode(TelegramInlineKeyboard::buildForConversation($conversation, $project));
+        $replyMarkup = TelegramInlineKeyboard::buildForConversation($conversation, $project);
+        $formattedMessage = $this->buildTelegramNotification($conversation, $project, $text, $sourceMessage);
         $firstMessageId = null;
 
         foreach ($admins as $admin) {
@@ -57,9 +50,9 @@ class TelegramService
                     "https://api.telegram.org/bot{$token}/sendMessage",
                     [
                         'chat_id' => $admin['chat_id'],
-                        'text' => $message,
-                        'parse_mode' => 'Markdown',
-                        'reply_markup' => $replyMarkup,
+                        'text' => $formattedMessage['telegram_text'],
+                        'parse_mode' => $formattedMessage['parse_mode'],
+                        'reply_markup' => json_encode($replyMarkup, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
                     ]
                 );
 
@@ -287,5 +280,39 @@ class TelegramService
     protected function escapeHtml(string $value): string
     {
         return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
+
+    /**
+     * @return array{telegram_text: string, parse_mode: string}
+     */
+    protected function buildTelegramNotification(
+        Conversation $conversation,
+        Project $project,
+        string $text,
+        ?Message $sourceMessage = null
+    ): array {
+        if ($sourceMessage !== null) {
+            $visitorData = [];
+            $sender = $sourceMessage->sender()->withoutGlobalScopes()->first();
+
+            if ($sender instanceof Visitor) {
+                $visitorData = [
+                    'visitor_name' => $sender->name,
+                    'visitor_email' => $sender->email,
+                ];
+            }
+
+            return TelegramMessageFormatter::format($sourceMessage, $project, $visitorData);
+        }
+
+        $fallbackMessage = new Message([
+            'conversation_id' => $conversation->id,
+            'message_type' => Message::TYPE_TEXT,
+            'body' => $text,
+            'attachments' => null,
+            'metadata' => [],
+        ]);
+
+        return TelegramMessageFormatter::format($fallbackMessage, $project);
     }
 }

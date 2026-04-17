@@ -2,9 +2,14 @@
 
 namespace Tests\Unit\Models;
 
+use App\Models\Conversation;
+use App\Models\Project;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Models\Visitor;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Laravel\Sanctum\Sanctum;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
@@ -63,7 +68,7 @@ class UserTest extends TestCase
         Sanctum::actingAs($user);
 
         $this->assertInstanceOf(
-            \Illuminate\Database\Eloquent\Relations\MorphMany::class,
+            MorphMany::class,
             $user->tokens()
         );
     }
@@ -91,7 +96,7 @@ class UserTest extends TestCase
             'email_verified_at' => now(),
         ]);
 
-        $this->assertInstanceOf(\Illuminate\Support\Carbon::class, $user->email_verified_at);
+        $this->assertInstanceOf(Carbon::class, $user->email_verified_at);
     }
 
     #[Test]
@@ -99,16 +104,16 @@ class UserTest extends TestCase
     {
         $tenant = Tenant::factory()->create();
         $user = User::factory()->create(['tenant_id' => $tenant->id]);
-        $project = \App\Models\Project::factory()->create(['tenant_id' => $tenant->id]);
-        $visitor1 = \App\Models\Visitor::factory()->create(['tenant_id' => $tenant->id]);
-        $visitor2 = \App\Models\Visitor::factory()->create(['tenant_id' => $tenant->id]);
-        \App\Models\Conversation::factory()->create([
+        $project = Project::factory()->create(['tenant_id' => $tenant->id]);
+        $visitor1 = Visitor::factory()->create(['tenant_id' => $tenant->id]);
+        $visitor2 = Visitor::factory()->create(['tenant_id' => $tenant->id]);
+        Conversation::factory()->create([
             'tenant_id' => $tenant->id,
             'project_id' => $project->id,
             'visitor_id' => $visitor1->id,
             'assigned_to' => $user->id,
         ]);
-        \App\Models\Conversation::factory()->closed()->create([
+        Conversation::factory()->closed()->create([
             'tenant_id' => $tenant->id,
             'project_id' => $project->id,
             'visitor_id' => $visitor2->id,
@@ -124,7 +129,7 @@ class UserTest extends TestCase
         $user = User::factory()->create();
 
         $this->assertInstanceOf(
-            \Illuminate\Database\Eloquent\Relations\MorphMany::class,
+            MorphMany::class,
             $user->messages()
         );
     }
@@ -150,7 +155,7 @@ class UserTest extends TestCase
 
         $this->assertEquals('Test User', $user->name);
         $this->assertEquals('test@example.com', $user->email);
-        $this->assertEquals(1, $user->tenant->id);
+        $this->assertEquals(1, $user->tenant_id);
         $this->assertEquals('987654', $user->telegram_user_id);
     }
 }

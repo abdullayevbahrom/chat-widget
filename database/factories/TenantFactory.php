@@ -26,19 +26,6 @@ class TenantFactory extends Factory
             'plan' => fake()->randomElement(['free', 'basic', 'pro', 'enterprise']),
             'subscription_expires_at' => fake()->optional()->dateTimeBetween('now', '+2 years'),
             'settings' => null,
-            // Profile fields
-            'company_name' => $name,
-            'company_registration_number' => fake()->optional()->numerify('#########'),
-            'tax_id' => fake()->optional()->numerify('###########'),
-            'company_address' => fake()->optional()->address(),
-            'company_city' => fake()->optional()->city(),
-            'company_country' => fake()->optional()->randomElement(['US', 'GB', 'DE', 'FR', 'JP', 'UZ']),
-            'contact_phone' => fake()->optional()->phoneNumber(),
-            'contact_email' => fake()->optional()->safeEmail(),
-            'website' => fake()->optional()->url(),
-            'logo_path' => null,
-            'primary_contact_name' => fake()->optional()->name(),
-            'primary_contact_title' => fake()->optional()->jobTitle(),
         ];
     }
 
