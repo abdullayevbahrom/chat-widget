@@ -657,7 +657,7 @@ class TelegramWebhookController extends Controller
                 'error' => $e->getMessage(),
             ]);
 
-            $this->answerCallbackWithError($project, $callbackQueryId, 'Yopishda xatolik yuz berdi');
+            $this->answerCallbackWithError($project, $callbackQueryId, 'Error closing conversation');
         }
 
         return response()->json(['ok' => true, 'result' => true]);
@@ -683,7 +683,7 @@ class TelegramWebhookController extends Controller
             ->find($conversationId);
 
         if ($conversation === null) {
-            $this->answerCallbackWithError($project, $callbackQueryId, 'Suhbat topilmadi');
+            $this->answerCallbackWithError($project, $callbackQueryId, 'Conversation not found');
 
             return response()->json(['ok' => true, 'result' => true]);
         }
@@ -692,7 +692,7 @@ class TelegramWebhookController extends Controller
         $telegramUserId = $from['id'] ?? null;
 
         if ($telegramUserId === null) {
-            $this->answerCallbackWithError($project, $callbackQueryId, 'Foydalanuvchi aniqlanmadi');
+            $this->answerCallbackWithError($project, $callbackQueryId, 'User not found');
 
             return response()->json(['ok' => true, 'result' => true]);
         }
@@ -711,7 +711,7 @@ class TelegramWebhookController extends Controller
                 'is_super_admin' => $user?->is_super_admin ?? false,
             ]);
 
-            $this->answerCallbackWithError($project, $callbackQueryId, 'Ruxsat berilmagan');
+            $this->answerCallbackWithError($project, $callbackQueryId, 'Access denied');
 
             return response()->json(['ok' => true, 'result' => true]);
         }
@@ -745,7 +745,7 @@ class TelegramWebhookController extends Controller
                 'error' => $e->getMessage(),
             ]);
 
-            $this->answerCallbackWithError($project, $callbackQueryId, 'Tayinlashda xatolik yuz berdi');
+            $this->answerCallbackWithError($project, $callbackQueryId, 'Error assigning conversation');
         }
 
         return response()->json(['ok' => true, 'result' => true]);

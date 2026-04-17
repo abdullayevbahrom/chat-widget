@@ -50,14 +50,14 @@ class TelegramInlineKeyboardTest extends TestCase
 
         // First row: Reply and Close
         $this->assertCount(2, $keyboard['inline_keyboard'][0]);
-        $this->assertEquals('💬 Javob', $keyboard['inline_keyboard'][0][0]['text']);
+        $this->assertEquals('💬 Reply', $keyboard['inline_keyboard'][0][0]['text']);
         $this->assertArrayHasKey('url', $keyboard['inline_keyboard'][0][0]);
-        $this->assertEquals('🔒 Yopish', $keyboard['inline_keyboard'][0][1]['text']);
+        $this->assertEquals('🔒 Close', $keyboard['inline_keyboard'][0][1]['text']);
         $this->assertStringContainsString('close:1:42:', $keyboard['inline_keyboard'][0][1]['callback_data']);
 
         // Second row: Assign and Dashboard
         $this->assertCount(2, $keyboard['inline_keyboard'][1]);
-        $this->assertEquals('👤 Menga tayinlash', $keyboard['inline_keyboard'][1][0]['text']);
+        $this->assertEquals('👤 Assign to me', $keyboard['inline_keyboard'][1][0]['text']);
         $this->assertStringContainsString('assign:1:42:', $keyboard['inline_keyboard'][1][0]['callback_data']);
         $this->assertArrayHasKey('url', $keyboard['inline_keyboard'][1][1]);
     }

@@ -34,17 +34,17 @@ class TelegramInlineKeyboard
             'inline_keyboard' => [
                 [
                     [
-                        'text' => '💬 Javob',
+                        'text' => '💬 Reply',
                         'url' => self::buildMiniAppUrl($conversation, $project),
                     ],
                     [
-                        'text' => '🔒 Yopish',
+                        'text' => '🔒 Close',
                         'callback_data' => 'close:'.$conversation->tenant_id.':'.$conversationId.':'.$signature,
                     ],
                 ],
                 [
                     [
-                        'text' => '👤 Menga tayinlash',
+                        'text' => '👤 Assign to me',
                         'callback_data' => 'assign:'.$conversation->tenant_id.':'.$conversationId.':'.$signature,
                     ],
                     [
@@ -91,17 +91,17 @@ class TelegramInlineKeyboard
             'inline_keyboard' => [
                 [
                     [
-                        'text' => '💬 Javob',
+                        'text' => '💬 Reply',
                         'url' => self::buildMiniAppUrl($conversation, $project),
                     ],
                     [
-                        'text' => '🔒 Yopish',
+                        'text' => '🔒 Close',
                         'callback_data' => 'close:'.$conversation->tenant_id.':'.$conversation->id.':'.$signature,
                     ],
                 ],
                 [
                     [
-                        'text' => '✅ Tayinlangan',
+                        'text' => '✅ Assigned',
                         'callback_data' => 'assigned_ack',
                     ],
                     [
