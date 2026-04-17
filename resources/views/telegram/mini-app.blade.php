@@ -179,10 +179,7 @@
                         wsPort: @json((int) config('services.reverb_client.port')),
                         wssPort: @json((int) config('services.reverb_client.port')),
                         enabledTransports: ['ws', 'wss'],
-                        authEndpoint: @json(\Illuminate\Support\Facades\URL::signedRoute('telegram.mini-app.broadcast-auth', [
-                            'project' => $project->id,
-                            'conversation' => $conversation->public_id,
-                        ])),
+                        authEndpoint: @json(\Illuminate\Support\Facades\URL::signedRoute('telegram.mini-app.broadcast-auth', ['project' => $project->id,'conversation' => $conversation->public_id])),
                         auth: {
                             headers: {
                                 'X-CSRF-TOKEN': @json(csrf_token()),
