@@ -11,11 +11,6 @@ class TelegramMessageFormatter
 
     public const MAX_BODY_LENGTH = 1000;
 
-    protected const MARKDOWN_SPECIAL_CHARS = [
-        '\\', '_', '*', '[', ']', '(', ')', '~', '`', '>',
-        '#', '+', '-', '=', '|', '{', '}', '.', '!',
-    ];
-
     /**
      * @param  array<string, mixed>  $visitorData
      * @return array{telegram_text: string, parse_mode: string}
@@ -24,64 +19,59 @@ class TelegramMessageFormatter
     {
         $visitorName = $visitorData['visitor_name'] ?? ($message->metadata['visitor_name'] ?? 'Visitor');
         $visitorEmail = $visitorData['visitor_email'] ?? ($message->metadata['visitor_email'] ?? null);
-
-        $escapedName = self::escape(self::truncate((string) $visitorName, 100));
-        $escapedEmail = $visitorEmail !== null && $visitorEmail !== ''
-            ? self::escape(self::truncate((string) $visitorEmail, 100))
-            : 'not provided';
-        $escapedProjectName = self::escape(self::truncate((string) ($project->name ?? 'Unknown project'), 100));
-
+    
+        // HTML uchun escape (PHP'ning standart funksiyasi)
+        $eName = self::e($visitorName);
+        $eEmail = $visitorEmail ? self::e($visitorEmail) : 'not provided';
+        $eProject = self::e($project->name ?? 'Unknown');
+        $eConvId = self::e((string)$message->conversation_id);
+    
         $parts = [
-            '\📨 *New message*',
+            '📨 <b>New message</b>',
             '',
-            '\👤 *Visitor:* '.$escapedName,
-            '\📧 *Email:* '.$escapedEmail,
-            '\🏷️ *Project:* '.$escapedProjectName,
-            '\🆔 *Conversation:* \#'.self::escape((string) $message->conversation_id),
+            '👤 <b>Visitor:</b> ' . $eName,
+            '📧 <b>Email:</b> ' . $eEmail,
+            '🏷️ <b>Project:</b> ' . $eProject,
+            '🆔 <b>Conversation:</b> #' . $eConvId,
         ];
-
-        $bodySection = self::formatBody($message);
-        if ($bodySection !== '') {
+    
+        $body = self::e(self::truncate($message->body ?? '', self::MAX_BODY_LENGTH));
+        if ($body !== '') {
             $parts[] = '';
-            $parts[] = $bodySection;
+            $parts[] = "💬 <b>Message:</b>\n" . $body;
         }
-
-        $attachmentSection = self::formatAttachments($message);
-        if ($attachmentSection !== '') {
-            $parts[] = '';
-            $parts[] = $attachmentSection;
-        }
-
+    
         $parts[] = '';
-        $parts[] = '\_Reply to this message or use the buttons below\._';
-
-        $text = implode("\n", $parts);
-
-        if (mb_strlen($text) > self::MAX_MESSAGE_LENGTH) {
-            $text = mb_substr($text, 0, self::MAX_MESSAGE_LENGTH - 3).'...';
-        }
-
+        $parts[] = '<i>Reply to this message or use the buttons below.</i>';
+    
         return [
-            'telegram_text' => $text,
-            'parse_mode' => 'MarkdownV2',
+            'telegram_text' => implode("\n", $parts),
+            'parse_mode' => 'HTML', // MarkdownV2 emas, HTML!
         ];
+    }
+    
+    // Yordamchi metod
+    protected static function e(string $text): string
+    {
+        return htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 
     protected static function formatBody(Message $message): string
     {
         $body = $message->body;
-
+    
         if ($body === null || $body === '') {
             return '';
         }
-
-        $escapedBody = self::escape(self::truncate($body, self::MAX_BODY_LENGTH));
-
+    
+        // HTML uchun xavfsiz holatga keltiramiz
+        $escapedBody = self::e(self::truncate($body, self::MAX_BODY_LENGTH));
+    
         return match ($message->message_type) {
-            Message::TYPE_IMAGE => '\🖼 *Message \(image\):*'."\n".$escapedBody,
-            Message::TYPE_FILE => '\📎 *Message \(file\):*'."\n".$escapedBody,
-            Message::TYPE_SYSTEM => '\ℹ️ *System message:*'."\n".$escapedBody,
-            default => '\💬 *Message:*'."\n".$escapedBody,
+            Message::TYPE_IMAGE => "🖼 <b>Message (image):</b>\n" . $escapedBody,
+            Message::TYPE_FILE => "📎 <b>Message (file):</b>\n" . $escapedBody,
+            Message::TYPE_SYSTEM => "ℹ️ <b>System message:</b>\n" . $escapedBody,
+            default => "💬 <b>Message:</b>\n" . $escapedBody,
         };
     }
 
@@ -92,28 +82,18 @@ class TelegramMessageFormatter
     {
         $attachments = $message->attachments;
 
-        if (! is_array($attachments) || $attachments === []) {
+        if (!is_array($attachments) || $attachments === []) {
             return '';
         }
 
-        $lines = ['\📁 *Attachments:*'];
+        $lines = ['📁 <b>Attachments:</b>'];
 
         foreach ($attachments as $attachment) {
-            $lines[] = '\- '.self::escape(
-                self::truncate($attachment['original_name'] ?? $attachment['name'] ?? 'attachment', 80)
-            );
+            $name = $attachment['original_name'] ?? $attachment['name'] ?? 'attachment';
+            $lines[] = '- ' . self::e(self::truncate($name, 80));
         }
 
         return implode("\n", $lines);
-    }
-
-    public static function escape(string $text): string
-    {
-        return str_replace(
-            self::MARKDOWN_SPECIAL_CHARS,
-            array_map(fn (string $char): string => '\\'.$char, self::MARKDOWN_SPECIAL_CHARS),
-            $text
-        );
     }
 
     protected static function truncate(string $text, int $max): string
@@ -121,7 +101,7 @@ class TelegramMessageFormatter
         if (mb_strlen($text) <= $max) {
             return $text;
         }
-
-        return mb_substr($text, 0, $max - 3).'...';
+    
+        return mb_substr($text, 0, $max - 3) . '...';
     }
 }
