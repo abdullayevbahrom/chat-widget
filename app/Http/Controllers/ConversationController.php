@@ -7,6 +7,7 @@ use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\Project;
 use App\Services\TelegramService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -142,7 +143,7 @@ class ConversationController extends Controller
     /**
      * Send an admin reply directly from the dashboard.
      */
-    public function sendMessage(Conversation $conversation, Request $request): RedirectResponse
+    public function sendMessage(Conversation $conversation, Request $request): JsonResponse
     {
         $user = $request->user('web') ?? $request->user('tenant_user');
 
@@ -183,8 +184,15 @@ class ConversationController extends Controller
 
         app(TelegramService::class)->mirrorAdminReply($message->fresh(), $user->name);
 
-        return redirect()
-            ->route('dashboard.conversations.show', $conversation)
-            ->with('success', 'Message sent successfully.');
+        return response()->json([
+            'success' => true,
+            'message' => [
+                'id' => $message->public_id,
+                'body' => $message->body,
+                'created_at' => $message->created_at->toISOString(),
+                'type' => 'admin',
+            ],
+            'agent_name' => auth()->user()?->name,
+        ]);
     }
 }

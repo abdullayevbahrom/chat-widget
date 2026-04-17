@@ -1280,7 +1280,6 @@
         }
       });
 
-      // Handle MessageCreated events
       channel.bind('MessageCreated', (data) => {
         console.log('[Widget] 📨 .MessageCreated event received');
         console.log('[Widget] 📦 Message data:', JSON.stringify(data, null, 2));

@@ -2,8 +2,6 @@
 
 namespace App\Services;
 
-use App\Events\ConversationArchived;
-use App\Events\ConversationClosed;
 use App\Events\ConversationOpened;
 use App\Models\Conversation;
 use App\Models\Message;

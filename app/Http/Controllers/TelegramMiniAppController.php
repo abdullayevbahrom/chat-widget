@@ -7,7 +7,8 @@ use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\Project;
 use App\Services\TelegramService;
-use Illuminate\Http\RedirectResponse;
+use Illuminate\Broadcasting\BroadcastController;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\URL;
 use Illuminate\View\View;
@@ -43,7 +44,7 @@ class TelegramMiniAppController extends Controller
         return view('telegram.mini-app', compact('project', 'conversations', 'conversation', 'messages', 'listUrl'));
     }
 
-    public function store(Request $request, Project $project): RedirectResponse
+    public function store(Request $request, Project $project): JsonResponse
     {
         $validated = $request->validate([
             'conversation_id' => ['required', 'string'],
@@ -73,18 +74,58 @@ class TelegramMiniAppController extends Controller
             ],
         ]);
 
+        $freshConversation = $conversation->fresh();
+        $freshMessage = $message->fresh();
+
         try {
-            broadcast(new WidgetMessageSent($conversation->fresh(), $message->fresh(), $project->tenant?->name));
+            broadcast(new WidgetMessageSent($freshConversation, $freshMessage, $project->tenant?->name))->toOthers();
         } catch (\Throwable) {
             // Message persisted already.
         }
 
-        app(TelegramService::class)->mirrorAdminReply($message->fresh(), $project->tenant?->name);
+        app(TelegramService::class)->mirrorAdminReply($freshMessage, $project->tenant?->name);
 
-        return redirect()->to(URL::signedRoute('telegram.mini-app', [
-            'project' => $project->id,
-            'conversation' => $conversation->public_id,
-            'sent' => 1,
-        ]));
+        return response()->json([
+            'success' => true,
+            'message' => [
+                'id' => $freshMessage->id,
+                'body' => $freshMessage->body,
+                'created_at' => $freshMessage->created_at->format('Y-m-d H:i'),
+                'type' => 'admin',
+            ],
+        ]);
+    }
+
+    public function broadcastAuth(Request $request, Project $project): JsonResponse
+    {
+        if (!URL::hasValidSignature($request)) {
+            abort(403, 'Invalid or expired signed URL.');
+        }
+
+        $conversationPublicId = (string) $request->input('conversation');
+        $channelName = (string) $request->input('channel_name');
+
+        if ($conversationPublicId === '' || $channelName === '') {
+            abort(403, 'Missing conversation or channel.');
+        }
+
+        $conversation = Conversation::withoutGlobalScopes()
+            ->where('project_id', $project->id)
+            ->where('public_id', $conversationPublicId)
+            ->first();
+
+        if (!$conversation) {
+            abort(403, 'Conversation not found.');
+        }
+
+        $expectedChannel = 'private-conversation.' . $conversation->public_id;
+
+        if ($channelName !== $expectedChannel) {
+            abort(403, 'Channel mismatch.');
+        }
+
+        return response()->json(
+            app(BroadcastController::class)->authenticate($request)->getData(true)
+        );
     }
 }

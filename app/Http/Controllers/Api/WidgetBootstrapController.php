@@ -157,8 +157,8 @@ class WidgetBootstrapController extends Controller
                     'endpoint' => route('widget.ws.connect', [], false),
                     'host' => $websocketHost,
                     'port' => env('REVERB_PUBLIC_PORT', request()->secure() ? 443 : (config('broadcasting.connections.reverb.options.port', 6001))),
-                    'use_path' => env('REVERB_USE_PROXY', false) ? '/reverb' : null,
-                    'ws_path' => env('REVERB_USE_PROXY', false) ? '/reverb' : '/app/'.config('broadcasting.connections.reverb.app_id'),
+                    'use_path' => null,
+                    'ws_path' => '/app/'.config('broadcasting.connections.reverb.app_id'),
                 ],
             ]);
         } finally {

@@ -2,7 +2,6 @@
 
 namespace App\Events;
 
-use App\Exceptions\BroadcastFailedException;
 use App\Models\Conversation;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;

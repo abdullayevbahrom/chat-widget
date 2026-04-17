@@ -1,7 +1,7 @@
 @extends('layouts.tenant')
 
 @php
-$title = 'Conversation #' . $conversation->id;
+    $title = 'Conversation #' . $conversation->id;
 @endphp
 
 @section('content')
@@ -141,27 +141,28 @@ $title = 'Conversation #' . $conversation->id;
                     </div>
 
                     @if($messages->count() > 0)
-                        <div id="messages-list" class="p-6 space-y-4 max-h-[600px] overflow-y-auto">
+                        <div class="p-6 space-y-4 max-h-[600px] overflow-y-auto">
                             @foreach($messages as $message)
                                 @php
-        $isAgentMessage = $message->sender instanceof \App\Models\User || $message->sender instanceof \App\Models\Tenant;
+                                    $isAgentMessage = $message->sender instanceof \App\Models\User || $message->sender instanceof \App\Models\Tenant;
                                 @endphp
-                                <div class="flex {{ $isAgentMessage ? 'justify-end' : 'justify-start' }}"
-                                    data-message-id="{{ $message->public_id ?? $message->id }}">
+                                <div class="flex {{ $isAgentMessage ? 'justify-end' : 'justify-start' }}">
                                     <div class="max-w-sm lg:max-w-md">
-                                        <div class="flex items-center gap-2 mb-1 {{ $isAgentMessage ? 'flex-row-reverse' : '' }}">
+                                        {{-- Sender Info --}}
+                                        <div
+                                            class="flex items-center gap-2 mb-1 {{ $isAgentMessage ? 'flex-row-reverse' : '' }}">
                                             @php
-        $metadataAgentName = $message->metadata['agent_name'] ?? null;
-        $senderName = match (true) {
-            $message->sender instanceof \App\Models\Visitor => $message->sender->name ?? 'Visitor',
-            $message->sender instanceof \App\Models\User => $message->sender->name ?? 'Agent',
-            $message->sender instanceof \App\Models\Tenant => $metadataAgentName ?? $message->sender->name ?? 'System',
-            default => 'System'
-        };
-        $senderInitial = strtoupper(substr($senderName, 0, 1));
-        $bubbleColor = $isAgentMessage
-            ? 'bg-gradient-to-r from-brand-500 to-brand-600 text-white'
-            : 'bg-gray-100 text-gray-800';
+                                                $metadataAgentName = $message->metadata['agent_name'] ?? null;
+                                                $senderName = match (true) {
+                                                    $message->sender instanceof \App\Models\Visitor => $message->sender->name ?? 'Visitor',
+                                                    $message->sender instanceof \App\Models\User => $message->sender->name ?? 'Agent',
+                                                    $message->sender instanceof \App\Models\Tenant => $metadataAgentName ?? $message->sender->name ?? 'System',
+                                                    default => 'System'
+                                                };
+                                                $senderInitial = strtoupper(substr($senderName, 0, 1));
+                                                $bubbleColor = $isAgentMessage
+                                                    ? 'bg-gradient-to-r from-brand-500 to-brand-600 text-white'
+                                                    : 'bg-gray-100 text-gray-800';
                                             @endphp
                                             <div
                                                 class="w-6 h-6 rounded-full {{ $isAgentMessage ? 'bg-brand-200 text-brand-700' : 'bg-gray-200 text-gray-600' }} flex items-center justify-center text-xs font-semibold">
@@ -170,12 +171,15 @@ $title = 'Conversation #' . $conversation->id;
                                             <span class="text-xs text-gray-500">{{ $senderName }}</span>
                                         </div>
 
+                                        {{-- Message Bubble --}}
                                         <div
                                             class="px-4 py-2.5 rounded-2xl {{ $isAgentMessage ? 'rounded-br-md' : 'rounded-bl-md' }} {{ $bubbleColor }}">
                                             <p class="text-sm">{{ $message->body ?? 'No content' }}</p>
                                         </div>
 
-                                        <p class="text-xs text-gray-400 mt-1 {{ $isAgentMessage ? 'text-right' : '' }}">
+                                        {{-- Timestamp --}}
+                                        <p
+                                            class="text-xs text-gray-400 mt-1 {{ $isAgentMessage ? 'text-right' : '' }}">
                                             {{ $message->created_at->format('M j, Y g:i A') }}
                                         </p>
                                     </div>
@@ -183,7 +187,7 @@ $title = 'Conversation #' . $conversation->id;
                             @endforeach
                         </div>
                     @else
-                        <div id="messages-list" class="py-12 text-center">
+                        <div class="py-12 text-center">
                             <svg class="w-12 h-12 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor"
                                 viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -195,19 +199,16 @@ $title = 'Conversation #' . $conversation->id;
                     @endif
 
                     <div class="border-t border-gray-200 p-4">
-                        <form id="message-form" method="POST"
-                            action="{{ route('dashboard.conversations.messages.store', $conversation) }}" class="space-y-3">
+                        <form method="POST" action="{{ route('dashboard.conversations.messages.store', $conversation) }}" class="space-y-3">
                             @csrf
-
-                            <textarea id="message-body" name="body" rows="3"
+                            <textarea
+                                name="body"
+                                rows="3"
                                 class="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none transition-all focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
-                                placeholder="Write a reply..." required>{{ old('body') }}</textarea>
-
-                            <div class="flex items-center justify-between">
-                                <div id="message-status" class="text-xs text-gray-500"></div>
-
-                                <button id="send-button" type="submit"
-                                    class="rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+                                placeholder="Write a reply..."
+                                required>{{ old('body') }}</textarea>
+                            <div class="flex justify-end">
+                                <button type="submit" class="rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 px-4 py-2 text-sm font-semibold text-white">
                                     Send Reply
                                 </button>
                             </div>
@@ -237,7 +238,7 @@ $title = 'Conversation #' . $conversation->id;
                             <p class="text-xs text-gray-500">Status</p>
                             <span
                                 class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium
-                                                {{ $conversation->status === 'open' ? 'bg-green-100 text-green-700' : ($conversation->status === 'closed' ? 'bg-gray-100 text-gray-600' : 'bg-blue-100 text-blue-700') }}">
+                                {{ $conversation->status === 'open' ? 'bg-green-100 text-green-700' : ($conversation->status === 'closed' ? 'bg-gray-100 text-gray-600' : 'bg-blue-100 text-blue-700') }}">
                                 {{ ucfirst($conversation->status) }}
                             </span>
                         </div>
@@ -315,183 +316,3 @@ $title = 'Conversation #' . $conversation->id;
         </div>
     </div>
 @endsection
-@push('scripts')
-    <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
-    <script type="module">
-        import Echo from 'https://esm.sh/laravel-echo@1.16.1';
-
-        const conversationId = @json($conversation->public_id);
-        const tenantId = @json($conversation->tenant_id);
-
-        const messagesList = document.getElementById('messages-list');
-        const messageForm = document.getElementById('message-form');
-        const messageBody = document.getElementById('message-body');
-        const sendButton = document.getElementById('send-button');
-        const messageStatus = document.getElementById('message-status');
-
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text ?? '';
-            return div.innerHTML;
-        }
-
-        function scrollToBottom() {
-            if (!messagesList) return;
-            messagesList.scrollTop = messagesList.scrollHeight;
-        }
-
-        function setStatus(text, isError = false) {
-            if (!messageStatus) return;
-
-            messageStatus.textContent = text || '';
-            messageStatus.className = isError
-                ? 'text-xs text-red-600'
-                : 'text-xs text-gray-500';
-        }
-
-        function hasMessage(messageId) {
-            if (!messageId || !messagesList) return false;
-            return !!messagesList.querySelector(`[data-message-id="${messageId}"]`);
-        }
-
-        function formatDate(value) {
-            if (!value) return '';
-
-            const date = new Date(value);
-            if (Number.isNaN(date.getTime())) {
-                return value;
-            }
-
-            return date.toLocaleString();
-        }
-
-        function appendMessage(message) {
-            if (!messagesList || !message || !message.id) return;
-
-            if (hasMessage(message.id)) {
-                return;
-            }
-
-            const isAgent = message.type === 'admin';
-
-            const senderName = isAgent
-                ? (message.agent_name || 'Agent')
-                : 'Visitor';
-
-            const senderInitial = (senderName[0] || 'A').toUpperCase();
-            const bubbleColor = isAgent
-                ? 'bg-gradient-to-r from-brand-500 to-brand-600 text-white'
-                : 'bg-gray-100 text-gray-800';
-
-            const wrapper = document.createElement('div');
-            wrapper.className = `flex ${isAgent ? 'justify-end' : 'justify-start'}`;
-            wrapper.dataset.messageId = message.id;
-
-            wrapper.innerHTML = `
-                <div class="max-w-sm lg:max-w-md">
-                    <div class="flex items-center gap-2 mb-1 ${isAgent ? 'flex-row-reverse' : ''}">
-                        <div class="w-6 h-6 rounded-full ${isAgent ? 'bg-brand-200 text-brand-700' : 'bg-gray-200 text-gray-600'} flex items-center justify-center text-xs font-semibold">
-                            ${escapeHtml(senderInitial)}
-                        </div>
-                        <span class="text-xs text-gray-500">${escapeHtml(senderName)}</span>
-                    </div>
-
-                    <div class="px-4 py-2.5 rounded-2xl ${isAgent ? 'rounded-br-md' : 'rounded-bl-md'} ${bubbleColor}">
-                        <p class="text-sm">${escapeHtml(message.body ?? '')}</p>
-                    </div>
-
-                    <p class="text-xs text-gray-400 mt-1 ${isAgent ? 'text-right' : ''}">
-                        ${escapeHtml(formatDate(message.created_at))}
-                    </p>
-                </div>
-            `;
-
-            messagesList.appendChild(wrapper);
-            scrollToBottom();
-        }
-
-        scrollToBottom();
-
-        window.Pusher = Pusher;
-
-        window.Echo = new Echo({
-            broadcaster: 'reverb',
-            key: @json(env('VITE_REVERB_APP_KEY')),
-            wsHost: @json(env('VITE_REVERB_HOST', 'localhost')),
-            wsPort: @json((int) env('VITE_REVERB_PORT', 7080)),
-            wssPort: @json((int) env('VITE_REVERB_PORT', 7080)),
-            forceTLS: @json((env('VITE_REVERB_SCHEME') ?? 'http') === 'https'),
-            enabledTransports: ['ws', 'wss'],
-            authEndpoint: @json(route('broadcasting.auth')),
-            auth: {
-                headers: {
-                    'X-CSRF-TOKEN': @json(csrf_token()),
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-            },
-        });
-
-        // Shu conversation uchun realtime
-        window.Echo.private(`conversation.${conversationId}`)
-            .listen('.widget.message-sent', (event) => {
-                const msg = event.message || event;
-                if (!msg?.id) return;
-                appendMessage({
-                    ...msg,
-                    agent_name: event.agent_name || null,
-                });
-            });
-
-        if (messageForm) {
-            messageForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-
-                const body = messageBody.value.trim();
-
-                if (!body) {
-                    setStatus('Message is required.', true);
-                    return;
-                }
-
-                sendButton.disabled = true;
-                setStatus('Sending...');
-
-                try {
-                    const formData = new FormData(messageForm);
-
-                    const response = await fetch(messageForm.action, {
-                        method: 'POST',
-                        headers: {
-                            'Accept': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest',
-                        },
-                        body: formData,
-                    });
-
-                    const data = await response.json();
-
-                    if (!response.ok || !data.success) {
-                        throw new Error(data.message || 'Failed to send message');
-                    }
-
-                    if (data.message) {
-                        appendMessage({
-                            ...data.message,
-                            type: 'admin',
-                            agent_name: data.agent_name || 'Agent',
-                        });
-                    }
-
-                    messageBody.value = '';
-                    setStatus('Sent.');
-
-                    setTimeout(() => setStatus(''), 1500);
-                } catch (error) {
-                    setStatus(error.message || 'Failed to send message.', true);
-                } finally {
-                    sendButton.disabled = false;
-                }
-            });
-        }
-    </script>
-@endpush

@@ -6,6 +6,7 @@ use App\Services\WidgetKeyService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\URL;
 
 /*
 |--------------------------------------------------------------------------
@@ -279,7 +280,54 @@ Broadcast::channel('widget.conversation.{conversationId}', function (Request $re
 
 Broadcast::channel('conversation.{conversationId}', function (Request $request, string $conversationId) {
     $origin = $request->header('Origin');
+    $isMiniApp = $request->header('X-Mini-App') === '1';
 
+    // MINI APP FLOW
+    if ($isMiniApp) {
+        if (!URL::hasValidSignature($request)) {
+            Log::warning('Mini app conversation channel auth rejected: invalid signature.', [
+                'channel' => 'websocket',
+                'action' => 'broadcast_auth',
+                'error_type' => 'invalid_signature',
+                'conversation_id' => $conversationId,
+            ]);
+
+            return false;
+        }
+
+        $conversation = Conversation::withoutGlobalScopes()
+            ->where('public_id', $conversationId)
+            ->first();
+
+        if ($conversation === null) {
+            Log::warning('Mini app conversation channel auth rejected: conversation not found.', [
+                'channel' => 'websocket',
+                'action' => 'broadcast_auth',
+                'error_type' => 'conversation_not_found',
+                'conversation_id' => $conversationId,
+            ]);
+
+            return false;
+        }
+
+        $signedConversation = (string) $request->query('conversation');
+
+        if ($signedConversation !== $conversation->public_id) {
+            Log::warning('Mini app conversation channel auth rejected: conversation mismatch.', [
+                'channel' => 'websocket',
+                'action' => 'broadcast_auth',
+                'error_type' => 'conversation_mismatch',
+                'conversation_id' => $conversationId,
+                'signed_conversation' => $signedConversation,
+            ]);
+
+            return false;
+        }
+
+        return true;
+    }
+
+    // WIDGET FLOW
     if ($origin && !isTrustedOrigin($origin)) {
         Log::warning('Private conversation channel auth rejected: untrusted origin.', [
             'channel' => 'websocket',
@@ -292,16 +340,16 @@ Broadcast::channel('conversation.{conversationId}', function (Request $request, 
         return false;
     }
 
-    // Support both integer ID and UUID (public_id) for conversation lookup
-    $isUuid = preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $conversationId);
+    $isUuid = preg_match(
+        '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i',
+        $conversationId
+    );
 
     $conversationQuery = Conversation::withoutGlobalScopes();
 
     if ($isUuid) {
-        // UUID: search only by public_id to avoid bigint cast error
         $conversation = $conversationQuery->where('public_id', $conversationId)->first();
     } else {
-        // Integer ID: search by id
         $conversation = $conversationQuery->where('id', $conversationId)->first();
     }
 
@@ -316,12 +364,9 @@ Broadcast::channel('conversation.{conversationId}', function (Request $request, 
         return false;
     }
 
-    // Authorize via session_id from query parameter (avoids CORS preflight)
-    // or X-Session-Id header (fallback for backward compatibility)
     $sessionId = $request->query('session_id') ?: $request->header('X-Session-Id');
 
     if ($sessionId === null) {
-        // Fallback: try visitor_id from request body (Pusher auth params)
         $visitorId = $request->input('visitor_id');
 
         if ($visitorId === null || !is_numeric($visitorId)) {
@@ -351,8 +396,7 @@ Broadcast::channel('conversation.{conversationId}', function (Request $request, 
         return true;
     }
 
-    // Validate session_id matches the conversation's visitor
-    $visitor = \App\Models\Visitor::withoutGlobalScopes()
+    $visitor = Visitor::withoutGlobalScopes()
         ->where('tenant_id', $conversation->tenant_id)
         ->where('session_id', $sessionId)
         ->first();
