@@ -6,6 +6,7 @@ use App\Events\WidgetMessageSent;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\Project;
+use App\Services\TelegramService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\URL;
@@ -77,6 +78,8 @@ class TelegramMiniAppController extends Controller
         } catch (\Throwable) {
             // Message persisted already.
         }
+
+        app(TelegramService::class)->mirrorAdminReply($message->fresh(), $project->tenant?->name);
 
         return redirect()->to(URL::signedRoute('telegram.mini-app', [
             'project' => $project->id,

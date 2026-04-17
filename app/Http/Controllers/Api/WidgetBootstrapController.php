@@ -122,11 +122,20 @@ class WidgetBootstrapController extends Controller
                 'message_count' => $messages->count(),
             ]);
 
+            $requestHost = preg_replace('#^https?://#', '', (string) $request->getHost());
+            $publicHost = preg_replace('#^https?://#', '', (string) env('REVERB_PUBLIC_HOST', ''));
+            $isLocalRequestHost = $requestHost === 'localhost'
+                || $requestHost === '127.0.0.1'
+                || str_ends_with($requestHost, '.lvh.me');
+            $websocketHost = $isLocalRequestHost || $publicHost === ''
+                ? $requestHost
+                : $publicHost;
+
             return response()->json([
                 'success' => true,
                 'project_id' => $project->public_id ?? $project->id,
                 'project_name' => $project->name,
-                'greeting_message' => $project->greeting_message ?: 'Salom! 👋 Sizga qanday yordam bera olaman?',
+                'greeting_message' => $project->greeting_message ?: 'Hello! 👋 How can we help you today?',
                 'settings' => [
                     'chat_name' => $project->getWidgetSetting('chat_name', $project->name),
                     'theme' => $project->getWidgetSetting('theme', 'light'),
@@ -146,8 +155,7 @@ class WidgetBootstrapController extends Controller
                     'app_id' => config('broadcasting.connections.reverb.app_id'),
                     'channel' => 'private-conversation.'.$conversation->public_id,
                     'endpoint' => route('widget.ws.connect', [], false),
-                    // Host - strip protocol if present, use request host as fallback
-                    'host' => env('REVERB_PUBLIC_HOST', preg_replace('#^https?://#', '', $request->getHost())),
+                    'host' => $websocketHost,
                     'port' => env('REVERB_PUBLIC_PORT', request()->secure() ? 443 : (config('broadcasting.connections.reverb.options.port', 6001))),
                     'use_path' => env('REVERB_USE_PROXY', false) ? '/reverb' : null,
                     'ws_path' => env('REVERB_USE_PROXY', false) ? '/reverb' : '/app/'.config('broadcasting.connections.reverb.app_id'),

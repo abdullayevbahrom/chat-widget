@@ -57,6 +57,7 @@
       name: localStorage.getItem('widget_visitor_name') || '',
       privacyAccepted: localStorage.getItem('widget_privacy_accepted') === '1',
     },
+    unreadAdminCount: 0,
   };
 
   // DOM element IDs with widget instance prefix to avoid conflicts
@@ -313,6 +314,28 @@
       #widget-bubble svg {
         width: 28px;
         height: 28px;
+        display: block;
+      }
+
+      .widget-bubble-badge {
+        position: absolute;
+        top: -4px;
+        right: -4px;
+        min-width: 20px;
+        height: 20px;
+        padding: 0 6px;
+        border-radius: 999px;
+        background: #ef4444;
+        color: #fff;
+        font-size: 11px;
+        font-weight: 700;
+        line-height: 20px;
+        text-align: center;
+        border: 2px solid #fff;
+        display: none;
+      }
+
+      .widget-bubble-badge.active {
         display: block;
       }
 
@@ -652,7 +675,8 @@
     const btn = document.createElement('button');
     btn.id = 'widget-bubble';
     btn.setAttribute('aria-label', 'Open chat');
-    btn.innerHTML = ICONS.chat;
+    btn.innerHTML = '';
+    renderBubbleContent(btn, false);
     btn.onclick = () => toggleChat();
     return btn;
   }
@@ -943,6 +967,72 @@
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
   }
 
+  function setUnreadAdminCount(count) {
+    state.unreadAdminCount = Math.max(0, Number(count) || 0);
+
+    const badge = document.getElementById('widget-bubble-badge');
+    if (!badge) {
+      renderBubbleContent(document.getElementById('widget-bubble'), state.isOpen);
+      return;
+    }
+
+    if (state.unreadAdminCount > 0) {
+      badge.textContent = state.unreadAdminCount > 99 ? '99+' : String(state.unreadAdminCount);
+      badge.classList.add('active');
+      return;
+    }
+
+    badge.textContent = '0';
+    badge.classList.remove('active');
+  }
+
+  function renderBubbleContent(button, isOpen) {
+    if (!button) return;
+
+    const badgeMarkup = `<span id="widget-bubble-badge" class="widget-bubble-badge${state.unreadAdminCount > 0 ? ' active' : ''}">${state.unreadAdminCount > 99 ? '99+' : state.unreadAdminCount}</span>`;
+    button.innerHTML = `${isOpen ? ICONS.close : ICONS.chat}${badgeMarkup}`;
+  }
+
+  function incrementUnreadAdminCount() {
+    setUnreadAdminCount(state.unreadAdminCount + 1);
+  }
+
+  function clearUnreadAdminCount() {
+    setUnreadAdminCount(0);
+  }
+
+  function normalizeIncomingMessage(msg) {
+    if (!msg) return null;
+
+    if (msg.direction) {
+      return msg;
+    }
+
+    return {
+      ...msg,
+      direction: msg.type === 'admin' ? 'inbound' : 'outbound',
+    };
+  }
+
+  function handleRealtimeMessage(rawMessage) {
+    const msg = normalizeIncomingMessage(rawMessage);
+
+    if (!msg || !msg.id) return;
+
+    const exists = state.messages.some((item) => item.id === msg.id);
+    if (exists) return;
+
+    state.messages.push(msg);
+
+    if (state.currentView === 'chat') {
+      addMessage(msg);
+    }
+
+    if (msg.direction === 'inbound' && (!state.isOpen || state.currentView !== 'chat')) {
+      incrementUnreadAdminCount();
+    }
+  }
+
   function updateSendButtonState() {
     const btn = document.getElementById('widget-send-btn');
     const input = document.getElementById('widget-message-input');
@@ -1200,14 +1290,7 @@
           return;
         }
 
-        const exists = state.messages.some((m) => m.id === data.id);
-        if (!exists) {
-          console.log('[Widget] ✅ Adding new message to UI');
-          state.messages.push(data);
-          addMessage(data);
-        } else {
-          console.log('[Widget] ℹ️ Message already exists, skipping');
-        }
+        handleRealtimeMessage(data);
       });
 
       // Handle WidgetMessageSent events (admin replies)
@@ -1228,14 +1311,7 @@
 
         console.log('[Widget] 📨 Message from event:', msg);
 
-        const exists = state.messages.some((m) => m.id === msg.id);
-        if (!exists) {
-          console.log('[Widget] ✅ Adding admin message to UI');
-          state.messages.push(msg);
-          addMessage(msg);
-        } else {
-          console.log('[Widget] ℹ️ Admin message already exists, skipping');
-        }
+        handleRealtimeMessage(msg);
       });
 
       // Also listen without dot prefix (some Reverb versions)
@@ -1246,12 +1322,7 @@
         const msg = data.message || data;
         if (!msg || !msg.id) return;
 
-        const exists = state.messages.some((m) => m.id === msg.id);
-        if (!exists) {
-          console.log('[Widget] ✅ Adding message (no dot format)');
-          state.messages.push(msg);
-          addMessage(msg);
-        }
+        handleRealtimeMessage(msg);
       });
 
       state.pusher = pusher;
@@ -1385,6 +1456,7 @@
 
   function showChatView() {
     state.currentView = 'chat';
+    clearUnreadAdminCount();
     const messagesDiv = document.getElementById('widget-messages');
     if (!messagesDiv) return;
 
@@ -1524,7 +1596,7 @@
     }
 
     // Show greeting message
-    const greeting = state.config?.greeting_message || 'Salom! 👋 Sizga qanday yordam bera olaman?';
+    const greeting = state.config?.greeting_message || 'Hello! 👋 How can we help you today?';
     state.messages = [{
       body: greeting,
       direction: 'inbound',
@@ -1687,7 +1759,7 @@
         showChatView();
       } else {
         // No messages - show greeting from project config
-        const greeting = data.greeting_message || 'Salom! 👋 Sizga qanday yordam bera olaman?';
+        const greeting = data.greeting_message || 'Hello! 👋 How can we help you today?';
         // Add to state.messages so showChatView renders it
         state.messages = [{
           body: greeting,
@@ -1720,7 +1792,7 @@
     if (elements.backdrop) elements.backdrop.classList.add('active');
 
     const bubble = document.getElementById('widget-bubble');
-    if (bubble) bubble.innerHTML = ICONS.close;
+    renderBubbleContent(bubble, true);
 
     if (!state.isInitialized) {
       init();
@@ -1754,7 +1826,7 @@
     if (elements.backdrop) elements.backdrop.classList.remove('active');
 
     const bubble = document.getElementById('widget-bubble');
-    if (bubble) bubble.innerHTML = ICONS.chat;
+    renderBubbleContent(bubble, false);
 
     // disconnectWebSocket();
   }

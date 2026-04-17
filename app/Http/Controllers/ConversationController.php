@@ -6,6 +6,7 @@ use App\Events\WidgetMessageSent;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\Project;
+use App\Services\TelegramService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -179,6 +180,8 @@ class ConversationController extends Controller
         } catch (\Throwable) {
             // Ignore broadcast failure; message is already stored.
         }
+
+        app(TelegramService::class)->mirrorAdminReply($message->fresh(), $user->name);
 
         return redirect()
             ->route('dashboard.conversations.show', $conversation)

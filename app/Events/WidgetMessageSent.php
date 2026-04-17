@@ -2,7 +2,6 @@
 
 namespace App\Events;
 
-use App\Exceptions\BroadcastFailedException;
 use App\Models\Conversation;
 use App\Models\Message;
 use Illuminate\Broadcasting\Channel;
@@ -23,8 +22,7 @@ class WidgetMessageSent implements ShouldBroadcast
         public Conversation $conversation,
         public Message $message,
         public ?string $agentName = null,
-    ) {
-    }
+    ) {}
 
     /**
      * Get the channels the event should broadcast on.
@@ -38,8 +36,8 @@ class WidgetMessageSent implements ShouldBroadcast
     public function broadcastOn(): array
     {
         return [
-            new PrivateChannel('tenant.' . $this->conversation->tenant_id . '.conversations'),
-            new PrivateChannel('conversation.' . $this->conversation->public_id),
+            new PrivateChannel('tenant.'.$this->conversation->tenant_id.'.conversations'),
+            new PrivateChannel('conversation.'.$this->conversation->public_id),
         ];
     }
 
@@ -64,7 +62,7 @@ class WidgetMessageSent implements ShouldBroadcast
     public function broadcastWith(): array
     {
         $attachments = collect($this->message->attachments ?? [])
-            ->map(fn($attachment) => [
+            ->map(fn ($attachment) => [
                 'id' => $attachment['id'] ?? null,
                 'original_name' => $attachment['original_name'] ?? $attachment['name'] ?? 'attachment',
                 'mime_type' => $attachment['mime_type'] ?? null,
@@ -81,9 +79,11 @@ class WidgetMessageSent implements ShouldBroadcast
             'message' => [
                 'id' => $this->message->public_id,
                 'conversation_id' => $this->conversation->public_id,
-                'type' => $this->message->isInbound() ? 'visitor' : 'admin',
+                'type' => $this->message->isInbound() ? 'admin' : 'visitor',
+                'direction' => $this->message->direction,
                 'body' => $body,
                 'attachments' => $attachments,
+                'is_read' => $this->message->is_read,
                 'created_at' => $this->message->created_at->toISOString(),
             ],
             'conversation_id' => $this->conversation->public_id,
@@ -106,7 +106,7 @@ class WidgetMessageSent implements ShouldBroadcast
         }
 
         if (mb_strlen($body) > $maxLength) {
-            return mb_substr($body, 0, $maxLength) . '…';
+            return mb_substr($body, 0, $maxLength).'…';
         }
 
         return $body;

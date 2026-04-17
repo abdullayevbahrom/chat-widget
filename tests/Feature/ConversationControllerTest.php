@@ -9,7 +9,9 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Models\Visitor;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
@@ -18,6 +20,7 @@ class ConversationControllerTest extends TestCase
     use RefreshDatabase;
 
     protected Tenant $tenant;
+
     protected User $user;
 
     protected function setUp(): void
@@ -67,7 +70,7 @@ class ConversationControllerTest extends TestCase
             ->assertRedirect('/auth/login');
 
         $conversation = $this->createConversation();
-        $this->get('/dashboard/conversations/' . $conversation->id)
+        $this->get('/dashboard/conversations/'.$conversation->id)
             ->assertRedirect('/auth/login');
     }
 
@@ -121,7 +124,7 @@ class ConversationControllerTest extends TestCase
         ]);
 
         $this->actingAs($this->user, 'tenant_user')
-            ->get('/dashboard/conversations?project_id=' . $project1->id)
+            ->get('/dashboard/conversations?project_id='.$project1->id)
             ->assertOk();
     }
 
@@ -131,7 +134,7 @@ class ConversationControllerTest extends TestCase
         $conversation = $this->createConversation();
 
         $this->actingAs($this->user, 'tenant_user')
-            ->get('/dashboard/conversations/' . $conversation->id)
+            ->get('/dashboard/conversations/'.$conversation->id)
             ->assertOk()
             ->assertSee('Conversation Details')
             ->assertSee('Messages');
@@ -143,7 +146,7 @@ class ConversationControllerTest extends TestCase
         $conversation = $this->createConversation(['status' => Conversation::STATUS_OPEN]);
 
         $this->actingAs($this->user, 'tenant_user')
-            ->patch('/dashboard/conversations/' . $conversation->id . '/close')
+            ->patch('/dashboard/conversations/'.$conversation->id.'/close')
             ->assertRedirect();
 
         $conversation->refresh();
@@ -156,7 +159,7 @@ class ConversationControllerTest extends TestCase
         $conversation = $this->createConversation(['status' => Conversation::STATUS_CLOSED]);
 
         $this->actingAs($this->user, 'tenant_user')
-            ->patch('/dashboard/conversations/' . $conversation->id . '/reopen')
+            ->patch('/dashboard/conversations/'.$conversation->id.'/reopen')
             ->assertRedirect();
 
         $conversation->refresh();
@@ -169,7 +172,7 @@ class ConversationControllerTest extends TestCase
         $conversation = $this->createConversation(['status' => Conversation::STATUS_OPEN]);
 
         $this->actingAs($this->user, 'tenant_user')
-            ->patch('/dashboard/conversations/' . $conversation->id . '/archive')
+            ->patch('/dashboard/conversations/'.$conversation->id.'/archive')
             ->assertRedirect();
 
         $conversation->refresh();
@@ -182,7 +185,7 @@ class ConversationControllerTest extends TestCase
         $conversation = $this->createConversation(['status' => Conversation::STATUS_CLOSED]);
 
         $this->actingAs($this->user, 'tenant_user')
-            ->patch('/dashboard/conversations/' . $conversation->id . '/archive')
+            ->patch('/dashboard/conversations/'.$conversation->id.'/archive')
             ->assertRedirect();
 
         $conversation->refresh();
@@ -195,7 +198,7 @@ class ConversationControllerTest extends TestCase
         $conversation = $this->createConversation(['status' => Conversation::STATUS_CLOSED]);
 
         $this->actingAs($this->user, 'tenant_user')
-            ->patch('/dashboard/conversations/' . $conversation->id . '/close')
+            ->patch('/dashboard/conversations/'.$conversation->id.'/close')
             ->assertRedirect();
 
         $this->assertSessionHas('error');
@@ -207,7 +210,7 @@ class ConversationControllerTest extends TestCase
         $conversation = $this->createConversation(['status' => Conversation::STATUS_ARCHIVED]);
 
         $this->actingAs($this->user, 'tenant_user')
-            ->patch('/dashboard/conversations/' . $conversation->id . '/reopen')
+            ->patch('/dashboard/conversations/'.$conversation->id.'/reopen')
             ->assertRedirect();
 
         $this->assertSessionHas('error');
@@ -219,7 +222,7 @@ class ConversationControllerTest extends TestCase
         $conversation = $this->createConversation(['status' => Conversation::STATUS_ARCHIVED]);
 
         $this->actingAs($this->user, 'tenant_user')
-            ->patch('/dashboard/conversations/' . $conversation->id . '/archive')
+            ->patch('/dashboard/conversations/'.$conversation->id.'/archive')
             ->assertRedirect();
 
         $this->assertSessionHas('error');
@@ -242,11 +245,11 @@ class ConversationControllerTest extends TestCase
         ]);
 
         $this->actingAs($this->user, 'tenant_user')
-            ->get('/dashboard/conversations/' . $otherConversation->id)
+            ->get('/dashboard/conversations/'.$otherConversation->id)
             ->assertNotFound();
 
         $this->actingAs($this->user, 'tenant_user')
-            ->patch('/dashboard/conversations/' . $otherConversation->id . '/close')
+            ->patch('/dashboard/conversations/'.$otherConversation->id.'/close')
             ->assertNotFound();
     }
 
@@ -262,7 +265,7 @@ class ConversationControllerTest extends TestCase
         $conversation = $this->createConversation(['visitor_id' => $visitor->id]);
 
         $this->actingAs($this->user, 'tenant_user')
-            ->get('/dashboard/conversations/' . $conversation->id)
+            ->get('/dashboard/conversations/'.$conversation->id)
             ->assertSee('John Doe')
             ->assertSee('john@example.com')
             ->assertSee('Visitor Info');
@@ -286,7 +289,7 @@ class ConversationControllerTest extends TestCase
         });
 
         $this->actingAs($this->user, 'tenant_user')
-            ->get('/dashboard/conversations/' . $conversation->id)
+            ->get('/dashboard/conversations/'.$conversation->id)
             ->assertSee('Hello from visitor!')
             ->assertSee('Messages');
     }
@@ -303,5 +306,94 @@ class ConversationControllerTest extends TestCase
             ->assertSee('bg-green-100')  // Open badge
             ->assertSee('bg-gray-100')   // Closed badge
             ->assertSee('bg-blue-100');  // Archived badge
+    }
+
+    #[Test]
+    public function dashboard_reply_is_mirrored_to_telegram_as_a_reply(): void
+    {
+        Http::fake([
+            'https://api.telegram.org/*/sendMessage' => Http::response([
+                'ok' => true,
+                'result' => [
+                    'message_id' => 777,
+                ],
+            ], 200),
+        ]);
+
+        $project = Project::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'telegram_bot_token' => '123456:token',
+            'telegram_chat_id' => '123456789',
+            'settings' => [
+                'widget' => [
+                    'telegram_admins' => [
+                        [
+                            'chat_id' => '123456789',
+                            'name' => 'Admin',
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        $visitor = Visitor::factory()->create(['tenant_id' => $this->tenant->id]);
+        $conversation = Conversation::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'project_id' => $project->id,
+            'visitor_id' => $visitor->id,
+            'status' => Conversation::STATUS_OPEN,
+        ]);
+
+        $visitorMessage = Message::withoutGlobalScopes()->create([
+            'tenant_id' => $this->tenant->id,
+            'conversation_id' => $conversation->id,
+            'sender_type' => $visitor->getMorphClass(),
+            'sender_id' => $visitor->id,
+            'message_type' => Message::TYPE_TEXT,
+            'body' => 'Visitor message',
+            'direction' => Message::DIRECTION_OUTBOUND,
+            'is_read' => false,
+        ]);
+
+        DB::table('telegram_message_references')->insert([
+            'tenant_id' => $this->tenant->id,
+            'project_id' => $project->id,
+            'message_id' => $visitorMessage->id,
+            'chat_id' => '123456789',
+            'telegram_message_id' => 555,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($this->user, 'tenant_user')
+            ->post(route('dashboard.conversations.messages.store', $conversation), [
+                'body' => 'Admin answer',
+            ]);
+
+        $response->assertRedirect(route('dashboard.conversations.show', $conversation));
+
+        $adminMessage = Message::withoutGlobalScopes()
+            ->where('conversation_id', $conversation->id)
+            ->where('body', 'Admin answer')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($adminMessage);
+        $this->assertSame(Message::DIRECTION_INBOUND, $adminMessage->direction);
+
+        Http::assertSent(function ($request) {
+            $data = $request->data();
+
+            return str_contains($request->url(), '/sendMessage')
+                && ($data['chat_id'] ?? null) === '123456789'
+                && ($data['reply_to_message_id'] ?? null) === 555
+                && str_contains((string) ($data['text'] ?? ''), 'Admin answer');
+        });
+
+        $this->assertDatabaseHas('telegram_message_references', [
+            'message_id' => $adminMessage->id,
+            'chat_id' => '123456789',
+            'telegram_message_id' => 777,
+        ]);
     }
 }

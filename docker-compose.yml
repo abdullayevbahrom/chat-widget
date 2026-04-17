@@ -83,6 +83,17 @@ services:
       retries: 3
       start_period: 15s
 
+  worker:
+    image: ${IMAGE:-widget-local}
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - .:/var/www/html:rw
+      - ./.env:/var/www/html/.env
+    command: php artisan queue:work
+    env_file:
+      - ./.env
+
   adminer:
     image: adminer:latest
     restart: unless-stopped

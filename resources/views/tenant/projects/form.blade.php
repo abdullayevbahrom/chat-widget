@@ -190,7 +190,7 @@ $maskedToken = $project->telegram_bot_token ? str_repeat('*', strlen($project->t
                                   name="greeting_message"
                                   rows="3"
                                   class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all resize-none"
-                                  placeholder="Hello! 👋 How can we help you today?">{{ old('greeting_message', $project->greeting_message ?? 'Salom! 👋 Sizga qanday yordam bera olaman?') }}</textarea>
+                                  placeholder="Hello! 👋 How can we help you today?">{{ old('greeting_message', $project->greeting_message ?? 'Hello! 👋 How can we help you today?') }}</textarea>
                         <p class="mt-1 text-xs text-gray-400">This message appears when a visitor opens the widget for the first time. Leave empty to use default greeting.</p>
                         @error('greeting_message')
                             <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
@@ -422,7 +422,7 @@ $maskedToken = $project->telegram_bot_token ? str_repeat('*', strlen($project->t
                                         </button>
                                     </div>
                                 </div>
-                                <p class="text-xs text-gray-500 mt-1">Get your token from <a href="https://t.me/BotFather" target="_blank" class="text-brand-600 hover:underline">@BotFather</a> on Telegram</p>
+                                <p class="text-xs text-gray-500 mt-1">Create or manage your bot with <a href="https://t.me/BotFather" target="_blank" class="text-brand-600 hover:underline">@BotFather</a> on Telegram.</p>
                                 @error('telegram_bot_token')
                                     <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
                                 @enderror
@@ -456,7 +456,7 @@ $maskedToken = $project->telegram_bot_token ? str_repeat('*', strlen($project->t
                                         <div>
                                             <input type="text"
                                                    data-role="chat-id"
-                                                   placeholder="-1001234567890 or 123456789"
+                                                   placeholder="-1001234567890 (group) or 123456789 (user)"
                                                    class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm font-mono outline-none transition-all focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20">
                                         </div>
                                         <div>
@@ -483,7 +483,7 @@ $maskedToken = $project->telegram_bot_token ? str_repeat('*', strlen($project->t
                                         </div>
                                     </div>
                                 </template>
-                                <p class="text-xs text-gray-500 mt-2">Chat ID va optional name. Test muvaffaqiyatli o‘tsa, name bo‘sh bo‘lsa Telegramdan kelgan ism bilan to‘ldiriladi.</p>
+                                <p class="text-xs text-gray-500 mt-2">Enter a chat ID and an optional name. If the name is empty, a successful test will fill it from Telegram. Need a personal Telegram ID? Message <a href="https://t.me/userinfobot" target="_blank" class="text-brand-600 hover:underline">@userinfobot</a>. For group IDs, add your bot to the group and send a message first.</p>
                                 @error('telegram_admins_text')
                                     <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
                                 @enderror
