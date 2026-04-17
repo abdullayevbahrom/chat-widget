@@ -7,10 +7,12 @@ use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\Project;
 use App\Services\TelegramService;
+use Illuminate\Broadcasting\BroadcastController;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use Log;
 
 class ConversationController extends Controller
 {
@@ -28,7 +30,7 @@ class ConversationController extends Controller
         } else {
             $tenant = $user->tenant;
 
-            if (! $tenant) {
+            if (!$tenant) {
                 abort(403, 'No tenant associated with this account.');
             }
 
@@ -147,7 +149,7 @@ class ConversationController extends Controller
     {
         $user = $request->user('web') ?? $request->user('tenant_user');
 
-        if (! $user->isSuperAdmin() && $user->tenant?->id !== $conversation->tenant_id) {
+        if (!$user->isSuperAdmin() && $user->tenant?->id !== $conversation->tenant_id) {
             abort(404);
         }
 
@@ -193,6 +195,55 @@ class ConversationController extends Controller
                 'type' => 'admin',
             ],
             'agent_name' => auth()->user()?->name,
+        ]);
+    }
+
+    public function broadcastAuth(Request $request, string $conversationPublicId): JsonResponse
+    {
+        $channelName = (string) $request->input('channel_name');
+        $projectId = (int) $request->query('project_id');
+        $socketId = $request->input('socket_id');
+
+        Log::debug('Reverb auth request received.', [
+            'socket_id' => $socketId,
+            'conversation_public_id' => $conversationPublicId,
+            'project_id' => $projectId,
+            'channel' => $channelName,
+            'request_method' => $request->method(),
+            'request_headers' => $request->headers->all(),
+        ]);
+
+        if ($conversationPublicId === '' || $channelName === '' || !$projectId || !$socketId) {
+            abort(403, 'Missing conversation or channel.');
+        }
+
+        $conversation = Conversation::withoutGlobalScopes()
+            ->where('project_id', $projectId)
+            ->where('public_id', $conversationPublicId)
+            ->first();
+
+        if (!$conversation) {
+            abort(403, 'Conversation not found.');
+        }
+
+        $expectedChannel = 'private-conversation.' . $conversationPublicId;
+
+        if ($channelName !== $expectedChannel) {
+            abort(403, 'Channel mismatch.');
+        }
+
+        Log::info('Reverb auth successful.', [
+            'project_id' => $projectId,
+            'channel' => $channelName,
+        ]);
+
+        $reverbSecret = config('broadcasting.connections.reverb.secret');
+        $reverbKey = config('broadcasting.connections.reverb.key');
+        $stringToSign = "{$socketId}:{$channelName}";
+        $signature = hash_hmac('sha256', $stringToSign, $reverbSecret);
+
+        return response()->json([
+            'auth' => "{$reverbKey}:{$signature}",
         ]);
     }
 }

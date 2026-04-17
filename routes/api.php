@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\WidgetAttachmentController;
 use App\Http\Controllers\Api\WidgetBootstrapController;
 use App\Http\Controllers\Api\WidgetConversationController;
 use App\Http\Controllers\Api\WidgetMessageController;
+use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\TelegramMiniAppController;
 use App\Http\Middleware\RestrictHealthEndpoint;
 use App\Http\Middleware\ValidateCorsOrigins;
@@ -79,6 +80,8 @@ Route::middleware([ValidateCorsOrigins::class])
 Route::post('/telegram-mini-app/{project}/broadcast-auth', [TelegramMiniAppController::class, 'broadcastAuth'])
     ->name('telegram.mini-app.broadcast-auth');
 
+Route::post('/conversations/{conversation}/broadcast-auth', [ConversationController::class, 'broadcastAuth'])
+    ->name('conversation.broadcasting.auth');
 
 Route::middleware(['throttle:1,1', RestrictHealthEndpoint::class])
     ->get('health', [HealthController::class, 'index'])

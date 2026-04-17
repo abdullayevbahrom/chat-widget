@@ -12,6 +12,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\URL;
 use Illuminate\View\View;
+use Log;
 
 class TelegramMiniAppController extends Controller
 {
@@ -104,8 +105,18 @@ class TelegramMiniAppController extends Controller
 
         $conversationPublicId = (string) $request->input('conversation');
         $channelName = (string) $request->input('channel_name');
+        $socketId = $request->input('socket_id');
 
-        if ($conversationPublicId === '' || $channelName === '') {
+        Log::debug('Reverb auth request received.', [
+            'socket_id' => $socketId,
+            'conversation_public_id' => $conversationPublicId,
+            'project_id' => $project->id,
+            'channel' => $channelName,
+            'request_method' => $request->method(),
+            'request_headers' => $request->headers->all(),
+        ]);
+
+        if ($conversationPublicId === '' || $channelName === '' || !$socketId) {
             abort(403, 'Missing conversation or channel.');
         }
 
@@ -124,8 +135,18 @@ class TelegramMiniAppController extends Controller
             abort(403, 'Channel mismatch.');
         }
 
-        return response()->json(
-            app(BroadcastController::class)->authenticate($request)->getData(true)
-        );
+        Log::info('Reverb auth successful.', [
+            'project_id' => $project->id,
+            'channel' => $channelName,
+        ]);
+
+        $reverbSecret = config('broadcasting.connections.reverb.secret');
+        $reverbKey = config('broadcasting.connections.reverb.key');
+        $stringToSign = "{$socketId}:{$channelName}";
+        $signature = hash_hmac('sha256', $stringToSign, $reverbSecret);
+
+        return response()->json([
+            'auth' => "{$reverbKey}:{$signature}",
+        ]);
     }
 }

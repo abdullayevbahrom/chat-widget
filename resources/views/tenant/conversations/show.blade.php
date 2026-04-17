@@ -416,18 +416,18 @@ $title = 'Conversation #' . $conversation->id;
 
         window.Echo = new Echo({
             broadcaster: 'reverb',
-            key: @json(env('VITE_REVERB_APP_KEY')),
-            wsHost: @json(env('VITE_REVERB_HOST', 'localhost')),
-            wsPort: @json((int) env('VITE_REVERB_PORT', 7080)),
-            wssPort: @json((int) env('VITE_REVERB_PORT', 7080)),
-            forceTLS: @json((env('VITE_REVERB_SCHEME') ?? 'http') === 'https'),
+            key: @json(config('services.reverb_client.key')),
+            wsHost: @json(config('services.reverb_client.host')),
+            wsPort: @json((int) config('services.reverb_client.port')),
+            wssPort: @json((int) config('services.reverb_client.port')),
+            forceTLS: @json(config('services.reverb_client.scheme') === 'https'),
             enabledTransports: ['ws', 'wss'],
-            authEndpoint: @json(route('broadcasting.auth')),
+            authEndpoint: @json(route('conversation.broadcasting.auth', ['conversation' => $conversation->public_id, 'project_id' => $conversation->project_id])),
             auth: {
                 headers: {
                     'X-CSRF-TOKEN': @json(csrf_token()),
                     'X-Requested-With': 'XMLHttpRequest',
-                },
+                }
             },
         });
 

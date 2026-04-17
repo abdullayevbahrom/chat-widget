@@ -34,5 +34,11 @@ return [
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
     ],
+    'reverb_client' => [
+        'key' => env('VITE_REVERB_APP_KEY'),
+        'host' => env('VITE_REVERB_HOST'),
+        'port' => env('VITE_REVERB_PORT', 443),
+        'scheme' => env('VITE_REVERB_SCHEME', 'http'),
+    ],
 
 ];

@@ -89,163 +89,162 @@
     </div>
 
     @if($conversation)
-            <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
-            <script type="module">
-                import Echo from 'https://esm.sh/laravel-echo@1.16.1';
+                <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
+                <script type="module">
+                    import Echo from 'https://esm.sh/laravel-echo@1.16.1';
 
-                const projectId = @json($project->id);
-                const conversationId = @json($conversation->public_id);
+                    const projectId = @json($project->id);
+                    const conversationId = @json($conversation->public_id);
 
-                const messagesList = document.getElementById('messages-list');
-                const messageForm = document.getElementById('message-form');
-                const messageBody = document.getElementById('message-body');
-                const sendButton = document.getElementById('send-button');
-                const messageStatus = document.getElementById('message-status');
+                    const messagesList = document.getElementById('messages-list');
+                    const messageForm = document.getElementById('message-form');
+                    const messageBody = document.getElementById('message-body');
+                    const sendButton = document.getElementById('send-button');
+                    const messageStatus = document.getElementById('message-status');
 
-                function escapeHtml(text) {
-                    const div = document.createElement('div');
-                    div.textContent = text ?? '';
-                    return div.innerHTML;
-                }
-
-                function formatDate(value) {
-                    if (!value) return '';
-
-                    const date = new Date(value);
-                    if (Number.isNaN(date.getTime())) {
-                        return value;
+                    function escapeHtml(text) {
+                        const div = document.createElement('div');
+                        div.textContent = text ?? '';
+                        return div.innerHTML;
                     }
 
-                    const yyyy = date.getFullYear();
-                    const mm = String(date.getMonth() + 1).padStart(2, '0');
-                    const dd = String(date.getDate()).padStart(2, '0');
-                    const hh = String(date.getHours()).padStart(2, '0');
-                    const mi = String(date.getMinutes()).padStart(2, '0');
+                    function formatDate(value) {
+                        if (!value) return '';
 
-                    return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
-                }
+                        const date = new Date(value);
+                        if (Number.isNaN(date.getTime())) {
+                            return value;
+                        }
 
-                function scrollToBottom() {
-                    messagesList.scrollTop = messagesList.scrollHeight;
-                }
+                        const yyyy = date.getFullYear();
+                        const mm = String(date.getMonth() + 1).padStart(2, '0');
+                        const dd = String(date.getDate()).padStart(2, '0');
+                        const hh = String(date.getHours()).padStart(2, '0');
+                        const mi = String(date.getMinutes()).padStart(2, '0');
 
-                function setStatus(text, isError = false) {
-                    messageStatus.textContent = text || '';
-                    messageStatus.className = isError ? 'text-xs text-red-600' : 'text-xs text-gray-500';
-                }
-
-                function hasMessage(messageId) {
-                    if (!messageId) return false;
-                    return !!messagesList.querySelector(`[data-message-id="${messageId}"]`);
-                }
-
-                function appendMessage(message) {
-                    const messageId = message.id ?? null;
-
-                    if (messageId && hasMessage(messageId)) {
-                        return;
+                        return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
                     }
 
-                    const isAgent = message.type === 'admin';
-
-                    const wrapper = document.createElement('div');
-                    wrapper.className = `flex ${isAgent ? 'justify-end' : 'justify-start'}`;
-
-                    if (messageId) {
-                        wrapper.dataset.messageId = messageId;
+                    function scrollToBottom() {
+                        messagesList.scrollTop = messagesList.scrollHeight;
                     }
 
-                    wrapper.innerHTML = `
-                            <div class="max-w-[80%] rounded-md px-3 py-2 text-sm ${isAgent ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-900'}">
-                                <div>${escapeHtml(message.body)}</div>
-                                <div class="mt-1 text-[11px] ${isAgent ? 'text-blue-100' : 'text-gray-500'}">
-                                    ${escapeHtml(formatDate(message.created_at))}
+                    function setStatus(text, isError = false) {
+                        messageStatus.textContent = text || '';
+                        messageStatus.className = isError ? 'text-xs text-red-600' : 'text-xs text-gray-500';
+                    }
+
+                    function hasMessage(messageId) {
+                        if (!messageId) return false;
+                        return !!messagesList.querySelector(`[data-message-id="${messageId}"]`);
+                    }
+
+                    function appendMessage(message) {
+                        const messageId = message.id ?? null;
+
+                        if (messageId && hasMessage(messageId)) {
+                            return;
+                        }
+
+                        const isAgent = message.type === 'admin';
+
+                        const wrapper = document.createElement('div');
+                        wrapper.className = `flex ${isAgent ? 'justify-end' : 'justify-start'}`;
+
+                        if (messageId) {
+                            wrapper.dataset.messageId = messageId;
+                        }
+
+                        wrapper.innerHTML = `
+                                <div class="max-w-[80%] rounded-md px-3 py-2 text-sm ${isAgent ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-900'}">
+                                    <div>${escapeHtml(message.body)}</div>
+                                    <div class="mt-1 text-[11px] ${isAgent ? 'text-blue-100' : 'text-gray-500'}">
+                                        ${escapeHtml(formatDate(message.created_at))}
+                                    </div>
                                 </div>
-                            </div>
-                        `;
+                            `;
 
-                    messagesList.appendChild(wrapper);
+                        messagesList.appendChild(wrapper);
+                        scrollToBottom();
+                    }
+
                     scrollToBottom();
-                }
 
-                scrollToBottom();
+                    window.Pusher = Pusher;
 
-                window.Pusher = Pusher;
-
-                window.Echo = new Echo({
-                    broadcaster: 'reverb',
-                    key: @json(env('VITE_REVERB_APP_KEY')),
-                    wsHost: @json(env('VITE_REVERB_HOST')),
-                    wsPort: @json((int) env('VITE_REVERB_PORT', 80)),
-                    wssPort: @json((int) env('VITE_REVERB_PORT', 443)),
-                    forceTLS: @json((env('VITE_REVERB_SCHEME') ?? 'https') === 'https'),
-                    enabledTransports: ['ws', 'wss'],
-                    authEndpoint: @json(\Illuminate\Support\Facades\URL::signedRoute('telegram.mini-app.broadcast-auth', [
-                        'project' => $project->id,
-                        'conversation' => $conversation->public_id,
-                    ])),
-                    auth: {
-                        headers: {
-                            'X-CSRF-TOKEN': @json(csrf_token()),
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'X-Mini-App': '1',
+                    window.Echo = new Echo({
+                        broadcaster: 'reverb',
+                        key: @json(config('services.reverb_client.key')),
+                        wsHost: @json(config('services.reverb_client.host')),
+                        wsPort: @json((int) config('services.reverb_client.port')),
+                        wssPort: @json((int) config('services.reverb_client.port')),
+                        enabledTransports: ['ws', 'wss'],
+                        authEndpoint: @json(\Illuminate\Support\Facades\URL::signedRoute('telegram.mini-app.broadcast-auth', [
+                            'project' => $project->id,
+                            'conversation' => $conversation->public_id,
+                        ])),
+                        auth: {
+                            headers: {
+                                'X-CSRF-TOKEN': @json(csrf_token()),
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'X-Mini-App': '1',
+                            },
                         },
-                    },
-                });
-
-                window.Echo.private(`conversation.${conversationId}`)
-                    .listen('.widget.message-sent', (event) => {
-                        const msg = event.message || event;
-                        if (!msg || !msg.id) return;
-                        appendMessage(msg);
                     });
 
-                messageForm.addEventListener('submit', async (e) => {
-                    e.preventDefault();
-
-                    const body = messageBody.value.trim();
-
-                    if (!body) {
-                        setStatus('Message is required.', true);
-                        return;
-                    }
-
-                    sendButton.disabled = true;
-                    setStatus('Sending...');
-
-                    try {
-                        const formData = new FormData(messageForm);
-
-                        const response = await fetch(messageForm.action, {
-                            method: 'POST',
-                            headers: {
-                                'Accept': 'application/json',
-                                'X-Requested-With': 'XMLHttpRequest',
-                            },
-                            body: formData,
+                    window.Echo.private(`conversation.${conversationId}`)
+                        .listen('.widget.message-sent', (event) => {
+                            const msg = event.message || event;
+                            if (!msg || !msg.id) return;
+                            appendMessage(msg);
                         });
 
-                        const data = await response.json();
+                    messageForm.addEventListener('submit', async (e) => {
+                        e.preventDefault();
 
-                        if (!response.ok || !data.success) {
-                            throw new Error(data.message || 'Failed to send message');
+                        const body = messageBody.value.trim();
+
+                        if (!body) {
+                            setStatus('Message is required.', true);
+                            return;
                         }
 
-                        if (data.message) {
-                            appendMessage(data.message);
+                        sendButton.disabled = true;
+                        setStatus('Sending...');
+
+                        try {
+                            const formData = new FormData(messageForm);
+
+                            const response = await fetch(messageForm.action, {
+                                method: 'POST',
+                                headers: {
+                                    'Accept': 'application/json',
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                },
+                                body: formData,
+                            });
+
+                            const data = await response.json();
+
+                            if (!response.ok || !data.success) {
+                                throw new Error(data.message || 'Failed to send message');
+                            }
+
+                            if (data.message) {
+                                appendMessage(data.message);
+                            }
+
+                            messageBody.value = '';
+                            setStatus('Sent.');
+
+                            setTimeout(() => setStatus(''), 1500);
+                        } catch (error) {
+                            setStatus(error.message || 'Failed to send message.', true);
+                        } finally {
+                            sendButton.disabled = false;
                         }
-
-                        messageBody.value = '';
-                        setStatus('Sent.');
-
-                        setTimeout(() => setStatus(''), 1500);
-                    } catch (error) {
-                        setStatus(error.message || 'Failed to send message.', true);
-                    } finally {
-                        sendButton.disabled = false;
-                    }
-                });
-            </script>
+                    });
+                </script>
     @endif
 </body>
 
