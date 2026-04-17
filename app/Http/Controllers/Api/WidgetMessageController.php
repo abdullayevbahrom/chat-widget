@@ -35,8 +35,7 @@ class WidgetMessageController extends Controller
         protected VisitorTrackingService $visitorTrackingService,
         protected MessageAttachmentService $messageAttachmentService,
         protected ConversationService $conversationService,
-    ) {
-    }
+    ) {}
 
     /**
      * Store a new visitor message.
@@ -58,16 +57,17 @@ class WidgetMessageController extends Controller
                     'nullable',
                     'string',
                     'max:2000',
-                    Rule::requiredIf(fn(): bool => !$request->hasFile('attachments')),
+                    Rule::requiredIf(fn (): bool => ! $request->hasFile('attachments')),
                 ],
                 'visitor_name' => ['nullable', 'string', 'max:100'],
                 'visitor_email' => ['nullable', 'email', 'max:255'],
+                'privacy_accepted' => ['nullable', 'boolean'],
                 'visitor_id' => ['required', 'string', 'max:255'],
                 'conversation_id' => ['required', 'string', 'max:255'],
-                'attachments' => ['sometimes', 'array', 'max:' . MessageAttachmentService::MAX_ATTACHMENTS],
+                'attachments' => ['sometimes', 'array', 'max:'.MessageAttachmentService::MAX_ATTACHMENTS],
                 'attachments.*' => [
                     'file',
-                    'max:' . MessageAttachmentService::MAX_FILE_SIZE_KB,
+                    'max:'.MessageAttachmentService::MAX_FILE_SIZE_KB,
                     'mimetypes:image/jpeg,image/png,image/gif,image/webp,application/pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document',
                 ],
             ]);
@@ -107,12 +107,26 @@ class WidgetMessageController extends Controller
 
                 $sessionId = Str::uuid()->toString();
                 $visitor = Visitor::create(
-                    $this->visitorTrackingService->buildWidgetVisitorData($request, $project->tenant_id, $sessionId, $project->id)
+                    array_merge(
+                        $this->visitorTrackingService->buildWidgetVisitorData($request, $project->tenant_id, $sessionId, $project->id),
+                        array_filter([
+                            'name' => $validated['visitor_name'] ?? null,
+                            'email' => $validated['visitor_email'] ?? null,
+                            'privacy_accepted_at' => filled($request->input('privacy_accepted')) ? now() : null,
+                        ], static fn (mixed $value): bool => $value !== null)
+                    )
                 );
             } else {
                 $visitor->increment('visit_count');
                 $visitor->forceFill(
-                    $this->visitorTrackingService->buildWidgetVisitorRefreshData($request)
+                    array_merge(
+                        $this->visitorTrackingService->buildWidgetVisitorRefreshData($request),
+                        array_filter([
+                            'name' => $validated['visitor_name'] ?? null,
+                            'email' => $validated['visitor_email'] ?? null,
+                            'privacy_accepted_at' => filled($request->input('privacy_accepted')) ? now() : null,
+                        ], static fn (mixed $value): bool => $value !== null)
+                    )
                 )->saveQuietly();
             }
 
@@ -169,7 +183,7 @@ class WidgetMessageController extends Controller
                     'visitor_name' => $validated['visitor_name'] ?? null,
                     'visitor_email' => $validated['visitor_email'] ?? null,
                     'attachment_count' => count($attachments),
-                ], static fn(mixed $value): bool => filled($value)),
+                ], static fn (mixed $value): bool => filled($value)),
             ]);
 
             // Broadcast the message to real-time listeners (ignore errors to avoid breaking message storage)
@@ -184,7 +198,7 @@ class WidgetMessageController extends Controller
             }
 
             // Forward to Telegram via TelegramService for immediate delivery
-            $telegramMessageId = app(TelegramService::class)->sendMessage($conversation, $body);
+            $telegramMessageId = app(TelegramService::class)->sendMessage($conversation, $body, $message);
 
             if ($telegramMessageId) {
                 $message->updateQuietly(['telegram_message_id' => $telegramMessageId]);
@@ -268,7 +282,7 @@ class WidgetMessageController extends Controller
             ]);
 
             return response()->json([
-                'messages' => $result['messages']->map(fn(Message $message): array => $this->serializeMessage($message))->values(),
+                'messages' => $result['messages']->map(fn (Message $message): array => $this->serializeMessage($message))->values(),
                 'next_cursor' => $result['next_cursor'],
                 'has_more' => $result['has_more'],
             ]);
@@ -293,7 +307,7 @@ class WidgetMessageController extends Controller
             'ws_secure' => request()->secure(),
             // The widget SDK should use the bootstrap token or widget key from the
             // original config response to authenticate via the authorizer callback.
-            'ws_path' => '/app/' . config('broadcasting.connections.reverb.app_id'),
+            'ws_path' => '/app/'.config('broadcasting.connections.reverb.app_id'),
         ]);
     }
 
@@ -415,7 +429,7 @@ class WidgetMessageController extends Controller
 
     protected function getVisitorCookieName(Project $project): string
     {
-        return self::VISITOR_COOKIE_PREFIX . $project->id;
+        return self::VISITOR_COOKIE_PREFIX.$project->id;
     }
 
     protected function buildVisitorToken(Project $project, Visitor $visitor): string
@@ -466,11 +480,11 @@ class WidgetMessageController extends Controller
         }
 
         if (
-            !is_array($decoded)
-            || !isset($decoded['project_id'], $decoded['visitor_id'], $decoded['session_id'])
-            || !is_int($decoded['project_id'])
-            || !is_int($decoded['visitor_id'])
-            || !is_string($decoded['session_id'])
+            ! is_array($decoded)
+            || ! isset($decoded['project_id'], $decoded['visitor_id'], $decoded['session_id'])
+            || ! is_int($decoded['project_id'])
+            || ! is_int($decoded['visitor_id'])
+            || ! is_string($decoded['session_id'])
         ) {
             return null;
         }
@@ -508,7 +522,7 @@ class WidgetMessageController extends Controller
                 ->where('session_id', $sessionId)
                 ->first();
 
-            if (!$visitor) {
+            if (! $visitor) {
                 Log::warning('WebSocket auth rejected: invalid session.', [
                     'project_id' => $project->id,
                     'session_id' => $sessionId,
@@ -600,7 +614,7 @@ class WidgetMessageController extends Controller
                 ->first();
         }
 
-        if ($project === null || !$project->is_active) {
+        if ($project === null || ! $project->is_active) {
             Log::warning('Reverb auth rejected: project not found or inactive.', [
                 'visitor_id' => $visitor->id,
                 'project_id' => $project?->id,
@@ -669,7 +683,7 @@ class WidgetMessageController extends Controller
             'message_type' => $message->message_type,
             'body' => $message->body,
             'attachments' => array_values(array_map(
-                fn(array $attachment): array => $this->messageAttachmentService->serializeForApi($attachment),
+                fn (array $attachment): array => $this->messageAttachmentService->serializeForApi($attachment),
                 $message->attachments ?? [],
             )),
             'is_read' => $message->is_read,

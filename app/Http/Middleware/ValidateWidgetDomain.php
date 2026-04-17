@@ -17,7 +17,7 @@ class ValidateWidgetDomain
      * Validates the widget request by checking the Origin/Referer header
      * against the projects table. Results are cached for 1 hour.
      *
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
+     * @param  Closure(Request): (Response)  $next
      */
     public function handle(Request $request, Closure $next): Response
     {
@@ -83,6 +83,7 @@ class ValidateWidgetDomain
             if ($project === null) {
                 // Cache negative result for 5 minutes to avoid repeated DB queries
                 Cache::put($cacheKey, 'not_found', now()->addMinutes(5));
+
                 return null;
             }
 
@@ -118,14 +119,15 @@ class ValidateWidgetDomain
             $parsed = parse_url($referer);
             if (isset($parsed['host'])) {
                 $scheme = $parsed['scheme'] ?? 'https';
-                return $scheme . '://' . $parsed['host'];
+
+                return $scheme.'://'.$parsed['host'];
             }
         }
 
         // 3. Try query parameter (for script tag embedding)
         $domain = $request->query('domain');
         if (filled($domain)) {
-            return 'https://' . $domain;
+            return 'https://'.$domain;
         }
 
         return null;
@@ -137,13 +139,16 @@ class ValidateWidgetDomain
      */
     protected function normalizeDomain(string $origin): string
     {
-        // Remove scheme
+        $host = parse_url($origin, PHP_URL_HOST);
+
+        if (is_string($host) && $host !== '') {
+            return strtolower($host);
+        }
+
         $domain = preg_replace('#^https?://#', '', $origin);
+        $domain = preg_replace('#:\d+$#', '', (string) $domain);
+        $domain = rtrim((string) $domain, '/');
 
-        // Remove trailing slash
-        $domain = rtrim($domain, '/');
-
-        // Convert to lowercase
         return strtolower($domain);
     }
 

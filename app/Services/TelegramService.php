@@ -3,7 +3,8 @@
 namespace App\Services;
 
 use App\Models\Conversation;
-use App\Models\Project;
+use App\Models\Message;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -12,7 +13,7 @@ class TelegramService
     /**
      * Send message to Telegram admin chat.
      */
-    public function sendMessage(Conversation $conversation, string $text): ?int
+    public function sendMessage(Conversation $conversation, string $text, ?Message $sourceMessage = null): ?int
     {
         $project = $conversation->project;
 
@@ -20,19 +21,22 @@ class TelegramService
             Log::warning('Cannot send Telegram message: project not found.', [
                 'conversation_id' => $conversation->id,
             ]);
+
             return null;
         }
 
-        if (! $project->telegram_bot_token || ! $project->telegram_chat_id) {
+        $admins = $project->getTelegramAdmins();
+
+        if (! $project->telegram_bot_token || $admins === []) {
             Log::warning('Cannot send Telegram message: bot not configured.', [
                 'conversation_id' => $conversation->id,
                 'project_id' => $project->id,
             ]);
+
             return null;
         }
 
         $token = $project->telegram_bot_token;
-        $chatId = $project->telegram_chat_id;
 
         // Format message with metadata
         $message = sprintf(
@@ -43,42 +47,64 @@ class TelegramService
         );
 
         // Add inline keyboard with conversation ID for reply tracking
-        $replyMarkup = json_encode([
-            'inline_keyboard' => [[
-                ['text' => '💬 Reply', 'callback_data' => 'reply_'.$conversation->id],
-                ['text' => '✅ Close', 'callback_data' => 'close_'.$conversation->id],
-            ]],
-        ]);
+        $replyMarkup = json_encode(TelegramInlineKeyboard::buildForConversation($conversation, $project));
+        $firstMessageId = null;
 
-        try {
-            $response = Http::timeout(10)->post(
-                "https://api.telegram.org/bot{$token}/sendMessage",
-                [
-                    'chat_id' => $chatId,
-                    'text' => $message,
-                    'parse_mode' => 'Markdown',
-                    'reply_markup' => $replyMarkup,
-                ]
-            );
+        foreach ($admins as $admin) {
+            try {
+                $response = Http::timeout(10)->post(
+                    "https://api.telegram.org/bot{$token}/sendMessage",
+                    [
+                        'chat_id' => $admin['chat_id'],
+                        'text' => $message,
+                        'parse_mode' => 'Markdown',
+                        'reply_markup' => $replyMarkup,
+                    ]
+                );
 
-            if ($response->successful()) {
+                if (! $response->successful()) {
+                    Log::error('Telegram API error', [
+                        'conversation_id' => $conversation->id,
+                        'chat_id' => $admin['chat_id'],
+                        'status' => $response->status(),
+                        'body' => $response->body(),
+                    ]);
+
+                    continue;
+                }
+
                 $data = $response->json();
-                return $data['result']['message_id'] ?? null;
-            }
+                $messageId = $data['result']['message_id'] ?? null;
 
-            Log::error('Telegram API error', [
-                'conversation_id' => $conversation->id,
-                'status' => $response->status(),
-                'body' => $response->body(),
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Telegram send failed', [
-                'conversation_id' => $conversation->id,
-                'error' => $e->getMessage(),
-            ]);
+                if ($messageId === null) {
+                    continue;
+                }
+
+                $firstMessageId ??= $messageId;
+
+                DB::table('telegram_message_references')->updateOrInsert(
+                    [
+                        'chat_id' => (string) $admin['chat_id'],
+                        'telegram_message_id' => $messageId,
+                    ],
+                    [
+                        'tenant_id' => $conversation->tenant_id,
+                        'project_id' => $project->id,
+                        'message_id' => $sourceMessage?->id ?? ($conversation->messages()->latest('id')->value('id') ?? 0),
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]
+                );
+            } catch (\Exception $e) {
+                Log::error('Telegram send failed', [
+                    'conversation_id' => $conversation->id,
+                    'chat_id' => $admin['chat_id'] ?? null,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
 
-        return null;
+        return $firstMessageId;
     }
 
     /**
@@ -102,6 +128,7 @@ class TelegramService
                 'chat_id' => $chatId,
                 'error' => $e->getMessage(),
             ]);
+
             return false;
         }
     }
@@ -116,6 +143,7 @@ class TelegramService
 
             if ($response->successful()) {
                 $data = $response->json();
+
                 return [
                     'username' => '@'.($data['result']['username'] ?? ''),
                     'first_name' => $data['result']['first_name'] ?? '',

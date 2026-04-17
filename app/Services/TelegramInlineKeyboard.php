@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Conversation;
 use App\Models\Project;
+use Illuminate\Support\Facades\URL;
 
 /**
  * Builds inline keyboard markup for Telegram notifications.
@@ -34,7 +35,7 @@ class TelegramInlineKeyboard
                 [
                     [
                         'text' => '💬 Javob',
-                        'callback_data' => 'reply:'.$conversation->tenant_id.':'.$conversationId.':'.$signature,
+                        'url' => self::buildMiniAppUrl($conversation, $project),
                     ],
                     [
                         'text' => '🔒 Yopish',
@@ -91,7 +92,7 @@ class TelegramInlineKeyboard
                 [
                     [
                         'text' => '💬 Javob',
-                        'callback_data' => 'reply:'.$conversation->tenant_id.':'.$conversation->id.':'.$signature,
+                        'url' => self::buildMiniAppUrl($conversation, $project),
                     ],
                     [
                         'text' => '🔒 Yopish',
@@ -125,7 +126,21 @@ class TelegramInlineKeyboard
 
         $baseUrl ??= $_ENV['APP_URL'] ?? 'https://app.example.com';
 
-        return rtrim($baseUrl, '/').'/conversations/'.$conversation->id;
+        return rtrim($baseUrl, '/').'/dashboard/conversations/'.$conversation->id;
+    }
+
+    protected static function buildMiniAppUrl(Conversation $conversation, Project $project): string
+    {
+        try {
+            return URL::signedRoute('telegram.mini-app', [
+                'project' => $project->id,
+                'conversation' => $conversation->public_id ?: $conversation->id,
+            ]);
+        } catch (\Throwable) {
+            $baseUrl = rtrim($_ENV['APP_URL'] ?? 'https://app.example.com', '/');
+
+            return $baseUrl.'/dashboard/conversations/'.$conversation->id;
+        }
     }
 
     /**

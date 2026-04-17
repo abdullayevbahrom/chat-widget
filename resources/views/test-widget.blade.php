@@ -65,6 +65,18 @@
 
     <script>
         const API_BASE = window.location.origin;
+
+        function getWidgetTestUuid() {
+            if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+                return window.crypto.randomUUID();
+            }
+
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(char) {
+                const random = Math.random() * 16 | 0;
+                const value = char === 'x' ? random : (random & 0x3 | 0x8);
+                return value.toString(16);
+            });
+        }
         
         function addResult(type, message, data = null) {
             const results = document.getElementById('test-results');
@@ -85,7 +97,7 @@
         async function testBootstrap() {
             addResult('info', 'Bootstrap API test boshlandi...');
             
-            const sessionId = localStorage.getItem('widget_visitor_uuid') || crypto.randomUUID();
+            const sessionId = localStorage.getItem('widget_visitor_uuid') || getWidgetTestUuid();
             localStorage.setItem('widget_visitor_uuid', sessionId);
             
             try {
@@ -162,7 +174,7 @@
         // Test 3: Send message
         async function testSendMessage() {
             // First get conversation_id from bootstrap
-            const sessionId = localStorage.getItem('widget_visitor_uuid') || crypto.randomUUID();
+            const sessionId = localStorage.getItem('widget_visitor_uuid') || getWidgetTestUuid();
             
             try {
                 const bootstrapResponse = await fetch(`${API_BASE}/api/widget/bootstrap?session_id=${sessionId}`);

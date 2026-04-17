@@ -8,6 +8,7 @@ use App\Http\Controllers\Auth\TenantAuthController;
 use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\TelegramMiniAppController;
 use App\Http\Controllers\WidgetEmbedController;
 use App\Http\Middleware\SetTenantContext;
 use App\Http\Middleware\TrackVisitors;
@@ -21,6 +22,7 @@ Route::get('/', function () {
     if (auth('tenant_user')->check()) {
         return redirect('/dashboard');
     }
+
     return view('welcome');
 })->name('home');
 
@@ -50,9 +52,15 @@ Route::middleware(['auth:web,tenant_user', SetTenantContext::class])->prefix('da
     // Conversations
     Route::get('/conversations', [ConversationController::class, 'index'])->name('conversations.index');
     Route::get('/conversations/{conversation}', [ConversationController::class, 'show'])->name('conversations.show');
+    Route::post('/conversations/{conversation}/messages', [ConversationController::class, 'sendMessage'])->name('conversations.messages.store');
     Route::patch('/conversations/{conversation}/close', [ConversationController::class, 'close'])->name('conversations.close');
     Route::patch('/conversations/{conversation}/reopen', [ConversationController::class, 'reopen'])->name('conversations.reopen');
     Route::patch('/conversations/{conversation}/archive', [ConversationController::class, 'archive'])->name('conversations.archive');
+});
+
+Route::middleware(['signed'])->group(function () {
+    Route::get('/telegram/mini-app/{project}', [TelegramMiniAppController::class, 'index'])->name('telegram.mini-app');
+    Route::post('/telegram/mini-app/{project}/messages', [TelegramMiniAppController::class, 'store'])->name('telegram.mini-app.messages.store');
 });
 
 // ==========================================

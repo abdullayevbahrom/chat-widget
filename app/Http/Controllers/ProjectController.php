@@ -4,9 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Project;
 use App\Services\WidgetEmbedService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -16,8 +16,8 @@ class ProjectController extends Controller
 {
     public function __construct(
         protected WidgetEmbedService $embedService,
-    ) {
-    }
+    ) {}
+
     /**
      * Display a listing of the tenant's projects.
      */
@@ -31,7 +31,7 @@ class ProjectController extends Controller
         } else {
             $tenant = $user->tenant;
 
-            if (!$tenant) {
+            if (! $tenant) {
                 abort(403, 'No tenant associated with this account.');
             }
 
@@ -49,7 +49,7 @@ class ProjectController extends Controller
         $user = $request->user('web') ?? $request->user('tenant_user');
         $tenant = $user->tenant;
 
-        $project = new Project();
+        $project = new Project;
         $project->tenant_id = $tenant->id;
         $project->is_active = true;
         $project->settings = [
@@ -61,7 +61,9 @@ class ProjectController extends Controller
                 'height' => 600,
                 'primary_color' => '#6366f1',
                 'custom_css' => '',
-            ]
+                'privacy_policy_url' => '',
+                'telegram_admins' => [],
+            ],
         ];
 
         return view('tenant.projects.form', compact('project'));
@@ -75,13 +77,13 @@ class ProjectController extends Controller
         $user = $request->user('web') ?? $request->user('tenant_user');
         $tenant = $user->tenant;
 
-        if (!$tenant) {
+        if (! $tenant) {
             return redirect()->route('login')->withErrors(['auth' => 'You must be logged in.']);
         }
 
         $domain = $this->normalizeDomain((string) $request->input('domain'));
 
-        if (!$domain) {
+        if (! $domain) {
             return back()->withErrors([
                 'domain' => 'Domen noto‘g‘ri formatda kiritilgan.',
             ])->withInput();
@@ -92,7 +94,7 @@ class ProjectController extends Controller
         ]);
 
         $validated = $request->validate([
-            'domain' => ['required', 'string', 'max:255', 'unique:projects,domain,NULL,id,tenant_id,' . $tenant->id, 'regex:/^[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$/'],
+            'domain' => ['required', 'string', 'max:255', 'unique:projects,domain', 'regex:/^[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$/'],
             'chat_name' => ['nullable', 'string', 'max:100'],
             'greeting_message' => ['nullable', 'string', 'max:500'],
             'theme' => ['required', 'string', 'in:light,dark,auto'],
@@ -103,13 +105,21 @@ class ProjectController extends Controller
             'custom_css' => ['nullable', 'string', 'max:50000'],
             'is_active' => ['nullable', 'boolean'],
             'telegram_bot_token' => ['nullable', 'string', 'max:255'],
-            'telegram_chat_id' => ['nullable', 'string', 'max:100'],
+            'privacy_policy_url' => ['nullable', 'url', 'max:500'],
+            'telegram_admins' => ['nullable', 'array', 'max:50'],
+            'telegram_admins.*.chat_id' => ['nullable', 'string', 'max:255'],
+            'telegram_admins.*.name' => ['nullable', 'string', 'max:255'],
+            'telegram_admins.*.telegram_user_id' => ['nullable', 'string', 'max:255'],
+            'telegram_admins.*.username' => ['nullable', 'string', 'max:255'],
+            'telegram_admins_text' => ['nullable', 'string', 'max:10000'],
         ]);
 
         $domain = strtolower(trim($validated['domain']));
         $chatName = trim($validated['chat_name'] ?? '');
+        $telegramAdmins = $this->resolveTelegramAdmins($request, $validated);
+        $primaryTelegramChatId = $telegramAdmins[0]['chat_id'] ?? null;
 
-        $project = new Project();
+        $project = new Project;
         $project->tenant_id = $tenant->id;
         $project->domain = $domain;
         $project->name = $domain; // name is same as domain
@@ -125,15 +135,17 @@ class ProjectController extends Controller
                 'height' => (int) $validated['height'],
                 'primary_color' => $validated['primary_color'],
                 'custom_css' => $validated['custom_css'] ?? '',
+                'privacy_policy_url' => $validated['privacy_policy_url'] ?? '',
+                'telegram_admins' => $telegramAdmins,
             ],
         ];
 
-        $project->telegram_chat_id = $validated['telegram_chat_id'] ?? null;
-        $project->telegram_is_active = filled($validated['telegram_bot_token']) && filled($validated['telegram_chat_id']);
+        $project->telegram_chat_id = $primaryTelegramChatId;
+        $project->telegram_is_active = filled($validated['telegram_bot_token']) && filled($primaryTelegramChatId);
         $project->save();
 
         // Telegram settings
-        if (!empty($validated['telegram_bot_token'])) {
+        if (! empty($validated['telegram_bot_token'])) {
             $project->telegram_bot_token = $validated['telegram_bot_token'];
 
             // Set webhook and fetch bot info from Telegram API
@@ -167,7 +179,7 @@ class ProjectController extends Controller
     {
         $domain = $this->normalizeDomain((string) $request->input('domain'));
 
-        if (!$domain) {
+        if (! $domain) {
             return back()->withErrors([
                 'domain' => "Domen noto'g'ri formatda kiritilgan.",
             ])->withInput();
@@ -178,7 +190,7 @@ class ProjectController extends Controller
         ]);
 
         $validated = $request->validate([
-            'domain' => ['required', 'string', 'max:255', 'unique:projects,domain,' . $project->id, 'regex:/^[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$/'],
+            'domain' => ['required', 'string', 'max:255', 'unique:projects,domain,'.$project->id, 'regex:/^[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$/'],
             'chat_name' => ['nullable', 'string', 'max:100'],
             'greeting_message' => ['nullable', 'string', 'max:500'],
             'theme' => ['required', 'string', 'in:light,dark,auto'],
@@ -189,11 +201,19 @@ class ProjectController extends Controller
             'custom_css' => ['nullable', 'string', 'max:50000'],
             'is_active' => ['nullable', 'boolean'],
             'telegram_bot_token' => ['nullable', 'string', 'max:255'],
-            'telegram_chat_id' => ['nullable', 'string', 'max:100'],
+            'privacy_policy_url' => ['nullable', 'url', 'max:500'],
+            'telegram_admins' => ['nullable', 'array', 'max:50'],
+            'telegram_admins.*.chat_id' => ['nullable', 'string', 'max:255'],
+            'telegram_admins.*.name' => ['nullable', 'string', 'max:255'],
+            'telegram_admins.*.telegram_user_id' => ['nullable', 'string', 'max:255'],
+            'telegram_admins.*.username' => ['nullable', 'string', 'max:255'],
+            'telegram_admins_text' => ['nullable', 'string', 'max:10000'],
         ]);
 
         $domain = strtolower(trim($validated['domain']));
         $chatName = trim($validated['chat_name'] ?? '');
+        $telegramAdmins = $this->resolveTelegramAdmins($request, $validated);
+        $primaryTelegramChatId = $telegramAdmins[0]['chat_id'] ?? null;
         $project->domain = $domain;
         $project->name = $domain;
         if (blank($project->slug)) {
@@ -210,19 +230,22 @@ class ProjectController extends Controller
                 'height' => (int) $validated['height'],
                 'primary_color' => $validated['primary_color'],
                 'custom_css' => $validated['custom_css'] ?? '',
+                'privacy_policy_url' => $validated['privacy_policy_url'] ?? '',
+                'telegram_admins' => $telegramAdmins,
             ],
         ];
 
         // Telegram settings - only update token if a new value is provided (not masked)
-        $project->telegram_chat_id = $validated['telegram_chat_id'] ?? $project->telegram_chat_id;
-        $project->telegram_is_active = filled($project->telegram_bot_token) && filled($project->telegram_chat_id);
-        $project->save();
-        if (!empty($validated['telegram_bot_token']) && $validated['telegram_bot_token'] !== str_repeat('*', strlen($validated['telegram_bot_token']))) {
+        $project->telegram_chat_id = $primaryTelegramChatId;
+
+        if (! empty($validated['telegram_bot_token']) && $validated['telegram_bot_token'] !== str_repeat('*', strlen($validated['telegram_bot_token']))) {
             $project->telegram_bot_token = $validated['telegram_bot_token'];
 
             // Set webhook and fetch bot info from Telegram API
             $this->configureTelegramWebhook($project, $validated['telegram_bot_token']);
         }
+
+        $project->telegram_is_active = filled($project->telegram_bot_token) && filled($project->telegram_chat_id);
         $project->save();
 
         return redirect()
@@ -267,14 +290,14 @@ class ProjectController extends Controller
         $token = $request->input('telegram_bot_token') ?: $project->telegram_bot_token;
         $chatId = $request->input('telegram_chat_id') ?: $project->telegram_chat_id;
 
-        if (!$token) {
+        if (! $token) {
             return response()->json([
                 'success' => false,
                 'message' => 'Bot token is not configured.',
             ], 400);
         }
 
-        if (!$chatId) {
+        if (! $chatId) {
             return response()->json([
                 'success' => false,
                 'message' => 'Chat ID is not configured.',
@@ -283,14 +306,17 @@ class ProjectController extends Controller
 
         $response = Http::timeout(10)->post("https://api.telegram.org/bot{$token}/sendMessage", [
             'chat_id' => $chatId,
-            'text' => "✅ Test message from ChatWidget\n\nThis is a test message to verify your Telegram bot integration is working correctly.\n\nProject: {$project->name}\nTime: " . now()->format('Y-m-d H:i:s'),
+            'text' => "✅ Test message from ChatWidget\n\nThis is a test message to verify your Telegram bot integration is working correctly.\n\nProject: {$project->name}\nTime: ".now()->format('Y-m-d H:i:s'),
             'parse_mode' => 'HTML',
         ]);
 
         if ($response->successful()) {
+            $chatProfile = $this->fetchTelegramChatProfile($token, $chatId);
+
             return response()->json([
                 'success' => true,
                 'message' => 'Test message sent successfully!',
+                'chat' => $chatProfile,
             ]);
         }
 
@@ -301,6 +327,83 @@ class ProjectController extends Controller
             'success' => false,
             'message' => $errorMessage,
         ], 400);
+    }
+
+    /**
+     * Parse Telegram admins text area.
+     *
+     * Each line format:
+     * chat_id|name|telegram_user_id
+     *
+     * @return array<int, array{chat_id: string, name: string|null, telegram_user_id: string|null, username: string|null}>
+     */
+    protected function parseTelegramAdmins(string $input): array
+    {
+        $lines = preg_split('/\r\n|\r|\n/', trim($input)) ?: [];
+
+        return collect($lines)
+            ->map(fn (string $line) => trim($line))
+            ->filter()
+            ->map(function (string $line): ?array {
+                $parts = array_map('trim', explode('|', $line));
+                $chatId = $parts[0] ?? '';
+
+                if ($chatId === '') {
+                    return null;
+                }
+
+                return [
+                    'chat_id' => $chatId,
+                    'name' => ($parts[1] ?? '') !== '' ? $parts[1] : null,
+                    'telegram_user_id' => ($parts[2] ?? '') !== '' ? $parts[2] : null,
+                    'username' => null,
+                ];
+            })
+            ->filter()
+            ->unique('chat_id')
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     * @return array<int, array{chat_id: string, name: string|null, telegram_user_id: string|null, username: string|null}>
+     */
+    protected function resolveTelegramAdmins(Request $request, array $validated): array
+    {
+        $admins = $request->input('telegram_admins');
+
+        if (is_array($admins) && $admins !== []) {
+            return collect($admins)
+                ->map(function (mixed $admin): ?array {
+                    if (! is_array($admin)) {
+                        return null;
+                    }
+
+                    $chatId = trim((string) ($admin['chat_id'] ?? ''));
+
+                    if ($chatId === '') {
+                        return null;
+                    }
+
+                    $name = trim((string) ($admin['name'] ?? ''));
+                    $telegramUserId = trim((string) ($admin['telegram_user_id'] ?? ''));
+                    $username = trim((string) ($admin['username'] ?? ''));
+
+                    return [
+                        'chat_id' => $chatId,
+                        'name' => $name !== '' ? $name : null,
+                        'telegram_user_id' => $telegramUserId !== '' ? $telegramUserId : null,
+                        'username' => $username !== '' ? $username : null,
+                    ];
+                })
+                ->filter()
+                ->unique('chat_id')
+                ->values()
+                ->all();
+        }
+
+        return $this->parseTelegramAdmins((string) ($validated['telegram_admins_text'] ?? ''));
     }
 
     /**
@@ -319,7 +422,7 @@ class ProjectController extends Controller
                 ->where('slug', $slug)
                 ->when(
                     $ignoreProject,
-                    fn($query) => $query->whereKeyNot($ignoreProject->getKey())
+                    fn ($query) => $query->whereKeyNot($ignoreProject->getKey())
                 )
                 ->exists()
         ) {
@@ -363,9 +466,46 @@ class ProjectController extends Controller
         // Fetch bot info
         $botInfo = $this->fetchBotInfo($token);
         if ($botInfo) {
-            $project->telegram_bot_username = '@' . $botInfo['username'];
+            $project->telegram_bot_username = '@'.$botInfo['username'];
             $project->telegram_bot_name = $botInfo['first_name'];
         }
+    }
+
+    /**
+     * Fetch chat metadata from Telegram API.
+     *
+     * @return array{name: string|null, telegram_user_id: string|null, username: string|null}|null
+     */
+    protected function fetchTelegramChatProfile(string $token, string $chatId): ?array
+    {
+        $response = Http::timeout(10)->post("https://api.telegram.org/bot{$token}/getChat", [
+            'chat_id' => $chatId,
+        ]);
+
+        if (! $response->successful()) {
+            return null;
+        }
+
+        $chat = $response->json('result');
+
+        if (! is_array($chat)) {
+            return null;
+        }
+
+        $name = trim(implode(' ', array_filter([
+            $chat['first_name'] ?? null,
+            $chat['last_name'] ?? null,
+        ])));
+
+        if ($name === '') {
+            $name = trim((string) ($chat['title'] ?? ''));
+        }
+
+        return [
+            'name' => $name !== '' ? $name : null,
+            'telegram_user_id' => isset($chat['id']) ? (string) $chat['id'] : null,
+            'username' => isset($chat['username']) && $chat['username'] !== '' ? (string) $chat['username'] : null,
+        ];
     }
 
     /**
@@ -396,20 +536,20 @@ class ProjectController extends Controller
         }
 
         // Protokol yo'q bo'lsa vaqtincha qo'shamiz
-        if (!preg_match('#^[a-z][a-z0-9+\-.]*://#i', $value)) {
-            $value = 'https://' . $value;
+        if (! preg_match('#^[a-z][a-z0-9+\-.]*://#i', $value)) {
+            $value = 'https://'.$value;
         }
 
         $host = parse_url($value, PHP_URL_HOST);
 
-        if (!$host) {
+        if (! $host) {
             return null;
         }
 
         $host = preg_replace('/^www\./i', '', $host);
         $host = rtrim($host, '.');
 
-        if (!filter_var($host, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME)) {
+        if (! filter_var($host, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME)) {
             return null;
         }
 

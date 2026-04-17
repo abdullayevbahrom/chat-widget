@@ -12,6 +12,18 @@
 
   const SDK_VERSION = '2.2.0';
 
+  function generateUuid() {
+    if (global.crypto && typeof global.crypto.randomUUID === 'function') {
+      return global.crypto.randomUUID();
+    }
+
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
+      const random = Math.random() * 16 | 0;
+      const value = char === 'x' ? random : (random & 0x3 | 0x8);
+      return value.toString(16);
+    });
+  }
+
   // Generate unique widget instance ID
   const WIDGET_INSTANCE_ID = 'widget_' + Math.random().toString(36).substr(2, 9);
 
@@ -34,13 +46,17 @@
     config: null,
     conversationId: localStorage.getItem('widget_conversation_id') || null,
     visitorId: localStorage.getItem('widget_visitor_id') || null,
-    sessionId: localStorage.getItem('widget_session_id') || crypto.randomUUID(),
+    sessionId: localStorage.getItem('widget_session_id') || generateUuid(),
     messages: [],
     chatStarted: false,
     pusher: null,
     wsChannel: null,
     currentView: 'chat', // 'chat' or 'conversations'
     conversations: [],
+    profile: {
+      name: localStorage.getItem('widget_visitor_name') || '',
+      privacyAccepted: localStorage.getItem('widget_privacy_accepted') === '1',
+    },
   };
 
   // DOM element IDs with widget instance prefix to avoid conflicts
@@ -81,6 +97,143 @@
     error: '#ef4444',
   };
 
+  const THEMES = {
+    dark: {
+      bg: '#0f172a',
+      bgSecondary: '#1e293b',
+      bgTertiary: '#334155',
+      text: '#f1f5f9',
+      textSecondary: '#94a3b8',
+      textMuted: '#64748b',
+      inboundBubble: '#1e293b',
+      border: '#334155',
+      success: '#22c55e',
+      error: '#ef4444',
+      link: '#93c5fd',
+    },
+    light: {
+      bg: '#ffffff',
+      bgSecondary: '#f8fafc',
+      bgTertiary: '#e2e8f0',
+      text: '#0f172a',
+      textSecondary: '#475569',
+      textMuted: '#64748b',
+      inboundBubble: '#f1f5f9',
+      border: '#e2e8f0',
+      success: '#16a34a',
+      error: '#dc2626',
+      link: '#2563eb',
+    },
+  };
+
+  function hexToRgba(hex, alpha) {
+    const normalized = String(hex || '').replace('#', '');
+    if (!/^[0-9a-fA-F]{6}$/.test(normalized)) return `rgba(99, 102, 241, ${alpha})`;
+    const r = parseInt(normalized.slice(0, 2), 16);
+    const g = parseInt(normalized.slice(2, 4), 16);
+    const b = parseInt(normalized.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+
+  function resolveTheme(theme) {
+    if (theme === 'light' || theme === 'dark') return theme;
+    const prefersDark = global.matchMedia && global.matchMedia('(prefers-color-scheme: dark)').matches;
+    return prefersDark ? 'dark' : 'light';
+  }
+
+  function getWidgetPalette(config) {
+    const settings = config?.settings || {};
+    const resolvedTheme = resolveTheme(settings.theme);
+    const base = THEMES[resolvedTheme] || THEMES.dark;
+    const primary = settings.primary_color || COLORS.primary;
+
+    return {
+      ...base,
+      primary,
+      outboundBubble: primary,
+      bubbleShadow: hexToRgba(primary, 0.4),
+      bubbleHoverShadow: hexToRgba(primary, 0.5),
+      inputGradientEnd: resolvedTheme === 'dark' ? '#06b6d4' : '#3b82f6',
+    };
+  }
+
+  function applyWidgetConfig(config) {
+    if (!config) return;
+
+    const settings = config.settings || {};
+    const palette = getWidgetPalette(config);
+    const bubble = document.getElementById('widget-bubble');
+    const win = document.getElementById('widget-window');
+
+    const vars = {
+      '--widget-primary': palette.primary,
+      '--widget-bg': palette.bg,
+      '--widget-bg-secondary': palette.bgSecondary,
+      '--widget-bg-tertiary': palette.bgTertiary,
+      '--widget-text': palette.text,
+      '--widget-text-secondary': palette.textSecondary,
+      '--widget-text-muted': palette.textMuted,
+      '--widget-inbound-bubble': palette.inboundBubble,
+      '--widget-outbound-bubble': palette.outboundBubble,
+      '--widget-border': palette.border,
+      '--widget-success': palette.success,
+      '--widget-error': palette.error,
+      '--widget-link': palette.link,
+      '--widget-bubble-shadow': palette.bubbleShadow,
+      '--widget-bubble-hover-shadow': palette.bubbleHoverShadow,
+      '--widget-input-gradient-end': palette.inputGradientEnd,
+    };
+
+    Object.entries(vars).forEach(([key, value]) => {
+      document.documentElement.style.setProperty(key, value);
+    });
+
+    const position = settings.position || 'bottom-right';
+    const width = Number(settings.width) || 380;
+    const height = Number(settings.height) || 560;
+
+    if (bubble) {
+      bubble.style.top = '';
+      bubble.style.right = '';
+      bubble.style.bottom = '';
+      bubble.style.left = '';
+    }
+
+    if (win) {
+      win.style.top = '';
+      win.style.right = '';
+      win.style.bottom = '';
+      win.style.left = '';
+      win.style.width = `${Math.min(Math.max(width, 200), 800)}px`;
+      win.style.height = `${Math.min(Math.max(height, 200), 1200)}px`;
+    }
+
+    if (position.includes('top')) {
+      if (bubble) bubble.style.top = '24px';
+      if (win) win.style.top = '90px';
+    } else {
+      if (bubble) bubble.style.bottom = '24px';
+      if (win) win.style.bottom = '90px';
+    }
+
+    if (position.includes('left')) {
+      if (bubble) bubble.style.left = '24px';
+      if (win) win.style.left = '24px';
+    } else {
+      if (bubble) bubble.style.right = '24px';
+      if (win) win.style.right = '24px';
+    }
+
+    let customStyle = document.getElementById('widget-custom-css');
+    if (!customStyle) {
+      customStyle = document.createElement('style');
+      customStyle.id = 'widget-custom-css';
+      document.head.appendChild(customStyle);
+    }
+
+    customStyle.textContent = settings.custom_css || '';
+  }
+
   // ===== Icons =====
   const ICONS = {
     robot: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block; pointer-events:none;"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg>`,
@@ -97,6 +250,25 @@
     const style = document.createElement('style');
     style.id = 'widget-styles';
     style.textContent = `
+      :root {
+        --widget-primary: ${COLORS.primary};
+        --widget-bg: ${COLORS.bg};
+        --widget-bg-secondary: ${COLORS.bgSecondary};
+        --widget-bg-tertiary: ${COLORS.bgTertiary};
+        --widget-text: ${COLORS.text};
+        --widget-text-secondary: ${COLORS.textSecondary};
+        --widget-text-muted: ${COLORS.textMuted};
+        --widget-inbound-bubble: ${COLORS.inboundBubble};
+        --widget-outbound-bubble: ${COLORS.outboundBubble};
+        --widget-border: ${COLORS.border};
+        --widget-success: ${COLORS.success};
+        --widget-error: ${COLORS.error};
+        --widget-link: #93c5fd;
+        --widget-bubble-shadow: rgba(99, 102, 241, 0.4);
+        --widget-bubble-hover-shadow: rgba(99, 102, 241, 0.5);
+        --widget-input-gradient-end: #06b6d4;
+      }
+
       .widget-hidden { display: none !important; }
 
       #widget-backdrop {
@@ -121,11 +293,11 @@
         width: 56px;
         height: 56px;
         border-radius: 50%;
-        background: ${COLORS.primary};
+        background: var(--widget-primary);
         color: white;
         border: none;
         cursor: pointer;
-        box-shadow: 0 8px 24px rgba(99, 102, 241, 0.4);
+        box-shadow: 0 8px 24px var(--widget-bubble-shadow);
         z-index: 1000000;
         display: flex;
         align-items: center;
@@ -135,7 +307,7 @@
 
       #widget-bubble:hover {
         transform: scale(1.05);
-        box-shadow: 0 12px 32px rgba(99, 102, 241, 0.5);
+        box-shadow: 0 12px 32px var(--widget-bubble-hover-shadow);
       }
 
       #widget-bubble svg {
@@ -152,7 +324,7 @@
         max-width: calc(100vw - 48px);
         height: 560px;
         max-height: calc(100vh - 140px);
-        background: ${COLORS.bg};
+        background: var(--widget-bg);
         border-radius: 16px;
         box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.5);
         z-index: 999999;
@@ -173,19 +345,19 @@
       }
 
       .widget-header {
-        background: ${COLORS.bgSecondary};
+        background: var(--widget-bg-secondary);
         padding: 16px;
         display: flex;
         align-items: center;
         gap: 12px;
-        border-bottom: 1px solid ${COLORS.border};
+        border-bottom: 1px solid var(--widget-border);
       }
 
       .widget-header-avatar {
         width: 40px;
         height: 40px;
         border-radius: 50%;
-        background: ${COLORS.primary};
+        background: var(--widget-primary);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -199,7 +371,7 @@
       }
 
       .widget-header-title {
-        color: ${COLORS.text};
+        color: var(--widget-text);
         font-size: 15px;
         font-weight: 600;
         margin: 0;
@@ -209,7 +381,7 @@
       }
 
       .widget-header-status {
-        color: ${COLORS.success};
+        color: var(--widget-success);
         font-size: 12px;
         display: flex;
         align-items: center;
@@ -222,8 +394,8 @@
         width: 8px;
         height: 8px;
         border-radius: 50%;
-        background: ${COLORS.success};
-        box-shadow: 0 0 8px ${COLORS.success};
+        background: var(--widget-success);
+        box-shadow: 0 0 8px var(--widget-success);
       }
 
       .widget-header-actions {
@@ -237,7 +409,7 @@
         border-radius: 8px;
         background: transparent;
         border: none;
-        color: ${COLORS.textSecondary};
+        color: var(--widget-text-secondary);
         cursor: pointer;
         display: flex;
         align-items: center;
@@ -245,8 +417,8 @@
       }
 
       .widget-header-actions button:hover {
-        background: ${COLORS.bgTertiary};
-        color: ${COLORS.text};
+        background: var(--widget-bg-tertiary);
+        color: var(--widget-text);
       }
 
       .widget-header-actions button svg {
@@ -263,7 +435,7 @@
         flex-direction: column;
         gap: 12px;
         scrollbar-width: thin;
-        scrollbar-color: ${COLORS.bgTertiary} transparent;
+        scrollbar-color: var(--widget-bg-tertiary) transparent;
       }
 
       .widget-messages::-webkit-scrollbar {
@@ -275,7 +447,7 @@
       }
 
       .widget-messages::-webkit-scrollbar-thumb {
-        background: ${COLORS.bgTertiary};
+        background: var(--widget-bg-tertiary);
         border-radius: 3px;
       }
 
@@ -296,21 +468,21 @@
 
       .widget-message.inbound {
         align-self: flex-start;
-        background: ${COLORS.inboundBubble};
-        color: ${COLORS.text};
+        background: var(--widget-inbound-bubble);
+        color: var(--widget-text);
         border-bottom-left-radius: 4px;
       }
 
       .widget-message.outbound {
         align-self: flex-end;
-        background: ${COLORS.outboundBubble};
+        background: var(--widget-outbound-bubble);
         color: white;
         border-bottom-right-radius: 4px;
       }
 
       .widget-message-time {
         font-size: 10px;
-        color: ${COLORS.textMuted};
+        color: var(--widget-text-muted);
         margin-top: 4px;
         text-align: right;
       }
@@ -321,37 +493,37 @@
 
       .widget-input-area {
         padding: 12px 16px;
-        border-top: 1px solid ${COLORS.border};
+        border-top: 1px solid var(--widget-border);
         display: flex;
         gap: 8px;
-        background: ${COLORS.bgSecondary};
+        background: var(--widget-bg-secondary);
         align-items: center;
       }
 
       .widget-input-area input {
         flex: 1;
         padding: 10px 14px;
-        background: ${COLORS.bg};
-        border: 1px solid ${COLORS.border};
+        background: var(--widget-bg);
+        border: 1px solid var(--widget-border);
         border-radius: 24px;
-        color: ${COLORS.text};
+        color: var(--widget-text);
         font-size: 14px;
         outline: none;
       }
 
       .widget-input-area input::placeholder {
-        color: ${COLORS.textMuted};
+        color: var(--widget-text-muted);
       }
 
       .widget-input-area input:focus {
-        border-color: ${COLORS.primary};
+        border-color: var(--widget-primary);
       }
 
       .widget-input-area button {
         width: 40px;
         height: 40px;
         border-radius: 50%;
-        background: linear-gradient(135deg, ${COLORS.primary}, #06b6d4);
+        background: linear-gradient(135deg, var(--widget-primary), var(--widget-input-gradient-end));
         color: #ffffff;
         border: none;
         cursor: pointer;
@@ -370,8 +542,8 @@
       .widget-input-area button:disabled {
         opacity: 1;
         cursor: not-allowed;
-        background: ${COLORS.bgTertiary};
-        color: ${COLORS.textSecondary};
+        background: var(--widget-bg-tertiary);
+        color: var(--widget-text-secondary);
       }
 
       .widget-input-area button svg {
@@ -385,12 +557,84 @@
       .widget-error {
         padding: 20px;
         text-align: center;
-        color: ${COLORS.textSecondary};
+        color: var(--widget-text-secondary);
         font-size: 14px;
       }
 
       .widget-error {
-        color: ${COLORS.error};
+        color: var(--widget-error);
+      }
+
+      .widget-prechat {
+        padding: 20px 16px;
+      }
+
+      .widget-prechat-card {
+        background: var(--widget-bg-secondary);
+        border: 1px solid var(--widget-border);
+        border-radius: 12px;
+        padding: 16px;
+      }
+
+      .widget-prechat-title {
+        color: var(--widget-text);
+        font-size: 16px;
+        font-weight: 600;
+        margin-bottom: 8px;
+      }
+
+      .widget-prechat-desc {
+        color: var(--widget-text-secondary);
+        font-size: 13px;
+        line-height: 1.5;
+        margin-bottom: 12px;
+      }
+
+      .widget-prechat-field {
+        margin-bottom: 12px;
+      }
+
+      .widget-prechat-field label {
+        display: block;
+        color: var(--widget-text-secondary);
+        font-size: 12px;
+        margin-bottom: 6px;
+      }
+
+      .widget-prechat-field input[type="text"] {
+        width: 100%;
+        padding: 10px 12px;
+        background: var(--widget-bg);
+        border: 1px solid var(--widget-border);
+        border-radius: 10px;
+        color: var(--widget-text);
+        font-size: 14px;
+        outline: none;
+      }
+
+      .widget-prechat-checkbox {
+        display: flex;
+        gap: 8px;
+        align-items: flex-start;
+        color: var(--widget-text-secondary);
+        font-size: 12px;
+        margin-bottom: 12px;
+      }
+
+      .widget-prechat-checkbox a {
+        color: var(--widget-link);
+      }
+
+      .widget-prechat-submit {
+        width: 100%;
+        border: none;
+        border-radius: 10px;
+        background: var(--widget-primary);
+        color: white;
+        padding: 10px 14px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
       }
     `;
     document.head.appendChild(style);
@@ -554,6 +798,24 @@
     return data;
   }
 
+  async function fetchConfig() {
+    const response = await fetch(`${API_BASE}/api/widget/config`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Origin': window.location.origin,
+      },
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(data.error || data.message || 'Config failed');
+    }
+
+    return data;
+  }
+
   async function sendMessage() {
     const input = document.getElementById('widget-message-input');
     const body = input?.value.trim();
@@ -612,6 +874,8 @@
           conversation_id: state.conversationId,
           visitor_id: state.visitorId,
           message: body,
+          visitor_name: state.profile.name,
+          privacy_accepted: state.profile.privacyAccepted,
         }),
       });
 
@@ -703,6 +967,81 @@
     div.className = 'widget-error';
     div.textContent = msg;
     messagesDiv.appendChild(div);
+  }
+
+  function saveVisitorProfile(name, privacyAccepted) {
+    state.profile.name = (name || '').trim();
+    state.profile.privacyAccepted = !!privacyAccepted;
+    localStorage.setItem('widget_visitor_name', state.profile.name);
+    localStorage.setItem('widget_privacy_accepted', state.profile.privacyAccepted ? '1' : '0');
+  }
+
+  function showPreChatView() {
+    state.currentView = 'prechat';
+
+    const messagesDiv = document.getElementById('widget-messages');
+    const inputArea = document.getElementById('widget-input-area');
+    const viewToggle = document.getElementById('widget-view-toggle');
+    const newChatBtn = document.getElementById('widget-new-chat-btn');
+    const backBtn = document.getElementById('widget-back-btn');
+    const statusEl = document.querySelector('.widget-header-status');
+    const projectName = document.getElementById('widget-project-name');
+
+    if (!messagesDiv) return;
+
+    if (inputArea) inputArea.style.display = 'none';
+    if (viewToggle) viewToggle.classList.add('widget-hidden');
+    if (newChatBtn) newChatBtn.classList.add('widget-hidden');
+    if (backBtn) backBtn.classList.add('widget-hidden');
+    if (statusEl) statusEl.style.display = 'none';
+    if (projectName) projectName.textContent = 'Start chat';
+
+    const privacyUrl = state.config?.settings?.privacy_policy_url || '#';
+
+    messagesDiv.innerHTML = `
+      <div class="widget-prechat">
+        <div class="widget-prechat-card">
+          <div class="widget-prechat-title">Before we start</div>
+          <div class="widget-prechat-desc">Please enter your name and confirm the privacy policy.</div>
+          <div class="widget-prechat-field">
+            <label for="widget-prechat-name">Your name</label>
+            <input id="widget-prechat-name" type="text" value="${escapeHtml(state.profile.name)}" placeholder="John Doe" />
+          </div>
+          <label class="widget-prechat-checkbox">
+            <input id="widget-prechat-privacy" type="checkbox" ${state.profile.privacyAccepted ? 'checked' : ''} />
+            <span>I agree with the <a href="${privacyUrl}" target="_blank" rel="noopener noreferrer">privacy policy</a>.</span>
+          </label>
+          <button id="widget-prechat-submit" class="widget-prechat-submit">Continue</button>
+        </div>
+      </div>
+    `;
+
+    document.getElementById('widget-prechat-submit')?.addEventListener('click', () => {
+      const name = document.getElementById('widget-prechat-name')?.value?.trim() || '';
+      const accepted = !!document.getElementById('widget-prechat-privacy')?.checked;
+
+      if (!name) {
+        showError('Name is required.');
+        return;
+      }
+
+      if (!accepted) {
+        showError('Please accept the privacy policy.');
+        return;
+      }
+
+      saveVisitorProfile(name, accepted);
+      startChat();
+    });
+  }
+
+  function escapeHtml(value) {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
 
   // ===== WebSocket (Pusher with detailed logging) =====
@@ -1210,7 +1549,7 @@
     style.textContent = `
       .widget-date-header {
         text-align: center;
-        color: ${COLORS.textMuted};
+        color: var(--widget-text-muted);
         font-size: 12px;
         font-weight: 600;
         padding: 8px 0;
@@ -1219,7 +1558,7 @@
 
       .widget-conversation-item {
         padding: 12px 16px;
-        background: ${COLORS.bgSecondary};
+        background: var(--widget-bg-secondary);
         border-radius: 12px;
         cursor: pointer;
         transition: background 0.15s ease;
@@ -1228,7 +1567,7 @@
       }
 
       .widget-conversation-item:hover {
-        background: ${COLORS.bgTertiary};
+        background: var(--widget-bg-tertiary);
       }
 
       .widget-conv-content {
@@ -1253,16 +1592,16 @@
 
       .status-open {
         background: rgba(34, 197, 94, 0.2);
-        color: ${COLORS.success};
+        color: var(--widget-success);
       }
 
       .status-closed {
         background: rgba(100, 116, 139, 0.2);
-        color: ${COLORS.textMuted};
+        color: var(--widget-text-muted);
       }
 
       .widget-conv-unread {
-        background: ${COLORS.primary};
+        background: var(--widget-primary);
         color: white;
         font-size: 10px;
         font-weight: 700;
@@ -1276,7 +1615,7 @@
       }
 
       .widget-conv-message {
-        color: ${COLORS.text};
+        color: var(--widget-text);
         font-size: 14px;
         white-space: nowrap;
         overflow: hidden;
@@ -1285,7 +1624,7 @@
       }
 
       .widget-conv-time {
-        color: ${COLORS.textMuted};
+        color: var(--widget-text-muted);
         font-size: 11px;
       }
 
@@ -1304,14 +1643,14 @@
       }
 
       .widget-empty-title {
-        color: ${COLORS.text};
+        color: var(--widget-text);
         font-size: 16px;
         font-weight: 600;
         margin-bottom: 8px;
       }
 
       .widget-empty-desc {
-        color: ${COLORS.textMuted};
+        color: var(--widget-text-muted);
         font-size: 13px;
         line-height: 1.5;
       }
@@ -1325,9 +1664,13 @@
       if (!data.success) throw new Error(data.error);
 
       state.config = data;
+      applyWidgetConfig(data);
       state.conversationId = data.conversation_id;
       state.visitorId = data.visitor_id;
       state.chatStarted = true;
+      if (!state.profile.name && data.visitor_name) {
+        saveVisitorProfile(data.visitor_name, state.profile.privacyAccepted);
+      }
 
       // Persist conversation and visitor IDs to localStorage for page refresh recovery
       if (data.conversation_id) localStorage.setItem('widget_conversation_id', data.conversation_id);
@@ -1368,7 +1711,7 @@
     }
   }
 
-  function openChat() {
+  async function openChat() {
     state.isOpen = true;
 
     const win = document.getElementById('widget-window');
@@ -1384,7 +1727,21 @@
     }
 
     if (!state.chatStarted) {
-      startChat();
+      if (state.profile.name && state.profile.privacyAccepted) {
+        startChat();
+      } else {
+        if (!state.config) {
+          try {
+            state.config = await fetchConfig();
+            applyWidgetConfig(state.config);
+          } catch (err) {
+            console.error('[Widget] Config error:', err);
+            showError('Failed to load widget settings');
+            return;
+          }
+        }
+        showPreChatView();
+      }
     }
   }
 
@@ -1422,6 +1779,7 @@
     document.body.appendChild(elements.backdrop);
     document.body.appendChild(elements.bubble);
     document.body.appendChild(elements.window);
+    applyWidgetConfig(state.config);
 
     console.log(`[Widget] v${SDK_VERSION} initialized`);
   }

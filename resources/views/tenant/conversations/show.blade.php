@@ -143,25 +143,29 @@
                     @if($messages->count() > 0)
                         <div class="p-6 space-y-4 max-h-[600px] overflow-y-auto">
                             @foreach($messages as $message)
-                                <div class="flex {{ $message->direction === 'outbound' ? 'justify-end' : 'justify-start' }}">
+                                @php
+                                    $isAgentMessage = $message->sender instanceof \App\Models\User || $message->sender instanceof \App\Models\Tenant;
+                                @endphp
+                                <div class="flex {{ $isAgentMessage ? 'justify-end' : 'justify-start' }}">
                                     <div class="max-w-sm lg:max-w-md">
                                         {{-- Sender Info --}}
                                         <div
-                                            class="flex items-center gap-2 mb-1 {{ $message->direction === 'outbound' ? 'flex-row-reverse' : '' }}">
+                                            class="flex items-center gap-2 mb-1 {{ $isAgentMessage ? 'flex-row-reverse' : '' }}">
                                             @php
+                                                $metadataAgentName = $message->metadata['agent_name'] ?? null;
                                                 $senderName = match (true) {
                                                     $message->sender instanceof \App\Models\Visitor => $message->sender->name ?? 'Visitor',
                                                     $message->sender instanceof \App\Models\User => $message->sender->name ?? 'Agent',
-                                                    $message->sender instanceof \App\Models\Tenant => $message->sender->name ?? 'System',
+                                                    $message->sender instanceof \App\Models\Tenant => $metadataAgentName ?? $message->sender->name ?? 'System',
                                                     default => 'System'
                                                 };
                                                 $senderInitial = strtoupper(substr($senderName, 0, 1));
-                                                $bubbleColor = $message->direction === 'outbound'
+                                                $bubbleColor = $isAgentMessage
                                                     ? 'bg-gradient-to-r from-brand-500 to-brand-600 text-white'
                                                     : 'bg-gray-100 text-gray-800';
                                             @endphp
                                             <div
-                                                class="w-6 h-6 rounded-full {{ $message->direction === 'outbound' ? 'bg-brand-200 text-brand-700' : 'bg-gray-200 text-gray-600' }} flex items-center justify-center text-xs font-semibold">
+                                                class="w-6 h-6 rounded-full {{ $isAgentMessage ? 'bg-brand-200 text-brand-700' : 'bg-gray-200 text-gray-600' }} flex items-center justify-center text-xs font-semibold">
                                                 {{ $senderInitial }}
                                             </div>
                                             <span class="text-xs text-gray-500">{{ $senderName }}</span>
@@ -169,13 +173,13 @@
 
                                         {{-- Message Bubble --}}
                                         <div
-                                            class="px-4 py-2.5 rounded-2xl {{ $message->direction === 'outbound' ? 'rounded-br-md' : 'rounded-bl-md' }} {{ $bubbleColor }}">
+                                            class="px-4 py-2.5 rounded-2xl {{ $isAgentMessage ? 'rounded-br-md' : 'rounded-bl-md' }} {{ $bubbleColor }}">
                                             <p class="text-sm">{{ $message->body ?? 'No content' }}</p>
                                         </div>
 
                                         {{-- Timestamp --}}
                                         <p
-                                            class="text-xs text-gray-400 mt-1 {{ $message->direction === 'outbound' ? 'text-right' : '' }}">
+                                            class="text-xs text-gray-400 mt-1 {{ $isAgentMessage ? 'text-right' : '' }}">
                                             {{ $message->created_at->format('M j, Y g:i A') }}
                                         </p>
                                     </div>
@@ -193,6 +197,23 @@
                             <p class="text-gray-500 text-sm">No messages in this conversation yet</p>
                         </div>
                     @endif
+
+                    <div class="border-t border-gray-200 p-4">
+                        <form method="POST" action="{{ route('dashboard.conversations.messages.store', $conversation) }}" class="space-y-3">
+                            @csrf
+                            <textarea
+                                name="body"
+                                rows="3"
+                                class="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none transition-all focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
+                                placeholder="Write a reply..."
+                                required>{{ old('body') }}</textarea>
+                            <div class="flex justify-end">
+                                <button type="submit" class="rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 px-4 py-2 text-sm font-semibold text-white">
+                                    Send Reply
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
             </div>
 

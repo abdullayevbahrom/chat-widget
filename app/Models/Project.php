@@ -76,7 +76,7 @@ class Project extends Model
                 throw new \InvalidArgumentException('The "widget" settings key must be an array.');
             }
 
-            $allowedWidgetKeys = ['theme', 'position', 'width', 'height', 'primary_color', 'custom_css', 'chat_name'];
+            $allowedWidgetKeys = ['theme', 'position', 'width', 'height', 'primary_color', 'custom_css', 'chat_name', 'privacy_policy_url', 'telegram_admins'];
             $widget = $settings['widget'];
 
             foreach (array_keys($widget) as $key) {
@@ -110,6 +110,14 @@ class Project extends Model
 
             if (isset($widget['custom_css']) && ! is_string($widget['custom_css'])) {
                 throw new \InvalidArgumentException('Widget "custom_css" must be a string.');
+            }
+
+            if (isset($widget['privacy_policy_url']) && ! is_string($widget['privacy_policy_url'])) {
+                throw new \InvalidArgumentException('Widget "privacy_policy_url" must be a string.');
+            }
+
+            if (isset($widget['telegram_admins']) && ! is_array($widget['telegram_admins'])) {
+                throw new \InvalidArgumentException('Widget "telegram_admins" must be an array.');
             }
         }
     }
@@ -161,6 +169,46 @@ class Project extends Model
         $widgetSettings = $this->settings['widget'] ?? [];
 
         return $widgetSettings[$key] ?? $default;
+    }
+
+    /**
+     * Return configured Telegram admins for this project.
+     *
+     * @return array<int, array{chat_id: string, name: string|null, telegram_user_id: string|null, username: string|null}>
+     */
+    public function getTelegramAdmins(): array
+    {
+        $admins = $this->getWidgetSetting('telegram_admins', []);
+
+        if (! is_array($admins)) {
+            $admins = [];
+        }
+
+        $normalized = collect($admins)
+            ->filter(fn ($admin) => is_array($admin) && filled($admin['chat_id'] ?? null))
+            ->map(function (array $admin): array {
+                return [
+                    'chat_id' => trim((string) $admin['chat_id']),
+                    'name' => filled($admin['name'] ?? null) ? trim((string) $admin['name']) : null,
+                    'telegram_user_id' => filled($admin['telegram_user_id'] ?? null) ? trim((string) $admin['telegram_user_id']) : null,
+                    'username' => filled($admin['username'] ?? null) ? trim((string) $admin['username']) : null,
+                ];
+            })
+            ->filter(fn (array $admin) => $admin['chat_id'] !== '')
+            ->unique('chat_id')
+            ->values()
+            ->all();
+
+        if ($normalized === [] && filled($this->telegram_chat_id)) {
+            $normalized[] = [
+                'chat_id' => (string) $this->telegram_chat_id,
+                'name' => null,
+                'telegram_user_id' => null,
+                'username' => null,
+            ];
+        }
+
+        return $normalized;
     }
 
     /**

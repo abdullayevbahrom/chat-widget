@@ -15,6 +15,7 @@ class AdminUserController extends Controller
         $users = User::with('tenant')
             ->latest()
             ->paginate(20);
+
         return view('admin.users.index', compact('users'));
     }
 
@@ -34,6 +35,7 @@ class AdminUserController extends Controller
             'password' => 'required|min:8',
             'tenant_id' => 'nullable|exists:tenants,id',
             'is_super_admin' => 'boolean',
+            'telegram_user_id' => 'nullable|string|max:255',
         ]);
 
         User::create([
@@ -42,6 +44,7 @@ class AdminUserController extends Controller
             'password' => Hash::make($data['password']),
             'tenant_id' => $data['tenant_id'] ?? null,
             'is_super_admin' => $data['is_super_admin'] ?? false,
+            'telegram_user_id' => $data['telegram_user_id'] ?? null,
         ]);
 
         return redirect()->route('admin.users.index')->with('success', 'User created successfully.');
@@ -50,6 +53,7 @@ class AdminUserController extends Controller
     public function edit(User $user)
     {
         $tenants = Tenant::all();
+
         return view('admin.users.form', compact('user', 'tenants'));
     }
 
@@ -57,9 +61,10 @@ class AdminUserController extends Controller
     {
         $data = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email,' . $user->id,
+            'email' => 'required|email|unique:users,email,'.$user->id,
             'tenant_id' => 'nullable|exists:tenants,id',
             'is_super_admin' => 'boolean',
+            'telegram_user_id' => 'nullable|string|max:255',
         ]);
 
         if ($request->filled('password')) {
@@ -67,6 +72,7 @@ class AdminUserController extends Controller
         }
 
         $user->update($data);
+
         return redirect()->route('admin.users.index')->with('success', 'User updated successfully.');
     }
 
@@ -76,6 +82,7 @@ class AdminUserController extends Controller
             return back()->with('error', 'Cannot delete super admin accounts.');
         }
         $user->delete();
+
         return redirect()->route('admin.users.index')->with('success', 'User deleted successfully.');
     }
 }

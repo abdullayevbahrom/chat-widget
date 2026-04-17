@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -115,6 +116,20 @@ class Conversation extends Model
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
+    }
+
+    public function resolveRouteBinding($value, $field = null): ?Model
+    {
+        $routeKeyName = $field ?? $this->getRouteKeyName();
+        $query = static::withoutGlobalScopes()->where($routeKeyName, $value);
+
+        $tenantUser = Auth::guard('tenant_user')->user();
+
+        if ($tenantUser?->tenant_id !== null) {
+            $query->where('tenant_id', $tenantUser->tenant_id);
+        }
+
+        return $query->firstOrFail();
     }
 
     public function visitor(): BelongsTo

@@ -98,6 +98,8 @@ class WidgetEmbedController extends Controller
                 'height' => $project->getWidgetSetting('height', 520),
                 'primary_color' => $project->getWidgetSetting('primary_color', '#8B5CF6'),
                 'custom_css' => $project->getWidgetSetting('custom_css', null),
+                'privacy_policy_url' => $project->getWidgetSetting('privacy_policy_url', ''),
+                'chat_name' => $project->getWidgetSetting('chat_name', $project->name),
             ],
         ]));
 
@@ -156,6 +158,8 @@ class WidgetEmbedController extends Controller
                 'height' => $project->getWidgetSetting('height', 520),
                 'primary_color' => $project->getWidgetSetting('primary_color', '#8B5CF6'),
                 'custom_css' => $project->getWidgetSetting('custom_css', null),
+                'privacy_policy_url' => $project->getWidgetSetting('privacy_policy_url', ''),
+                'chat_name' => $project->getWidgetSetting('chat_name', $project->name),
             ],
             'websocket' => [
                 'enabled' => config('broadcasting.default') === 'reverb',

@@ -30,6 +30,7 @@ class Visitor extends Model
             'first_visit_at' => 'datetime',
             'last_visit_at' => 'datetime',
             'visit_count' => 'integer',
+            'privacy_accepted_at' => 'datetime',
         ];
     }
 

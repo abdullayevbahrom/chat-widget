@@ -6,6 +6,7 @@ use App\Events\WidgetMessageSent;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\Project;
+use App\Models\User;
 use App\Services\ConversationService;
 use App\Services\MessageAttachmentService;
 use App\Services\TelegramBotService;
@@ -15,6 +16,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -26,8 +28,7 @@ class TelegramWebhookController extends Controller
         protected TelegramBotService $telegramBotService,
         protected MessageAttachmentService $messageAttachmentService,
         protected ConversationService $conversationService,
-    ) {
-    }
+    ) {}
 
     /**
      * Handle incoming Telegram webhook updates.
@@ -35,7 +36,7 @@ class TelegramWebhookController extends Controller
     public function handle(Request $request, Project $project): JsonResponse
     {
 
-        if (!$project->is_active) {
+        if (! $project->is_active) {
             Log::info('Telegram webhook received for inactive bot.', [
                 'tenant_id' => $project->tenant_id,
                 'id' => $project->id,
@@ -81,7 +82,7 @@ class TelegramWebhookController extends Controller
             return $this->handleCallbackQuery($payload['callback_query'], $project);
         }
 
-        if (!isset($payload['message']) || !is_array($payload['message'])) {
+        if (! isset($payload['message']) || ! is_array($payload['message'])) {
             return response()->json(['ok' => true, 'result' => true]);
         }
 
@@ -97,12 +98,11 @@ class TelegramWebhookController extends Controller
             return response()->json(['ok' => true, 'result' => true]);
         }
 
-        $this->syncChatBinding($project, $chatId);
+        $this->syncChatBinding($project, $chatId, $messagePayload['from'] ?? []);
 
-        if ($project->telegram_chat_id !== $chatId) {
+        if (! $this->isAllowedTelegramChat($project, $chatId)) {
             Log::warning('Ignoring Telegram message from an unexpected chat.', [
                 'tenant_id' => $project->tenant_id,
-                'expected_chat_id' => $project->telegram_chat_id,
                 'actual_chat_id' => $chatId,
             ]);
 
@@ -120,7 +120,7 @@ class TelegramWebhookController extends Controller
 
         $replyToTelegramId = $messagePayload['reply_to_message']['message_id'] ?? null;
 
-        if (!is_int($replyToTelegramId)) {
+        if (! is_int($replyToTelegramId)) {
             Log::info('Ignoring Telegram message because it is not a reply to a widget notification.', [
                 'tenant_id' => $project->tenant_id,
                 'telegram_message_id' => $messagePayload['message_id'] ?? null,
@@ -130,10 +130,24 @@ class TelegramWebhookController extends Controller
             return response()->json(['ok' => true, 'result' => true]);
         }
 
-        $sourceMessage = Message::withoutGlobalScopes()
+        $reference = DB::table('telegram_message_references')
             ->where('tenant_id', $project->tenant_id)
+            ->where('chat_id', $chatId)
             ->where('telegram_message_id', $replyToTelegramId)
             ->first();
+
+        $sourceMessage = null;
+
+        if ($reference !== null) {
+            $sourceMessage = Message::withoutGlobalScopes()->find($reference->message_id);
+        }
+
+        if ($sourceMessage === null) {
+            $sourceMessage = Message::withoutGlobalScopes()
+                ->where('tenant_id', $project->tenant_id)
+                ->where('telegram_message_id', $replyToTelegramId)
+                ->first();
+        }
 
         if ($sourceMessage === null) {
             Log::warning('Ignoring Telegram reply because the original widget message could not be found.', [
@@ -249,7 +263,7 @@ class TelegramWebhookController extends Controller
             Log::info('Broadcast admin reply to WebSocket completed.', [
                 'conversation_public_id' => $conversation->public_id,
                 'message_public_id' => $adminMessage->public_id,
-                'channel' => 'private-conversation.' . $conversation->public_id,
+                'channel' => 'private-conversation.'.$conversation->public_id,
             ]);
         } catch (\Throwable $e) {
             Log::warning('Broadcast admin reply to WebSocket failed (non-critical).', [
@@ -262,20 +276,55 @@ class TelegramWebhookController extends Controller
         return response()->json(['ok' => true, 'result' => true]);
     }
 
-    protected function syncChatBinding(Project $project, string $chatId): void
+    protected function syncChatBinding(Project $project, string $chatId, array $from = []): void
     {
-        if ($project->chat_id === $chatId) {
+        $settings = $project->settings ?? [];
+        $admins = $project->getTelegramAdmins();
+
+        foreach ($admins as $index => $admin) {
+            if (($admin['chat_id'] ?? null) !== $chatId) {
+                continue;
+            }
+
+            $updated = false;
+            if (blank($admin['name'] ?? null)) {
+                $admins[$index]['name'] = $this->resolveAgentName($from);
+                $updated = true;
+            }
+            if (blank($admin['telegram_user_id'] ?? null) && isset($from['id'])) {
+                $admins[$index]['telegram_user_id'] = (string) $from['id'];
+                $updated = true;
+            }
+            if (blank($admin['username'] ?? null) && filled($from['username'] ?? null)) {
+                $admins[$index]['username'] = '@'.ltrim((string) $from['username'], '@');
+                $updated = true;
+            }
+
+            if ($updated) {
+                $settings['widget']['telegram_admins'] = array_values($admins);
+                $project->settings = $settings;
+                $project->save();
+            }
+
             return;
         }
 
-        if (blank($project->telegram_chat_id)) {
+        if (blank($project->telegram_chat_id) && $project->getTelegramAdmins() === []) {
             Log::info('Binding Telegram tenant settings to the first observed chat.', [
                 'project_id' => $project->id,
                 'tenant_id' => $project->tenant_id,
                 'chat_id' => $chatId,
             ]);
 
-            $project->forceFill(['telegram_chat_id' => $chatId])->save();
+            $project->telegram_chat_id = $chatId;
+            $settings['widget']['telegram_admins'] = [[
+                'chat_id' => $chatId,
+                'name' => $this->resolveAgentName($from),
+                'telegram_user_id' => isset($from['id']) ? (string) $from['id'] : null,
+                'username' => isset($from['username']) ? '@'.ltrim((string) $from['username'], '@') : null,
+            ]];
+            $project->settings = $settings;
+            $project->save();
         }
     }
 
@@ -357,7 +406,7 @@ class TelegramWebhookController extends Controller
         // Authorization: Verify the Telegram user is an allowed admin
         $fromUserId = $from['id'] ?? null;
 
-        if ($fromUserId === null || !$this->isTelegramAdminAllowed($project, (string) $fromUserId)) {
+        if ($fromUserId === null || ! $this->isTelegramAdminAllowed($project, (string) $fromUserId, $chatId !== null ? (string) $chatId : null)) {
             Log::warning('Callback query from unauthorized Telegram user.', [
                 'tenant_id' => $project->tenant_id,
                 'project_id' => $project->id,
@@ -369,7 +418,7 @@ class TelegramWebhookController extends Controller
                 $this->telegramBotService->answerCallbackQuery(
                     $project->telegram_bot_token,
                     $callbackQueryId,
-                    "Ruxsat berilmagan",
+                    'Ruxsat berilmagan',
                     true
                 );
             } catch (\Exception $e) {
@@ -415,7 +464,7 @@ class TelegramWebhookController extends Controller
 
         // Verify HMAC signature to prevent callback forgery
         if (
-            !TelegramInlineKeyboard::verifyCallbackSignature(
+            ! TelegramInlineKeyboard::verifyCallbackSignature(
                 $parsed['tenant_id'],
                 $parsed['conversation_id'],
                 $parsed['signature']
@@ -540,19 +589,19 @@ class TelegramWebhookController extends Controller
         $telegramUserId = $from['id'] ?? null;
 
         if ($telegramUserId !== null) {
-            $mappedUser = \App\Models\User::withoutGlobalScopes()
+            $mappedUser = User::withoutGlobalScopes()
                 ->where('telegram_user_id', (string) $telegramUserId)
                 ->where('tenant_id', $project->tenant_id)
                 ->exists();
 
-            if (!$mappedUser) {
+            if (! $mappedUser) {
                 Log::warning('Telegram close callback from unmapped user.', [
                     'tenant_id' => $project->tenant_id,
                     'telegram_user_id' => $telegramUserId,
                 ]);
 
                 // Still allow close if the user is in the admin whitelist
-                if (!$this->isTelegramAdminAllowed($project, (string) $telegramUserId)) {
+                if (! $this->isTelegramAdminAllowed($project, (string) $telegramUserId, $chatId !== null ? (string) $chatId : null)) {
                     $this->answerCallbackWithError($project, $callbackQueryId, 'Ruxsat berilmagan');
 
                     return response()->json(['ok' => true, 'result' => true]);
@@ -570,7 +619,7 @@ class TelegramWebhookController extends Controller
             return response()->json(['ok' => true, 'result' => true]);
         }
 
-        if (!$conversation->canTransitionTo(Conversation::STATUS_CLOSED)) {
+        if (! $conversation->canTransitionTo(Conversation::STATUS_CLOSED)) {
             $this->answerCallbackWithError(
                 $project,
                 $callbackQueryId,
@@ -648,13 +697,13 @@ class TelegramWebhookController extends Controller
             return response()->json(['ok' => true, 'result' => true]);
         }
 
-        $user = \App\Models\User::withoutGlobalScopes()
+        $user = User::withoutGlobalScopes()
             ->where('telegram_user_id', (string) $telegramUserId)
             ->where('tenant_id', $project->tenant_id)
             ->whereNotNull('email_verified_at')
             ->first();
 
-        if ($user === null || !$user->isSuperAdmin()) {
+        if ($user === null || ! $user->isSuperAdmin()) {
             Log::warning('Telegram assign callback from non-super-admin user.', [
                 'tenant_id' => $project->tenant_id,
                 'telegram_user_id' => $telegramUserId,
@@ -752,7 +801,7 @@ class TelegramWebhookController extends Controller
 
         // Priority 1: Use username if available
         if (is_string($username) && trim($username) !== '') {
-            return '@' . trim($username);
+            return '@'.trim($username);
         }
 
         // Priority 2: Use full name (first + last)
@@ -760,7 +809,7 @@ class TelegramWebhookController extends Controller
             $name = trim($firstName);
 
             if (is_string($lastName) && trim($lastName) !== '') {
-                $name .= ' ' . trim($lastName);
+                $name .= ' '.trim($lastName);
             }
 
             return $name;
@@ -824,5 +873,45 @@ class TelegramWebhookController extends Controller
                 'error_type' => get_class($e),
             ]);
         }
+    }
+
+    protected function isAllowedTelegramChat(Project $project, string $chatId): bool
+    {
+        if (filled($project->telegram_chat_id) && (string) $project->telegram_chat_id === $chatId) {
+            return true;
+        }
+
+        foreach ($project->getTelegramAdmins() as $admin) {
+            if (($admin['chat_id'] ?? null) === $chatId) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    protected function isTelegramAdminAllowed(Project $project, string $adminId, ?string $chatId = null): bool
+    {
+        $admins = $project->getTelegramAdmins();
+
+        if ($admins === []) {
+            return $chatId !== null ? $this->isAllowedTelegramChat($project, $chatId) : true;
+        }
+
+        foreach ($admins as $admin) {
+            if ($chatId !== null && ($admin['chat_id'] ?? null) === $chatId) {
+                if (blank($admin['telegram_user_id'] ?? null)) {
+                    return true;
+                }
+
+                return (string) $admin['telegram_user_id'] === $adminId;
+            }
+
+            if (filled($admin['telegram_user_id'] ?? null) && (string) $admin['telegram_user_id'] === $adminId) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

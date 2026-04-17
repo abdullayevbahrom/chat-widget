@@ -2,11 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\WidgetMessageSent;
 use App\Models\Conversation;
+use App\Models\Message;
 use App\Models\Project;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
 class ConversationController extends Controller
@@ -25,7 +26,7 @@ class ConversationController extends Controller
         } else {
             $tenant = $user->tenant;
 
-            if (!$tenant) {
+            if (! $tenant) {
                 abort(403, 'No tenant associated with this account.');
             }
 
@@ -68,7 +69,7 @@ class ConversationController extends Controller
             'project',
             'messages.sender' => function ($query) {
                 $query->withTrashed();
-            }
+            },
         ]);
 
         $messages = $conversation->messages()->with('sender')->orderBy('created_at', 'asc')->get();
@@ -135,5 +136,52 @@ class ConversationController extends Controller
         return redirect()
             ->route('dashboard.conversations.index')
             ->with('success', 'Conversation archived successfully.');
+    }
+
+    /**
+     * Send an admin reply directly from the dashboard.
+     */
+    public function sendMessage(Conversation $conversation, Request $request): RedirectResponse
+    {
+        $user = $request->user('web') ?? $request->user('tenant_user');
+
+        if (! $user->isSuperAdmin() && $user->tenant?->id !== $conversation->tenant_id) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'body' => ['required', 'string', 'max:5000'],
+        ]);
+
+        if ($conversation->isClosed()) {
+            $conversation->reopen();
+        }
+
+        $tenantSender = $conversation->project()->withoutGlobalScopes()->first()?->tenant;
+
+        $message = Message::withoutGlobalScopes()->create([
+            'tenant_id' => $conversation->tenant_id,
+            'conversation_id' => $conversation->id,
+            'sender_type' => $tenantSender?->getMorphClass(),
+            'sender_id' => $tenantSender?->id,
+            'message_type' => Message::TYPE_TEXT,
+            'body' => trim($validated['body']),
+            'direction' => Message::DIRECTION_INBOUND,
+            'is_read' => false,
+            'metadata' => [
+                'source' => 'dashboard',
+                'agent_name' => $user->name,
+            ],
+        ]);
+
+        try {
+            broadcast(new WidgetMessageSent($conversation->fresh(), $message->fresh(), $user->name));
+        } catch (\Throwable) {
+            // Ignore broadcast failure; message is already stored.
+        }
+
+        return redirect()
+            ->route('dashboard.conversations.show', $conversation)
+            ->with('success', 'Message sent successfully.');
     }
 }

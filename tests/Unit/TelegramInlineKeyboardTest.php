@@ -17,18 +17,22 @@ class TelegramInlineKeyboardTest extends TestCase
             $_ENV['APP_KEY'] = 'base64:1uSGMthiynjqxVR4Ez64SlGR/JnvH7FqGkWXwE330yw=';
         }
     }
+
     public function test_build_for_conversation_returns_valid_structure(): void
     {
-        $conversation = new class extends Conversation {
+        $conversation = new class extends Conversation
+        {
             public function __construct()
             {
                 parent::__construct();
                 $this->attributes['id'] = 42;
                 $this->attributes['tenant_id'] = 1;
+                $this->attributes['public_id'] = 'conv-42';
             }
         };
 
-        $project = new class extends Project {
+        $project = new class extends Project
+        {
             public function __construct()
             {
                 parent::__construct();
@@ -47,7 +51,7 @@ class TelegramInlineKeyboardTest extends TestCase
         // First row: Reply and Close
         $this->assertCount(2, $keyboard['inline_keyboard'][0]);
         $this->assertEquals('💬 Javob', $keyboard['inline_keyboard'][0][0]['text']);
-        $this->assertStringContainsString('reply:1:42:', $keyboard['inline_keyboard'][0][0]['callback_data']);
+        $this->assertArrayHasKey('url', $keyboard['inline_keyboard'][0][0]);
         $this->assertEquals('🔒 Yopish', $keyboard['inline_keyboard'][0][1]['text']);
         $this->assertStringContainsString('close:1:42:', $keyboard['inline_keyboard'][0][1]['callback_data']);
 
@@ -60,16 +64,19 @@ class TelegramInlineKeyboardTest extends TestCase
 
     public function test_callback_data_is_within_64_byte_limit(): void
     {
-        $conversation = new class extends Conversation {
+        $conversation = new class extends Conversation
+        {
             public function __construct()
             {
                 parent::__construct();
                 $this->attributes['id'] = 999999;
                 $this->attributes['tenant_id'] = 1;
+                $this->attributes['public_id'] = 'conv-999999';
             }
         };
 
-        $project = new class extends Project {
+        $project = new class extends Project
+        {
             public function __construct()
             {
                 parent::__construct();
@@ -102,16 +109,19 @@ class TelegramInlineKeyboardTest extends TestCase
 
     public function test_build_after_assignment_keyboard(): void
     {
-        $conversation = new class extends Conversation {
+        $conversation = new class extends Conversation
+        {
             public function __construct()
             {
                 parent::__construct();
                 $this->attributes['id'] = 10;
                 $this->attributes['tenant_id'] = 1;
+                $this->attributes['public_id'] = 'conv-10';
             }
         };
 
-        $project = new class extends Project {
+        $project = new class extends Project
+        {
             public function __construct()
             {
                 parent::__construct();
@@ -137,7 +147,8 @@ class TelegramInlineKeyboardTest extends TestCase
 
     public function test_dashboard_url_contains_conversation_id(): void
     {
-        $conversation = new class extends Conversation {
+        $conversation = new class extends Conversation
+        {
             public function __construct()
             {
                 parent::__construct();
@@ -146,7 +157,8 @@ class TelegramInlineKeyboardTest extends TestCase
             }
         };
 
-        $project = new class extends Project {
+        $project = new class extends Project
+        {
             public function __construct()
             {
                 parent::__construct();

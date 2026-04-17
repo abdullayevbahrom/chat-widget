@@ -11,6 +11,29 @@ $width = $widget['width'] ?? 400;
 $height = $widget['height'] ?? 600;
 $primaryColor = $widget['primary_color'] ?? '#6366f1';
 $customCss = $widget['custom_css'] ?? '';
+$privacyPolicyUrl = $widget['privacy_policy_url'] ?? '';
+$telegramAdmins = $widget['telegram_admins'] ?? [];
+$oldTelegramAdmins = old('telegram_admins');
+
+if (is_array($oldTelegramAdmins)) {
+    $telegramAdmins = collect($oldTelegramAdmins)
+        ->map(fn ($admin) => [
+            'chat_id' => $admin['chat_id'] ?? '',
+            'name' => $admin['name'] ?? '',
+            'telegram_user_id' => $admin['telegram_user_id'] ?? '',
+            'username' => $admin['username'] ?? '',
+        ])
+        ->values()
+        ->all();
+}
+
+$telegramAdminsText = collect($telegramAdmins)
+    ->map(fn ($admin) => implode('|', array_filter([
+        $admin['chat_id'] ?? '',
+        $admin['name'] ?? '',
+        $admin['telegram_user_id'] ?? '',
+    ], fn ($value) => $value !== null && $value !== '')))
+    ->implode("\n");
 $pageTitle = $isEdit ? 'Edit Project' : 'Create Project';
 $maskedToken = $project->telegram_bot_token ? str_repeat('*', strlen($project->telegram_bot_token)) : '';
 @endphp
@@ -167,9 +190,25 @@ $maskedToken = $project->telegram_bot_token ? str_repeat('*', strlen($project->t
                                   name="greeting_message"
                                   rows="3"
                                   class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all resize-none"
-                                  placeholder="Salom! 👋 Sizga qanday yordam bera olaman?">{{ old('greeting_message', $project->greeting_message ?? 'Salom! 👋 Sizga qanday yordam bera olaman?') }}</textarea>
+                                  placeholder="Hello! 👋 How can we help you today?">{{ old('greeting_message', $project->greeting_message ?? 'Salom! 👋 Sizga qanday yordam bera olaman?') }}</textarea>
                         <p class="mt-1 text-xs text-gray-400">This message appears when a visitor opens the widget for the first time. Leave empty to use default greeting.</p>
                         @error('greeting_message')
+                            <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+
+                    <div>
+                        <label for="privacy_policy_url" class="block text-sm font-semibold text-gray-700 mb-2">
+                            Privacy Policy URL
+                        </label>
+                        <input type="url"
+                               id="privacy_policy_url"
+                               name="privacy_policy_url"
+                               value="{{ old('privacy_policy_url', $privacyPolicyUrl) }}"
+                               class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all"
+                               placeholder="https://example.com/privacy">
+                        <p class="mt-1 text-xs text-gray-400">Widget visitor starts chat only after confirming this policy.</p>
+                        @error('privacy_policy_url')
                             <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
                         @enderror
                     </div>
@@ -362,10 +401,10 @@ $maskedToken = $project->telegram_bot_token ? str_repeat('*', strlen($project->t
                                 <label for="telegram_bot_token" class="block text-sm font-medium text-gray-700 mb-1">Bot Token</label>
                                 <div class="relative">
                                     <input type="password"
-                                           name="telegram_bot_token"
-                                           id="telegram_bot_token"
-                                           value="{{ old('telegram_bot_token', $maskedToken) }}"
-                                           placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
+                                    name="telegram_bot_token"
+                                    id="telegram_bot_token"
+                                    value="{{ old('telegram_bot_token', $maskedToken) }}"
+                                    placeholder="123456789:ABCDEF_your_bot_token"
                                            class="w-full px-4 py-3 pr-20 rounded-xl border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all font-mono text-sm">
                                     <div class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
                                         <button type="button" onclick="toggleTokenVisibility()"
@@ -389,40 +428,69 @@ $maskedToken = $project->telegram_bot_token ? str_repeat('*', strlen($project->t
                                 @enderror
                             </div>
 
-                            {{-- Chat ID --}}
+                            {{-- Telegram Admins --}}
                             <div>
-                                <label for="telegram_chat_id" class="block text-sm font-medium text-gray-700 mb-1">Chat ID</label>
-                                <input type="text"
-                                       name="telegram_chat_id"
-                                       id="telegram_chat_id"
-                                       value="{{ old('telegram_chat_id', $project->telegram_chat_id) }}"
-                                       placeholder="e.g., -1001234567890 or 123456789"
-                                       class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all font-mono text-sm">
-                                <p class="text-xs text-gray-500 mt-1">Send a message to your bot, then check <a href="https://t.me/userinfobot" target="_blank" class="text-brand-600 hover:underline">@userinfobot</a> for your Chat ID</p>
-                                @error('telegram_chat_id')
+                                <div class="flex items-center justify-between gap-3 mb-1">
+                                    <label class="block text-sm font-medium text-gray-700">Telegram Admins</label>
+                                    <button type="button"
+                                            id="telegram-admin-add-btn"
+                                            class="inline-flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-xs font-medium text-brand-700 hover:bg-brand-100">
+                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                        </svg>
+                                        Add
+                                    </button>
+                                </div>
+
+                                <div class="rounded-xl border border-gray-200 overflow-hidden">
+                                    <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-3 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                        <div>Chat ID</div>
+                                        <div>Name</div>
+                                        <div>Actions</div>
+                                    </div>
+                                    <div id="telegram-admin-list" class="divide-y divide-gray-100 bg-white"></div>
+                                </div>
+                                <input type="hidden" name="telegram_admins_text" id="telegram_admins_text" value="{{ old('telegram_admins_text', $telegramAdminsText) }}">
+                                <template id="telegram-admin-row-template">
+                                    <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-3 px-4 py-3 items-start telegram-admin-row">
+                                        <div>
+                                            <input type="text"
+                                                   data-role="chat-id"
+                                                   placeholder="-1001234567890 or 123456789"
+                                                   class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm font-mono outline-none transition-all focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20">
+                                        </div>
+                                        <div>
+                                            <input type="text"
+                                                   data-role="name"
+                                                   placeholder="Admin name"
+                                                   class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none transition-all focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20">
+                                            <input type="hidden" data-role="telegram-user-id">
+                                            <input type="hidden" data-role="username">
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            @if($isEdit)
+                                                <button type="button"
+                                                        data-role="test"
+                                                        class="inline-flex items-center gap-2 rounded-lg border border-brand-200 bg-white px-3 py-2 text-xs font-medium text-brand-700 hover:bg-brand-50">
+                                                    Test
+                                                </button>
+                                            @endif
+                                            <button type="button"
+                                                    data-role="remove"
+                                                    class="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50">
+                                                Remove
+                                            </button>
+                                        </div>
+                                    </div>
+                                </template>
+                                <p class="text-xs text-gray-500 mt-2">Chat ID va optional name. Test muvaffaqiyatli o‘tsa, name bo‘sh bo‘lsa Telegramdan kelgan ism bilan to‘ldiriladi.</p>
+                                @error('telegram_admins_text')
+                                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
+                                @enderror
+                                @error('telegram_admins')
                                     <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
                                 @enderror
                             </div>
-
-                            {{-- Send Test Message Button --}}
-                            @if($isEdit)
-                            <div class="flex justify-end pt-2">
-                                <button type="button"
-                                        id="send-test-message-btn"
-                                        onclick="sendTestMessage()"
-                                        disabled
-                                        class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-brand-700 bg-brand-50 hover:bg-brand-100 border border-brand-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-                                    <svg id="send-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
-                                    </svg>
-                                    <svg id="loading-icon" class="w-4 h-4 animate-spin hidden" fill="none" viewBox="0 0 24 24">
-                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                    </svg>
-                                    <span id="button-text">Send Test Message</span>
-                                </button>
-                            </div>
-                            @endif
                         </div>
                     </div>
                 </div>
@@ -473,7 +541,7 @@ $maskedToken = $project->telegram_bot_token ? str_repeat('*', strlen($project->t
                             <!-- Messages -->
                             <div class="widget-preview-messages">
                                 <div class="widget-preview-message inbound">
-                                    <span>Salom! 👋 Sizga qanday yordam bera olaman?</span>
+                                    <span id="widget-preview-greeting">{{ old('greeting_message', $project->greeting_message ?? 'Hello! 👋 How can we help you today?') }}</span>
                                     <div class="widget-preview-time">12:00</div>
                                 </div>
                                 <div class="widget-preview-message outbound">
@@ -768,7 +836,6 @@ $maskedToken = $project->telegram_bot_token ? str_repeat('*', strlen($project->t
             // Telegram Bot helper functions - works on both create and edit
             (function() {
                 const tokenInput = document.getElementById('telegram_bot_token');
-                const chatIdInput = document.getElementById('telegram_chat_id');
 
                 window.toggleTokenVisibility = function() {
                     const isPassword = tokenInput.type === 'password';
@@ -777,100 +844,193 @@ $maskedToken = $project->telegram_bot_token ? str_repeat('*', strlen($project->t
 
                 window.clearTokenField = function() {
                     tokenInput.value = '';
-                    const sendBtn = document.getElementById('send-test-message-btn');
-                    if (sendBtn) {
-                        const maskedToken = '{{ $maskedToken }}';
-                        const tokenValue = tokenInput.value;
-                        const chatIdValue = chatIdInput?.value;
-                        const hasRealToken = tokenValue.length > 0 && tokenValue !== maskedToken;
-                        const hasChatId = chatIdValue && chatIdValue.length > 0;
-                        sendBtn.disabled = !(hasRealToken && hasChatId);
-                    }
                 };
             })();
 
-            // Telegram test message - only on edit pages
             document.addEventListener('DOMContentLoaded', function() {
-                @if($isEdit)
                 (function() {
                     const tokenInput = document.getElementById('telegram_bot_token');
-                    const chatIdInput = document.getElementById('telegram_chat_id');
-                    const sendBtn = document.getElementById('send-test-message-btn');
-                    const sendIcon = document.getElementById('send-icon');
-                    const loadingIcon = document.getElementById('loading-icon');
-                    const buttonText = document.getElementById('button-text');
                     const resultDiv = document.getElementById('telegram-test-result');
+                    const adminList = document.getElementById('telegram-admin-list');
+                    const addBtn = document.getElementById('telegram-admin-add-btn');
+                    const template = document.getElementById('telegram-admin-row-template');
+                    const hiddenTextarea = document.getElementById('telegram_admins_text');
                     const maskedToken = '{{ $maskedToken }}';
+                    const initialAdmins = @json(array_values($telegramAdmins));
+                    const canTest = {{ $isEdit ? 'true' : 'false' }};
 
-                    function updateButtonState() {
+                    function getRows() {
+                        return Array.from(adminList.querySelectorAll('.telegram-admin-row'));
+                    }
+
+                    function syncTelegramAdminsPayload() {
+                        const admins = getRows().map((row, index) => {
+                            const chatId = row.querySelector('[data-role="chat-id"]').value.trim();
+                            const name = row.querySelector('[data-role="name"]').value.trim();
+                            const telegramUserId = row.querySelector('[data-role="telegram-user-id"]').value.trim();
+                            const username = row.querySelector('[data-role="username"]').value.trim();
+
+                            row.querySelectorAll('input[type="hidden"][name^="telegram_admins["]').forEach((input) => input.remove());
+
+                            if (!chatId) {
+                                return null;
+                            }
+
+                            [
+                                ['chat_id', chatId],
+                                ['name', name],
+                                ['telegram_user_id', telegramUserId],
+                                ['username', username],
+                            ].forEach(([key, value]) => {
+                                const input = document.createElement('input');
+                                input.type = 'hidden';
+                                input.name = `telegram_admins[${index}][${key}]`;
+                                input.value = value;
+                                row.appendChild(input);
+                            });
+
+                            return {
+                                chat_id: chatId,
+                                name,
+                                telegram_user_id: telegramUserId,
+                                username,
+                            };
+                        }).filter(Boolean);
+
+                        hiddenTextarea.value = admins
+                            .map((admin) => [admin.chat_id, admin.name, admin.telegram_user_id].filter(Boolean).join('|'))
+                            .join('\n');
+
+                        updateTestButtonsState();
+                    }
+
+                    function updateTestButtonsState() {
                         const tokenValue = tokenInput.value;
-                        const chatIdValue = chatIdInput.value;
-
-                        // Edit sahifada: agar projectda saqlangan token bo'lsa (maskedToken mavjud)
-                        // yoki foydalanuvchi yangi token kiritsa, token valid hisoblanadi
                         const hasStoredToken = maskedToken.length > 0;
                         const hasNewToken = tokenValue.length > 0 && tokenValue !== maskedToken;
                         const hasRealToken = hasStoredToken || hasNewToken;
-                        const hasChatId = chatIdValue.length > 0;
 
-                        sendBtn.disabled = !(hasRealToken && hasChatId);
+                        getRows().forEach((row) => {
+                            const testBtn = row.querySelector('[data-role="test"]');
+                            if (!testBtn) {
+                                return;
+                            }
+
+                            const chatId = row.querySelector('[data-role="chat-id"]').value.trim();
+                            testBtn.disabled = !(canTest && hasRealToken && chatId);
+                            testBtn.classList.toggle('opacity-50', testBtn.disabled);
+                            testBtn.classList.toggle('cursor-not-allowed', testBtn.disabled);
+                        });
                     }
 
-                    tokenInput.addEventListener('input', updateButtonState);
-                    chatIdInput.addEventListener('input', updateButtonState);
+                    function createAdminRow(admin = {}) {
+                        const fragment = template.content.cloneNode(true);
+                        const row = fragment.querySelector('.telegram-admin-row');
+                        const chatIdInput = row.querySelector('[data-role="chat-id"]');
+                        const nameInput = row.querySelector('[data-role="name"]');
+                        const telegramUserIdInput = row.querySelector('[data-role="telegram-user-id"]');
+                        const usernameInput = row.querySelector('[data-role="username"]');
+                        const testBtn = row.querySelector('[data-role="test"]');
+                        const removeBtn = row.querySelector('[data-role="remove"]');
 
-                    // Initial state check
-                    updateButtonState();
+                        chatIdInput.value = admin.chat_id || '';
+                        nameInput.value = admin.name || '';
+                        telegramUserIdInput.value = admin.telegram_user_id || '';
+                        usernameInput.value = admin.username || '';
 
-                    window.sendTestMessage = async function() {
-                    sendBtn.disabled = true;
-                    sendIcon.classList.add('hidden');
-                    loadingIcon.classList.remove('hidden');
-                    buttonText.textContent = 'Sending...';
-                    resultDiv.classList.add('hidden');
+                        const onInput = () => syncTelegramAdminsPayload();
+                        chatIdInput.addEventListener('input', onInput);
+                        nameInput.addEventListener('input', onInput);
 
-                    try {
-                        const response = await fetch('{{ route('dashboard.projects.send-test-message', $project) }}', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                                'Accept': 'application/json',
-                            },
-                            body: JSON.stringify({
-                                telegram_bot_token: tokenInput.value !== maskedToken ? tokenInput.value : null,
-                                telegram_chat_id: chatIdInput.value || null,
-                            }),
+                        removeBtn.addEventListener('click', () => {
+                            row.remove();
+                            syncTelegramAdminsPayload();
                         });
 
-                        const data = await response.json();
-                        showTestResult(data.success ? 'success' : 'error', data.message);
-                    } catch (error) {
-                        showTestResult('error', 'Failed to send test message.');
-                    } finally {
-                        sendBtn.disabled = false;
-                        sendIcon.classList.remove('hidden');
-                        loadingIcon.classList.add('hidden');
-                        buttonText.textContent = 'Send Test Message';
-                    }
-                };
+                        if (testBtn) {
+                            testBtn.addEventListener('click', async () => {
+                                const chatId = chatIdInput.value.trim();
+                                if (!chatId) {
+                                    showTestResult('error', 'Chat ID is not configured.');
+                                    return;
+                                }
 
-                function showTestResult(type, message) {
-                    const isSuccess = type === 'success';
-                    resultDiv.className = `mb-4 rounded-xl border p-4 flex items-center gap-3 ${isSuccess ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`;
-                    resultDiv.innerHTML = `
-                        <svg class="w-5 h-5 flex-shrink-0 ${isSuccess ? 'text-emerald-600' : 'text-red-600'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${isSuccess ? 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' : 'M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'}"></path>
-                        </svg>
-                        <p class="font-medium text-sm ${isSuccess ? 'text-emerald-800' : 'text-red-800'}">${message}</p>
-                        <button onclick="document.getElementById('telegram-test-result').classList.add('hidden')" class="ml-auto ${isSuccess ? 'text-emerald-600 hover:text-emerald-800' : 'text-red-600 hover:text-red-800'}">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                        </button>
-                    `;
-                    resultDiv.classList.remove('hidden');
-                }
+                                const originalLabel = testBtn.textContent.trim();
+                                testBtn.disabled = true;
+                                testBtn.textContent = 'Testing...';
+
+                                try {
+                                    const response = await fetch('{{ $isEdit ? route('dashboard.projects.send-test-message', $project) : '#' }}', {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                                            'Accept': 'application/json',
+                                        },
+                                        body: JSON.stringify({
+                                            telegram_bot_token: tokenInput.value !== maskedToken ? tokenInput.value : null,
+                                            telegram_chat_id: chatId,
+                                        }),
+                                    });
+
+                                    const data = await response.json();
+
+                                    if (data.success && (!nameInput.value.trim()) && data.chat?.name) {
+                                        nameInput.value = data.chat.name;
+                                    }
+
+                                    if (data.success && data.chat?.telegram_user_id) {
+                                        telegramUserIdInput.value = data.chat.telegram_user_id;
+                                    }
+
+                                    if (data.success && data.chat?.username) {
+                                        usernameInput.value = data.chat.username;
+                                    }
+
+                                    syncTelegramAdminsPayload();
+                                    showTestResult(data.success ? 'success' : 'error', data.message);
+                                } catch (error) {
+                                    showTestResult('error', 'Failed to send test message.');
+                                } finally {
+                                    testBtn.textContent = originalLabel;
+                                    updateTestButtonsState();
+                                }
+                            });
+                        } else if (!canTest) {
+                            const hint = document.createElement('span');
+                            hint.className = 'text-xs text-gray-400';
+                            hint.textContent = 'Save first';
+                            row.querySelector('.flex.items-center.gap-2').prepend(hint);
+                        }
+
+                        adminList.appendChild(row);
+                        syncTelegramAdminsPayload();
+                    }
+
+                    tokenInput.addEventListener('input', updateTestButtonsState);
+                    addBtn.addEventListener('click', () => createAdminRow());
+
+                    if (initialAdmins.length) {
+                        initialAdmins.forEach((admin) => createAdminRow(admin));
+                    } else {
+                        createAdminRow();
+                    }
+
+                    function showTestResult(type, message) {
+                        const isSuccess = type === 'success';
+                        resultDiv.className = `mb-4 rounded-xl border p-4 flex items-center gap-3 ${isSuccess ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`;
+                        resultDiv.innerHTML = `
+                            <svg class="w-5 h-5 flex-shrink-0 ${isSuccess ? 'text-emerald-600' : 'text-red-600'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${isSuccess ? 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' : 'M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'}"></path>
+                            </svg>
+                            <p class="font-medium text-sm ${isSuccess ? 'text-emerald-800' : 'text-red-800'}">${message}</p>
+                            <button onclick="document.getElementById('telegram-test-result').classList.add('hidden')" class="ml-auto ${isSuccess ? 'text-emerald-600 hover:text-emerald-800' : 'text-red-600 hover:text-red-800'}">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            </button>
+                        `;
+                        resultDiv.classList.remove('hidden');
+                    }
                 })();
-                @endif
             });
 
             // Color picker sync - works on both create and edit pages
@@ -984,6 +1144,8 @@ $maskedToken = $project->telegram_bot_token ? str_repeat('*', strlen($project->t
                 const chatNameInput = document.getElementById('chat_name');
                 const previewTitle = document.getElementById('widget-preview-title');
                 const domainInput = document.getElementById('domain');
+                const greetingInput = document.getElementById('greeting_message');
+                const previewGreeting = document.getElementById('widget-preview-greeting');
 
                 function updatePreviewTitle() {
                     if (!previewTitle) return;
@@ -992,15 +1154,25 @@ $maskedToken = $project->telegram_bot_token ? str_repeat('*', strlen($project->t
                     previewTitle.textContent = chatName || domain || 'Project Name';
                 }
 
+                function updatePreviewGreeting() {
+                    if (!previewGreeting) return;
+                    const greeting = greetingInput?.value?.trim();
+                    previewGreeting.textContent = greeting || 'Hello! 👋 How can we help you today?';
+                }
+
                 if (chatNameInput) {
                     chatNameInput.addEventListener('input', updatePreviewTitle);
                 }
                 if (domainInput) {
                     domainInput.addEventListener('input', updatePreviewTitle);
                 }
+                if (greetingInput) {
+                    greetingInput.addEventListener('input', updatePreviewGreeting);
+                }
 
                 // Initial update
                 updatePreviewTitle();
+                updatePreviewGreeting();
             })();
             @endif
         </script>

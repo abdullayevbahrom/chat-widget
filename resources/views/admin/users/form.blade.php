@@ -19,6 +19,9 @@
                 <div class="mb-5"><label class="block text-sm font-semibold text-gray-700 mb-2">Email</label><input
                         type="email" name="email" value="{{ old('email', $user->email ?? '') }}"
                         class="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50" required></div>
+                <div class="mb-5"><label class="block text-sm font-semibold text-gray-700 mb-2">Telegram User ID</label><input
+                        type="text" name="telegram_user_id" value="{{ old('telegram_user_id', $user->telegram_user_id ?? '') }}"
+                        class="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50"></div>
                 <div class="mb-5"><label
                         class="block text-sm font-semibold text-gray-700 mb-2">{{ $user ? 'New Password (leave empty to keep)' : 'Password' }}</label><input
                         type="password" name="password"

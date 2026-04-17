@@ -10,7 +10,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 
 class WidgetBootstrapController extends Controller
 {
@@ -135,9 +134,11 @@ class WidgetBootstrapController extends Controller
                     'width' => $project->getWidgetSetting('width', 360),
                     'height' => $project->getWidgetSetting('height', 520),
                     'primary_color' => $project->getWidgetSetting('primary_color', '#6366f1'),
+                    'privacy_policy_url' => $project->getWidgetSetting('privacy_policy_url', ''),
                 ],
                 'conversation_id' => $conversation->public_id,
                 'visitor_id' => $visitor?->public_id,
+                'visitor_name' => $visitor?->name,
                 'messages' => $messages,
                 'websocket' => [
                     'enabled' => config('broadcasting.default') === 'reverb',
