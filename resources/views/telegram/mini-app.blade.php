@@ -47,7 +47,7 @@
                     <div id="messages-list" class="max-h-[60vh] space-y-3 overflow-y-auto p-4">
                         @foreach($messages as $message)
                                                 @php
-                            $isAgent = $message->sender instanceof \App\Models\User || $message->sender instanceof \App\Models\Tenant;
+        $isAgent = $message->sender instanceof \App\Models\User || $message->sender instanceof \App\Models\Tenant;
                                                 @endphp
                                                 <div class="flex {{ $isAgent ? 'justify-end' : 'justify-start' }}"
                                                     data-message-id="{{ $message->public_id ?? $message->id }}">
@@ -87,7 +87,15 @@
             </div>
         </div>
     </div>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script>
+        const tg = window.Telegram?.WebApp;
 
+        if (tg) {
+            tg.ready();
+            tg.expand();
+        }
+    </script>
     @if($conversation)
         <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
         <script type="module">

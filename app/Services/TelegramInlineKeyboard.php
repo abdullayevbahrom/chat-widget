@@ -35,7 +35,10 @@ class TelegramInlineKeyboard
                 [
                     [
                         'text' => '💬 Reply',
-                        'url' => self::buildMiniAppUrl($conversation, $project),
+                        // 'url' => self::buildMiniAppUrl($conversation, $project),
+                        'web_app' => [
+                            'url' => self::buildMiniAppUrl($conversation, $project),
+                        ],
                     ],
                     [
                         'text' => '🔒 Close',
@@ -92,7 +95,10 @@ class TelegramInlineKeyboard
                 [
                     [
                         'text' => '💬 Reply',
-                        'url' => self::buildMiniAppUrl($conversation, $project),
+                        // 'url' => self::buildMiniAppUrl($conversation, $project),
+                        'web_app' => [
+                            'url' => self::buildMiniAppUrl($conversation, $project),
+                        ],
                     ],
                     [
                         'text' => '🔒 Close',
